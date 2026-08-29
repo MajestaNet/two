@@ -1,0 +1,29 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Architectural provider shape from docs/architecture.md §6.3.C.
+# Contract-test against a pinned DeepSeek Harness release before use.
+# Replace the baseURL hostname with your private-network name. Do not commit
+# a real LAN address here.
+
+llm-pi-ai:
+  providers:
+    mac-qwen:
+      displayName: Mac mini Qwen 3.8
+      apiKeyEnv: MAC_QWEN_API_KEY
+      api: openai-completions
+      baseURL: http://mac-inference.internal:11434/v1
+      compat:
+        supportsDeveloperRole: false
+      models:
+        - id: qwen38-agent-16k
+          name: Qwen 3.8 27B Local 16K
+          contextWindow: 16384
+          maxTokens: 8192
+          input: [text]
+          reasoningEfforts:
+            off: none
+            low: low
+            medium: medium
+            high: high
+            max: max

@@ -1,0 +1,26 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Fixture repository profile. Machine-readable validation commands.
+# AGENTS.md is model guidance only and is not the sole source of gates.
+
+id: example-service
+display_name: Example service
+language: python
+validation_profile: standard
+allowed_paths:
+  - src/**
+  - tests/**
+forbidden_paths:
+  - .env
+  - secrets/**
+commands:
+  format: make fmt
+  lint: make lint
+  typecheck: make typecheck
+  test: make test
+  build: null
+secret_scan: true
+network:
+  allow_package_downloads: true
+  allow_external_mutations: false

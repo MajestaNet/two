@@ -1,0 +1,26 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Record promoted runtime identities here after soak tests.
+# Copy to models.lock on the development host. Do not invent digests.
+
+ollama_version: ""
+upstream_model: qwen3.8:27b-mlx
+upstream_digest: ""
+alias: qwen38-agent-16k
+alias_digest: ""
+context_window: 16384
+kv_cache: q8_0
+flash_attention: true
+sampling:
+  thinking:
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 20
+    min_p: 0.0
+  non_thinking:
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 20
+deepseek_harness_version: ""
+notes: "Fill after Phase 1/2 evaluation. See docs/architecture.md §6.1 and §18."
