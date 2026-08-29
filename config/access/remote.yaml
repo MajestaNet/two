@@ -1,0 +1,20 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# How clients reach DevFlow. See docs/remote-access.md and ADR 0005.
+# Placeholders only.
+
+api:
+  default_bind: "127.0.0.1"
+  default_port: 8741
+  allow_public_bind: false
+  overlay_interface_example: tailscale0
+
+slack:
+  mode: socket
+  inbound_http_callbacks: false
+  require_allowlists: true
+
+ollama:
+  publish_to_clients: false
+  bind_public_interface: false
