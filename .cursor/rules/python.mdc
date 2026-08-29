@@ -1,0 +1,11 @@
+---
+description: Python conventions for the DevFlow package.
+globs: src/**/*.py
+---
+
+- Python 3.12, Pydantic v2, src layout.
+- No I/O in `types.py` or `manifest.py`.
+- SQLite only in `devflow.store`.
+- Strict typing. Run `make typecheck` after edits.
+- Apache 2.0 header and `SPDX-License-Identifier: Apache-2.0` on new files.
+- Do not add runtime dependencies without an ADR or explicit human approval.

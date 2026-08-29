@@ -1,0 +1,36 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Self-profile for this repository. DevFlow will execute these commands later.
+# AGENTS.md remains human/agent guidance only.
+
+id: devflow
+display_name: DevFlow implementation repository
+language: python
+validation_profile: standard
+allowed_paths:
+  - src/**
+  - tests/**
+  - config/**
+  - scripts/**
+  - docs/**
+  - AGENTS.md
+  - CLAUDE.md
+  - Makefile
+  - pyproject.toml
+forbidden_paths:
+  - .env
+  - var/**
+  - data/**
+  - models/**
+  - evals/workspaces/**
+commands:
+  format: make fmt
+  lint: make lint
+  typecheck: make typecheck
+  test: make test
+  ci: make ci
+secret_scan: true
+network:
+  allow_package_downloads: true
+  allow_external_mutations: false

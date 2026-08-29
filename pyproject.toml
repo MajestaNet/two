@@ -1,0 +1,53 @@
+[project]
+name = "devflow"
+version = "0.1.0"
+description = "Durable control plane for local Qwen-backed software-development agents."
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{ name = "MajestaNet" }]
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+]
+
+[project.scripts]
+devflow = "devflow.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/MajestaNet/two"
+Repository = "https://github.com/MajestaNet/two"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14",
+    "pyyaml>=6",
+    "pytest>=8",
+    "pytest-cov>=6",
+    "ruff>=0.9",
+    "types-pyyaml>=6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+# Editable installs must put src/ on sys.path so `import devflow` works.
+dev-mode-dirs = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/devflow"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-q", "--strict-markers"]

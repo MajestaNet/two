@@ -1,0 +1,7 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Empty DeepSeek Harness profile patch. Phase 2 will add workspace-write
+# sandboxing, compaction thresholds, and serialized local-subagent policy.
+
+patches: []
