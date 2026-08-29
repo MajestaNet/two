@@ -1,0 +1,40 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Slack app manifest template. Socket Mode only — no public inbound endpoint.
+# Replace display names. Do not commit workspace IDs, channel IDs, or tokens.
+
+display_information:
+  name: DevFlow
+  description: Durable local development-agent control surface
+  background_color: "#111111"
+
+features:
+  bot_user:
+    display_name: DevFlow
+    always_online: false
+  app_home:
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+
+oauth_config:
+  scopes:
+    bot:
+      - channels:history
+      - channels:read
+      - chat:write
+      - groups:history
+      - im:history
+      - im:write
+      - app_mentions:read
+      - commands
+
+settings:
+  socket_mode_enabled: true
+  org_deploy_enabled: false
+  token_rotation_enabled: true
+  event_subscriptions:
+    bot_events:
+      - app_mention
+      - message.im
+      - message.channels

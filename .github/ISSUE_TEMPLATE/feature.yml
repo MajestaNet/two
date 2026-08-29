@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a change that fits the architecture
+labels: [enhancement]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should DevFlow do?
+    validations:
+      required: true
+  - type: textarea
+    id: architecture
+    attributes:
+      label: Architecture fit
+      description: Which section of docs/architecture.md does this implement or change? If it changes the spec, an ADR will be required.
+    validations:
+      required: true
+  - type: checkboxes
+    id: non-goals
+    attributes:
+      label: Confirm these remain out of MVP scope unless you are proposing an ADR
+      options:
+        - label: No public exposure of the inference API or DevFlow API
+        - label: No automatic merge, push, release, or production deploy
+        - label: No vector database unless retrieval evaluations require one

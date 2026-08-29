@@ -1,0 +1,49 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Default controller policy. See docs/architecture.md §6.3.G, §9, and §15.
+
+budgets:
+  standard:
+    active_time_minutes: 90
+    max_model_turns: 8
+    max_repair_cycles: 3
+    no_progress_limit: 2
+  overnight:
+    active_time_minutes: 480
+    max_model_turns: 30
+    max_repair_cycles: 6
+    no_progress_limit: 2
+
+forbidden_actions:
+  - merge
+  - push
+  - release
+  - deploy
+  - apply_infrastructure
+  - apply_migration
+  - publish_package
+  - send_email
+  - update_tickets
+
+approvals_required:
+  - dependency_lock_change
+  - database_migration
+  - infrastructure_change
+  - generated_large_diff
+
+cloud:
+  default_allowed: false
+
+channel_output:
+  allow:
+    - objective
+    - high_level_progress
+    - test_summaries
+    - diff_statistics
+  suppress:
+    - secrets
+    - environment_values
+    - raw_trajectories
+    - large_source_excerpts
+    - verbose_logs

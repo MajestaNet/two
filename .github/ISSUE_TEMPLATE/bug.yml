@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a defect in DevFlow or the scaffold
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include secrets, tokens, private hostnames, or model weights.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands. Redact credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: git rev-parse HEAD
