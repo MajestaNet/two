@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Proposed architecture for implementation |
-| Version | 0.2 |
+| Version | 0.3 |
 | Date | 29 August 2026 |
-| Primary model | Official Qwen3.8-27B post-trained model, 4-bit runtime representation |
-| Inference host | Apple Mac mini M4, 24 GB unified memory |
+| Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
+| Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
 | Development host | Separate Linux VM or development workstation |
 
@@ -29,7 +29,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 
 ### 2.1 Functional goals
 
-1. Serve the official Qwen3.8-27B model continuously from the existing 24 GB M4 Mac mini.
+1. Serve an official Qwen3.8 model continuously from an Apple Silicon Mac. The default profile targets 24 GB unified memory; larger hosts may select a larger context or official checkpoint.
 2. Give DeepSeek Harness reliable access to model thinking, streaming, and function/tool calling.
 3. Let the harness autonomously inspect and modify software in isolated git worktrees.
 4. Support large repositories through repository discovery, lexical search, symbol navigation, bounded code excerpts, task memory, and context compaction.
@@ -75,7 +75,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 
 ## 4. Assumptions
 
-1. “Original Qwen3.8-27B” means the official post-trained Qwen model rather than an abliterated, uncensored, merged, or task-specific derivative. A 4-bit runtime representation is required to fit the 24 GB host.
+1. “Original Qwen3.8-27B” means the official post-trained Qwen model rather than an abliterated, uncensored, merged, or task-specific derivative. The default 24 GB profile requires a 4-bit runtime representation. Larger unified memory may use a higher-quality official quant or a larger official Qwen tag after soak tests. One local model remains loaded at a time.
 2. The Mac and development host can reach each other over a trusted private LAN or private overlay network.
 3. The private network is the inference API trust boundary. No application API key, reverse proxy, or TLS termination is required for the MVP.
 4. The development host is either:
@@ -194,9 +194,13 @@ OLLAMA_NO_CLOUD=1
 
 The service binds only to the trusted private-network address. It does not bind to a publicly routed interface.
 
+#### Hardware profiles
+
+24 GB / 16K is the **default reference profile**, not a product constraint. Named profiles live in `config/inference/profiles.yaml` and are listed by `devflow profiles`. Operators with 36 GB, 48 GB, or 64 GB+ unified memory may select a larger context or a larger official Qwen tag. Changing the *repository default* is an ADR; selecting a non-default profile on one host is configuration. See ADR 0004.
+
 #### Capacity-expansion profile
 
-A `qwen38-agent-32k` alias may be evaluated after the 16K profile passes soak testing. It is not an MVP default. Promotion requires:
+A `qwen38-agent-32k` alias (`m24-qwen38-32k` or `m36-qwen38-32k`) may be evaluated after the 16K profile passes soak testing. It is not the repository default. Promotion requires:
 
 - green macOS memory pressure under representative multi-turn tasks;
 - no sustained growth in swap-outs;
@@ -737,7 +741,7 @@ Recommended processes:
 - SQLite task state;
 - lightweight health poller for the Mac endpoint.
 
-The API, scheduler, worker, and enabled channel adapters run under `systemd` or the development host’s equivalent service manager with automatic restart and bounded restart backoff. The worker count for the local Qwen route is one.
+The API, scheduler, worker, and enabled channel adapters run under `systemd` or the development host’s equivalent service manager with automatic restart and bounded restart backoff. On a dedicated Linux host, Docker Compose (`deploy/compose`) is the recommended packaging for those processes; a full VM is optional extra isolation. Ollama stays native on the Mac. The worker count for the local Qwen route is one. Slack from a phone uses Socket Mode (outbound only). CLI/web from another network uses a private overlay, not a public bind. See ADR 0005 and `docs/remote-access.md`.
 
 ### 12.3 Health states
 
@@ -969,15 +973,24 @@ qwen-local-dev-agent/
 ├── .env.example
 ├── Makefile
 ├── docs/
+│   ├── setup.md
+│   ├── remote-access.md
 │   ├── architecture.md
 │   ├── operations.md
 │   ├── unattended-operations.md
 │   ├── interaction-contract.md
 │   ├── task-manifest.md
 │   └── adrs/
+├── deploy/
+│   └── compose/
 ├── config/
+│   ├── inference/
+│   │   └── profiles.yaml
+│   ├── access/
+│   │   └── remote.yaml
 │   ├── mac/
 │   │   ├── Modelfile.16k
+│   │   ├── Modelfile.32k
 │   │   └── ollama.launchd.plist.template
 │   ├── dsh/
 │   │   ├── settings.yaml.template

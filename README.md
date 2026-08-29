@@ -12,22 +12,28 @@ Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attri
 
 ## Documentation
 
-The canonical specification is [docs/architecture.md](docs/architecture.md).
+Start with the living [setup guide](docs/setup.md). The canonical specification is [docs/architecture.md](docs/architecture.md).
 
+- [Setup](docs/setup.md) — keep this current as the product grows
+- [Remote access](docs/remote-access.md) — Slack from a phone; Tailscale for CLI/web
+- [Viability review](docs/viability.md)
 - [Operations](docs/operations.md)
 - [Unattended operations](docs/unattended-operations.md)
 - [Interaction contract](docs/interaction-contract.md)
 - [Task manifest](docs/task-manifest.md)
 - [Public-repo hygiene](docs/public-repo.md)
 
+24 GB unified memory is the **default inference profile**, not a hard limit. Run `uv run devflow profiles` or see `config/inference/profiles.yaml`.
+
 ## Install and test
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). Full operator steps are in [docs/setup.md](docs/setup.md).
 
 ```bash
 uv sync --dev
 make ci
 uv run devflow --help
+uv run devflow profiles
 ```
 
 `make ci` is the single command that must stay green. Coding-agent instructions live in [AGENTS.md](AGENTS.md).

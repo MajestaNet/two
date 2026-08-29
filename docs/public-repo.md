@@ -8,6 +8,7 @@ This repository is intended to be public under Apache License 2.0.
 - `NOTICE` — MajestaNet attribution
 - `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`
 - `AGENTS.md` and nested agent files
+- `docs/setup.md` (living operator guide)
 - `uv.lock`
 
 ## Must never be published

@@ -1,0 +1,20 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Linux development-host packaging. The Mac inference node stays native.
+# Do not publish 11434 or 8741 on a public interface.
+# api / scheduler / worker / slack services land in Phase 5.
+
+name: devflow
+
+services:
+  devflow:
+    build:
+      context: ../..
+      dockerfile: deploy/compose/Dockerfile
+    environment:
+      DEVFLOW_INFERENCE_PROFILE: ${DEVFLOW_INFERENCE_PROFILE:-m24-qwen38-16k}
+    volumes:
+      - ../../config:/app/config:ro
+    # No ports: CLI only until the control API exists.
+    profiles: []
