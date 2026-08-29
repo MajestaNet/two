@@ -1,0 +1,13 @@
+version = 1
+
+SPDX-PackageName = "devflow"
+SPDX-PackageSupplier = "MajestaNet"
+SPDX-PackageDownloadLocation = "https://github.com/MajestaNet/two"
+
+[[annotations]]
+path = [
+    "LICENSE",
+    "NOTICE",
+]
+SPDX-FileCopyrightText = "Copyright 2026 MajestaNet"
+SPDX-License-Identifier = "Apache-2.0"
