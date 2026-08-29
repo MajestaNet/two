@@ -69,3 +69,14 @@ class OnHumanInputRequired(StrEnum):
 
     PAUSE = "pause"
     BLOCK = "block"
+
+
+class InferenceProfileId(StrEnum):
+    """Named Mac/Ollama profiles. 24 GB / 16K is the default, not a ceiling."""
+
+    M24_QWEN38_16K = "m24-qwen38-16k"
+    M24_QWEN38_32K = "m24-qwen38-32k"
+    M36_QWEN38_32K = "m36-qwen38-32k"
+    M48_QWEN38_64K = "m48-qwen38-64k"
+    M64_QWEN38_PLUS = "m64-qwen38-plus"
+    CUSTOM = "custom"

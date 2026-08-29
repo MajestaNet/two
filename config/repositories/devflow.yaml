@@ -14,6 +14,7 @@ allowed_paths:
   - config/**
   - scripts/**
   - docs/**
+  - deploy/**
   - AGENTS.md
   - CLAUDE.md
   - Makefile
