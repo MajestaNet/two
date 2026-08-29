@@ -1,0 +1,15 @@
+# Copyright 2026 MajestaNet
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Optional alias: qwen38-agent-32k
+# Not the default. Soak on the target Mac before unattended use.
+
+FROM qwen3.8:27b-mlx
+PARAMETER num_ctx 32768

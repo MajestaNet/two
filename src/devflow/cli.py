@@ -22,6 +22,7 @@ import argparse
 import sys
 
 from devflow import __version__
+from devflow.profiles import format_catalog, load_catalog
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +37,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("version", help="Print the package version")
+    subparsers.add_parser(
+        "profiles",
+        help="List inference hardware profiles (24 GB / 16K is the default)",
+    )
     return parser
 
 
@@ -44,6 +49,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "version":
         print(__version__)
+        return 0
+    if args.command == "profiles":
+        print(format_catalog(load_catalog()))
         return 0
     if args.command is None:
         parser.print_help()

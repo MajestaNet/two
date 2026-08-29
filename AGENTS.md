@@ -22,6 +22,7 @@ make typecheck
 make test
 make ci
 uv run devflow --help
+uv run devflow profiles
 ```
 
 `make ci` is the required gate. Validation commands for this repo are also
@@ -34,6 +35,8 @@ listed in `config/repositories/devflow.yaml`.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — operational stubs until later phases.
 - `docs/` — architecture and ADRs. `docs/architecture.md` is canonical.
+  `docs/setup.md` is the living operator guide.
+- `deploy/compose/` — Linux control-plane packaging. No Ollama image.
 - `evals/` — future evaluation corpus. No production repository clones.
 
 ## Conventions
@@ -53,6 +56,8 @@ listed in `config/repositories/devflow.yaml`.
 - Treat worktree isolation as the design (implement it when that phase lands).
 - Add or update deterministic tests for code you change.
 - Update this file in the same PR as command or layout changes.
+- Update `docs/setup.md` (and its status table) when install, topology,
+  profiles, or ports change.
 - Keep `LICENSE` and `NOTICE` in the tree.
 
 ### Ask first
@@ -61,7 +66,7 @@ listed in `config/repositories/devflow.yaml`.
 - Cloud provider or paid-model route
 - Slack scope changes
 - Task-manifest field changes
-- Expanding the model context window
+- Changing the *default* inference profile (per-host profile selection is fine)
 - Adding a vector database
 
 ### Never

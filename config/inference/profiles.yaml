@@ -1,0 +1,72 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Named inference profiles. 24 GB / 16K is the default reference, not a ceiling.
+# Larger context or a larger official Qwen tag is configuration plus soak tests.
+# See docs/adrs/0004-inference-profiles.md and docs/setup.md.
+
+default: m24-qwen38-16k
+
+profiles:
+  m24-qwen38-16k:
+    min_unified_memory_gb: 24
+    recommended_unified_memory_gb: 24
+    upstream_model: qwen3.8:27b-mlx
+    alias: qwen38-agent-16k
+    num_ctx: 16384
+    kv_cache: q8_0
+    flash_attention: true
+    notes: Default 24/7 profile on a 24 GB Mac. Conservative KV and context.
+
+  m24-qwen38-32k:
+    min_unified_memory_gb: 24
+    recommended_unified_memory_gb: 24
+    upstream_model: qwen3.8:27b-mlx
+    alias: qwen38-agent-32k
+    num_ctx: 32768
+    kv_cache: q8_0
+    flash_attention: true
+    notes: Same 24 GB host, 32K window. Soak before using unattended.
+
+  m36-qwen38-32k:
+    min_unified_memory_gb: 36
+    recommended_unified_memory_gb: 36
+    upstream_model: qwen3.8:27b-mlx
+    alias: qwen38-agent-32k
+    num_ctx: 32768
+    kv_cache: q8_0
+    flash_attention: true
+    notes: Comfortable 32K on a larger Mac. Still one loaded model.
+
+  m48-qwen38-64k:
+    min_unified_memory_gb: 48
+    recommended_unified_memory_gb: 48
+    upstream_model: qwen3.8:27b-mlx
+    alias: qwen38-agent-64k
+    num_ctx: 65536
+    kv_cache: q8_0
+    flash_attention: true
+    notes: Starting point only. Measure page-outs and tool-call stability.
+
+  m64-qwen38-plus:
+    min_unified_memory_gb: 64
+    recommended_unified_memory_gb: 64
+    upstream_model: qwen3.8:27b-mlx
+    alias: qwen38-agent-plus
+    num_ctx: 65536
+    kv_cache: q8_0
+    flash_attention: true
+    notes: >-
+      Operator may switch upstream_model to a higher-quality official quant
+      or a larger official Qwen tag that fits. Pin the digest after soak.
+      Do not load a second model.
+
+  custom:
+    min_unified_memory_gb: 24
+    recommended_unified_memory_gb: 24
+    upstream_model: qwen3.8:27b-mlx
+    alias: qwen38-agent-custom
+    num_ctx: 16384
+    kv_cache: q8_0
+    flash_attention: true
+    notes: Operator-defined. Keep official weights. Document the digest in models.lock.
