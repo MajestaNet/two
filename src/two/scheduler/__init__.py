@@ -16,5 +16,59 @@
 
 """Queue, single local-model slot, lease reclaim, and Mac health polls.
 
-Not implemented in the foundation scaffold. See docs/architecture.md §6.3.G.
+Worker count for the local Qwen route is one. The scheduler does not run
+ACP, import Slack, or contain git worktree logic. Inject a health probe
+and a worker callback; unit tests must stay offline.
+
+See docs/architecture.md §6.3.G and §12.2–12.5.
 """
+
+from two.scheduler.config import (
+    DEFAULT_WORKER_ID,
+    HEARTBEAT_INTERVAL_SECONDS,
+    LEASE_TTL_SECONDS,
+    LOCAL_SLOT_COUNT,
+    PROFILE_ACTIVE_TIME_MINUTES,
+    RETRY_BASE_SECONDS,
+    RETRY_MAX_ATTEMPTS,
+    RETRY_MAX_SECONDS,
+    RETRY_MULTIPLIER,
+    TRANSIENT_ERROR_CLASSES,
+    SchedulerConfig,
+    active_budget_ms,
+    retry_delay_seconds,
+)
+from two.scheduler.errors import SchedulerError
+from two.scheduler.models import (
+    HealthProbe,
+    StartResult,
+    TickResult,
+    WorkerCallback,
+    WorkerOutcome,
+    WorkerResult,
+)
+from two.scheduler.scheduler import Scheduler
+
+__all__ = [
+    "DEFAULT_WORKER_ID",
+    "HEARTBEAT_INTERVAL_SECONDS",
+    "LEASE_TTL_SECONDS",
+    "LOCAL_SLOT_COUNT",
+    "PROFILE_ACTIVE_TIME_MINUTES",
+    "RETRY_BASE_SECONDS",
+    "RETRY_MAX_ATTEMPTS",
+    "RETRY_MAX_SECONDS",
+    "RETRY_MULTIPLIER",
+    "TRANSIENT_ERROR_CLASSES",
+    "HealthProbe",
+    "Scheduler",
+    "SchedulerConfig",
+    "SchedulerError",
+    "StartResult",
+    "TickResult",
+    "WorkerCallback",
+    "WorkerOutcome",
+    "WorkerResult",
+    "active_budget_ms",
+    "retry_delay_seconds",
+]

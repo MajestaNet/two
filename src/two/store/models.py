@@ -58,6 +58,10 @@ class TaskRecord:
     cloud_allowed: bool
     created_at: datetime
     updated_at: datetime
+    next_attempt_at: datetime | None = None
+    retry_count: int = 0
+    active_elapsed_ms: int = 0
+    active_started_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

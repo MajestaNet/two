@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
 import re
 import sqlite3
 from collections.abc import Iterator
@@ -125,6 +126,10 @@ def test_insert_task_commits_before_return(db_path: Path) -> None:
         assert record.execution_profile is ExecutionProfile.OVERNIGHT
         assert record.time_budget_minutes == 480
         assert record.cloud_allowed is False
+        assert record.retry_count == 0
+        assert record.next_attempt_at is None
+        assert record.active_elapsed_ms == 0
+        assert record.active_started_at is None
     with open_store(db_path) as reopened:
         loaded = reopened.get_task("task-123")
         assert loaded is not None
@@ -238,6 +243,81 @@ def test_unexpired_lease_not_reclaimed(store: Store) -> None:
     remaining = store.get_lease("task-123")
     assert remaining is not None
     assert remaining.worker_id == "worker-a"
+
+
+def test_release_lease_owned_only(store: Store) -> None:
+    store.insert_task(_manifest(), now=T0)
+    assert store.release_lease("task-123", "worker-a") is False
+    store.obtain_lease("task-123", "worker-a", ttl_seconds=60, now=T0)
+    assert store.release_lease("task-123", "worker-b") is False
+    assert store.get_lease("task-123") is not None
+    assert store.release_lease("task-123", "worker-a") is True
+    assert store.get_lease("task-123") is None
+
+
+def test_schema_v2_migrates_next_attempt_columns(tmp_path: Path) -> None:
+    from two.store.engine import connect
+    from two.store.schema import MIGRATIONS, current_schema_version
+
+    path = tmp_path / "legacy.sqlite"
+    connection = connect(path)
+    try:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY NOT NULL,
+                applied_at TEXT NOT NULL
+            )
+            """
+        )
+        version, statements = MIGRATIONS[0]
+        assert version == 1
+        for statement in statements:
+            connection.execute(statement)
+        connection.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (1, "2026-08-30T12:00:00.000000Z"),
+        )
+        payload = json.dumps(_manifest().model_dump(mode="json"), sort_keys=True)
+        connection.execute(
+            """
+            INSERT INTO tasks (
+                id, repository, base_ref, objective, manifest_json,
+                lifecycle, stage, mode, execution_profile,
+                worktree_path, branch, base_commit,
+                time_budget_minutes, max_model_turns, max_repair_cycles,
+                no_progress_limit, cloud_allowed, created_at, updated_at
+            ) VALUES (
+                'task-123', 'example-service', 'origin/main', 'obj',
+                ?, 'queued', 'intake', 'unattended', 'overnight',
+                '/tmp/wt', 'agent/task-123', 'abc', 480, 30, 6, 2, 0, ?, ?
+            )
+            """,
+            (payload, "2026-08-30T12:00:00.000000Z", "2026-08-30T12:00:00.000000Z"),
+        )
+        connection.commit()
+        assert current_schema_version(connection) == 1
+    finally:
+        connection.close()
+
+    with open_store(path) as opened:
+        assert opened.schema_version() == SCHEMA_VERSION
+        assert SCHEMA_VERSION == 2
+        loaded = opened.get_task("task-123")
+        assert loaded is not None
+        assert loaded.worktree_path == "/tmp/wt"
+        assert loaded.next_attempt_at is None
+        assert loaded.retry_count == 0
+        assert loaded.active_elapsed_ms == 0
+        updated = opened.update_task(
+            "task-123",
+            next_attempt_at=T0 + timedelta(seconds=4),
+            set_next_attempt_at=True,
+            retry_count=1,
+            now=T0,
+        )
+        assert updated.retry_count == 1
+        assert updated.next_attempt_at == T0 + timedelta(seconds=4)
 
 
 def test_obtain_lease_refuses_unexpired(store: Store) -> None:

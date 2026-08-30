@@ -22,7 +22,9 @@ returns. ``insert_task`` commits before return (architecture §6.4).
 
 The public API never UPDATE/DELETE ``events`` rows. Sequence numbers are
 monotonic per task. The store does not enforce the single local-model slot
-(that is B08); it only inserts, heartbeats, and reclaims expired leases.
+(that is B08); it only inserts, heartbeats, reclaims expired leases, and
+releases a lease when the scheduler drops the slot. Schema v2 adds
+``next_attempt_at``, ``retry_count``, and active-time clock columns.
 """
 
 from __future__ import annotations
@@ -209,12 +211,19 @@ class Store:
         set_worktree_path: bool = False,
         set_branch: bool = False,
         set_base_commit: bool = False,
+        next_attempt_at: datetime | None = None,
+        set_next_attempt_at: bool = False,
+        retry_count: int | None = None,
+        active_elapsed_ms: int | None = None,
+        active_started_at: datetime | None = None,
+        set_active_started_at: bool = False,
         now: datetime | None = None,
     ) -> TaskRecord:
         """Update selected task fields and commit before returning.
 
         Nullable worktree fields are only written when the matching ``set_*``
         flag is true, so ``None`` can mean “clear” without clearing by accident.
+        The same applies to ``next_attempt_at`` and ``active_started_at``.
         """
         assignments: list[str] = []
         values: list[object] = []
@@ -233,6 +242,22 @@ class Store:
         if set_base_commit:
             assignments.append("base_commit = ?")
             values.append(base_commit)
+        if set_next_attempt_at:
+            assignments.append("next_attempt_at = ?")
+            values.append(_iso(next_attempt_at) if next_attempt_at is not None else None)
+        if retry_count is not None:
+            if retry_count < 0:
+                raise StoreError("retry_count must be non-negative")
+            assignments.append("retry_count = ?")
+            values.append(retry_count)
+        if active_elapsed_ms is not None:
+            if active_elapsed_ms < 0:
+                raise StoreError("active_elapsed_ms must be non-negative")
+            assignments.append("active_elapsed_ms = ?")
+            values.append(active_elapsed_ms)
+        if set_active_started_at:
+            assignments.append("active_started_at = ?")
+            values.append(_iso(active_started_at) if active_started_at is not None else None)
         if not assignments:
             raise StoreError("update_task requires at least one field")
         assignments.append("updated_at = ?")
@@ -399,6 +424,26 @@ class Store:
                     (stamp,),
                 )
         return ids
+
+    def release_lease(self, task_id: str, worker_id: str) -> bool:
+        """Delete a lease owned by ``worker_id``. Commits. Returns True if deleted.
+
+        Used when the scheduler releases the local-model slot (``awaiting_input``,
+        ``paused``, ``blocked``, ``retry_wait``, or a terminal state). Does not
+        delete another worker's lease.
+        """
+        _require_worker(worker_id)
+        with self._txn():
+            existing = self._lease_row(task_id)
+            if existing is None:
+                return False
+            if str(existing["worker_id"]) != worker_id:
+                return False
+            self._connection.execute(
+                "DELETE FROM leases WHERE task_id = ? AND worker_id = ?",
+                (task_id, worker_id),
+            )
+        return True
 
     def get_lease(self, task_id: str) -> LeaseRecord | None:
         """Return the lease for ``task_id``, or ``None``."""
@@ -810,6 +855,18 @@ def _task_from_row(row: sqlite3.Row) -> TaskRecord:
         cloud_allowed=cloud_allowed,
         created_at=_parse_time(_as_str(row["created_at"], "created_at")),
         updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
+        next_attempt_at=(
+            _parse_time(_as_str(row["next_attempt_at"], "next_attempt_at"))
+            if row["next_attempt_at"] is not None
+            else None
+        ),
+        retry_count=_as_int(row["retry_count"], "retry_count"),
+        active_elapsed_ms=_as_int(row["active_elapsed_ms"], "active_elapsed_ms"),
+        active_started_at=(
+            _parse_time(_as_str(row["active_started_at"], "active_started_at"))
+            if row["active_started_at"] is not None
+            else None
+        ),
     )
 
 

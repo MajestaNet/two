@@ -17,6 +17,9 @@ Python package for the Majesta Two control plane.
 - `api/` maps HTTP to `two.store`. It must not import `two.workspace` git
   operations, `two.channels.slack`, or an Ollama client. Bind loopback or
   a Unix socket by default (ADR 0010).
+- `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
+  budgets clock, and Mac health mapping. Inject a health probe and worker
+  callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Slack is
   the MVP adapter only.
 - `validation/` loads `config/repositories/*.yaml` and
