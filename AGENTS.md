@@ -33,9 +33,13 @@ listed in `config/repositories/two.yaml`.
 ## Layout
 
 - `src/two/` — Python only. Package implementations live here.
+  `src/two/runtime/` holds the Mac lock file, Ollama env/bind policy,
+  launchd rendering, and health classification.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
-- `scripts/` — operational stubs until later phases.
+- `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
+  `soak-inference.sh` implement Phase 1 dry-run/live Mac helpers. Other
+  phase scripts remain stubs.
 - `docs/` — architecture and ADRs. `docs/architecture.md` is canonical.
   `docs/setup.md` is the living operator guide. `docs/backlog/` is the
   implementation tracker (one item per file; agent prompts at the end).

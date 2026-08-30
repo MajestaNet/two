@@ -12,7 +12,8 @@ Use this page as an index, not a second spec:
 - Timeouts and retries — §12.4
 - Messaging adapters (Slack MVP) — §12.6 and [channels.md](channels.md)
 
-Runtime templates live under `config/mac/` and `config/dsh/`. The bootstrap
-scripts in `scripts/` are Phase 1/5 stubs and exit 2 until backlog items
-[B01](backlog/B01-mac-inference-appliance.md) and
-[B12](backlog/B12-dev-host-services.md) land.
+Runtime templates live under `config/mac/` and `config/dsh/`. Mac bootstrap,
+health-check, and soak helpers are `scripts/bootstrap-mac.sh`,
+`scripts/health-check.sh`, and `scripts/soak-inference.sh` (backlog
+[B01](backlog/B01-mac-inference-appliance.md)). Development-host bootstrap
+remains a Phase 5 stub until [B12](backlog/B12-dev-host-services.md).
