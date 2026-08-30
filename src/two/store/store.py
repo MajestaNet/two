@@ -113,6 +113,20 @@ class Store:
             return SCHEMA_VERSION
         return version
 
+    def verify(self) -> int:
+        """Confirm WAL integrity and a migrated schema. Raises ``StoreError``.
+
+        Architecture §12.5 step 1 (open and verify SQLite). Does not mutate rows.
+        """
+        row = self._connection.execute("PRAGMA integrity_check").fetchone()
+        result = str(row[0]) if row is not None else ""
+        if result.lower() != "ok":
+            raise StoreError(f"sqlite integrity_check failed: {result}")
+        version = self.schema_version()
+        if version < 1:
+            raise StoreError(f"invalid schema version {version}")
+        return version
+
     def insert_task(
         self,
         manifest: TaskManifest,

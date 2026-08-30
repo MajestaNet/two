@@ -58,6 +58,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Unix socket path (overrides host/port)",
     )
+    subparsers.add_parser(
+        "scheduler",
+        help="Run the durable scheduler (startup recovery, then tick loop)",
+    )
+    subparsers.add_parser(
+        "worker",
+        help="Run the ACP worker (poll SQLite for a leased running task)",
+    )
     return parser
 
 
@@ -77,6 +85,14 @@ def main(argv: list[str] | None = None) -> int:
         from two.api.server import serve
 
         return serve(bind=args.bind, port=args.port, socket=args.socket)
+    if args.command == "scheduler":
+        from two.recovery.boot import run_scheduler
+
+        return run_scheduler()
+    if args.command == "worker":
+        from two.recovery.boot import run_worker
+
+        return run_worker()
     if args.command is None:
         parser.print_help()
         return 0

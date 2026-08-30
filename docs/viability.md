@@ -18,7 +18,7 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 ## What actually works
 
 - Clone, `uv sync --dev`, `make ci`, `two --help`, `two profiles`,
-  `two topology`
+  `two topology`, `two api`, `two scheduler`, `two worker`
 - Apache 2.0, ignore rules, AGENTS.md, self-profile for later dogfood
 - Documented default inference profile (`m24-qwen38-16k`) plus larger-host
   profiles in `config/inference/profiles.yaml`
@@ -27,6 +27,10 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 - Task git worktrees (`two.workspace`; unused by CLI)
 - Independent validation gates in the worktree (`two.validation`; unused by CLI)
 - Context broker and structured task memory (`two.context`; unused by CLI)
+- SQLite WAL store, control API, scheduler, ACP worker, workflow controller,
+  approvals, and startup recovery (`two.recovery.recover_startup`)
+- Compose services `api`, `scheduler`, `worker` (no Ollama image; host
+  network / loopback API). `bootstrap-dev-host.sh --dry-run` for CI.
 - DeepSeek Harness pin `dsh-v0.1.2-alpha.1`, provider render, and offline
   OpenAI-compatible contract fixtures (`python -m two.providers --check`,
   `./scripts/smoke-test.sh --dry-run`)
@@ -34,10 +38,9 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 ## What does not work (by design, still a setup cliff)
 
 - Mac live bootstrap requires Darwin; `--dry-run` and health fixtures work offline
-- No ACP worker; the pin is recorded but DSH is not launched from this repo
-- No SQLite controller, no messaging adapter process
-- Compose file describes the unattended topology; harness is not in the
-  image yet
+- Live ACP still needs a pinned `dsh` binary; default tests use a fake child
+- Slack adapter is not implemented ([B14](backlog/B14-slack-adapter.md))
+- Interactive CLI / first-party web is not implemented ([B13](backlog/B13-cli-and-interaction.md))
 - GitHub Actions may be skipped if the org has no Actions minutes
 
 Biggest viability risk: DeepSeek Harness remains a developer preview

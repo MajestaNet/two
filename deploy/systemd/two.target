@@ -1,0 +1,13 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Template. Enables api + scheduler + worker as a group.
+# Compose remains the default unattended packaging (ADR 0005).
+
+[Unit]
+Description=Majesta Two control plane
+Documentation=https://github.com/MajestaNet/two
+Wants=two-api.service two-scheduler.service two-worker.service
+
+[Install]
+WantedBy=default.target
