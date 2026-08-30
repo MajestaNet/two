@@ -23,7 +23,7 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 - [Task manifest](docs/task-manifest.md)
 - [Public-repo hygiene](docs/public-repo.md)
 
-24 GB unified memory is the **default inference profile**, not a hard limit. Run `uv run devflow profiles` or see `config/inference/profiles.yaml`.
+24 GB unified memory is the **default inference profile**, not a hard limit. Run `uv run devflow profiles`. Two machines is the **default topology**; a larger Mac may colocate harness and Ollama as separate processes (`uv run devflow topology`).
 
 ## Install and test
 
@@ -34,6 +34,7 @@ uv sync --dev
 make ci
 uv run devflow --help
 uv run devflow profiles
+uv run devflow topology
 ```
 
 `make ci` is the single command that must stay green. Coding-agent instructions live in [AGENTS.md](AGENTS.md).

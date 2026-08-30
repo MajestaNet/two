@@ -8,7 +8,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: install fmt lint typecheck test license-check ci profiles
+.PHONY: install fmt lint typecheck test license-check ci profiles topology
 
 install:
 	uv sync --dev
@@ -29,6 +29,9 @@ test:
 
 profiles:
 	uv run devflow profiles
+
+topology:
+	uv run devflow topology
 
 license-check:
 	./scripts/check-license-headers.sh
