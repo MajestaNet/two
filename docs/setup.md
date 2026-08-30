@@ -72,7 +72,8 @@ uv run two topology
 ```
 
 Copy `.env.example` to `.env` only on the machine that will run services.
-Never commit `.env`.
+Never commit `.env`. Task worktrees are created under `TWO_WORKSPACE_ROOT`
+(default `./var/worktrees`; architecture [§6.3.D](architecture.md)).
 
 ## 2. Pick an inference profile
 

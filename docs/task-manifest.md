@@ -8,6 +8,10 @@ Machine-readable validation commands for a target repository live in
 `config/repositories/*.yaml`. `AGENTS.md` is model guidance and is not the sole
 source of gates.
 
+The isolated task branch is named `agent/<task-id>` from the manifest `id`
+(architecture [§6.3.D](architecture.md)). That name is not a separate
+manifest field.
+
 See also `config/policies/default.yaml` for default budgets and forbidden
 actions. Workflow implementation is backlog
 [B10](backlog/B10-workflow-controller.md).

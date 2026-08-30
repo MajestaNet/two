@@ -16,6 +16,59 @@
 
 """Git worktree isolation: agent/<task-id> under a workspace root.
 
-Never edits the canonical checkout. No push or merge. Not implemented yet.
+Never edits the canonical checkout. No push or merge.
 See docs/architecture.md §6.3.D.
 """
+
+from __future__ import annotations
+
+from two.workspace.errors import (
+    BaseRefError,
+    DuplicateWorkspaceError,
+    ForbiddenGitError,
+    GitOperationError,
+    InvalidRepoIdError,
+    InvalidTaskIdError,
+    PathEscapeError,
+    WorkspaceError,
+    WorkspacePolicyError,
+)
+from two.workspace.identity import (
+    DEFAULT_WORKSPACE_ROOT,
+    ENV_WORKSPACE_ROOT,
+    branch_for_task,
+    repo_id_from_profile,
+    resolve_repo_id,
+    resolve_workspace_root,
+    sanitize_repo_id,
+    sanitize_task_id,
+)
+from two.workspace.manager import WorkspaceManager, create, remove, status
+from two.workspace.models import RemovalPolicy, Workspace, WorkspaceStatus
+
+__all__ = [
+    "DEFAULT_WORKSPACE_ROOT",
+    "ENV_WORKSPACE_ROOT",
+    "BaseRefError",
+    "DuplicateWorkspaceError",
+    "ForbiddenGitError",
+    "GitOperationError",
+    "InvalidRepoIdError",
+    "InvalidTaskIdError",
+    "PathEscapeError",
+    "RemovalPolicy",
+    "Workspace",
+    "WorkspaceError",
+    "WorkspaceManager",
+    "WorkspacePolicyError",
+    "WorkspaceStatus",
+    "branch_for_task",
+    "create",
+    "remove",
+    "repo_id_from_profile",
+    "resolve_repo_id",
+    "resolve_workspace_root",
+    "sanitize_repo_id",
+    "sanitize_task_id",
+    "status",
+]
