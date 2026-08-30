@@ -1,25 +1,27 @@
-# ADR 0005 — Slack Socket Mode, overlay for API, Compose for unattended
+# ADR 0005 — Overlay for the API; Compose for unattended
 
 ## Status
 
-Accepted
+Accepted. Messaging product identity is superseded by
+[ADR 0007](0007-backend-first-channels.md).
 
 ## Context
 
-Operators will drive tasks from a phone Slack client and from laptops on
-other networks. The spec already forbids publishing the inference API or
-Harness UI. It was easy to misread that as “remote access is missing.”
+Operators will drive tasks from another network. The spec forbids
+publishing the inference API or Harness UI. It was easy to misread that
+as “remote access is missing.”
 
 A second question: should every development host start as a Docker/VM
 running the harness?
 
 ## Decision
 
-1. **Phone / off-LAN chat = Slack Socket Mode.** Outbound WebSocket only.
-   Do not expose DevFlow or Ollama so Slack can webhook in.
-2. **Phone / off-LAN CLI or web = private overlay** (Tailscale or
-   WireGuard) plus controller authentication. Default API bind stays
-   loopback or a Unix socket.
+1. **Off-LAN chat = an optional messaging adapter** that dials out (Slack
+   Socket Mode is the MVP example). Do not expose DevFlow or Ollama so a
+   vendor can webhook in. See ADR 0007.
+2. **Off-LAN CLI or web = private overlay** (Tailscale or WireGuard) plus
+   controller authentication. Default API bind stays loopback or a Unix
+   socket.
 3. **Ollama stays native on the Mac.** No Docker on the inference host.
 4. **Compose is the recommended unattended packaging** for DevFlow on a
    Linux development host. A full VM is optional extra isolation, not
@@ -30,6 +32,7 @@ running the harness?
 
 ## Consequences
 
-Setup docs lead with Slack for phones and Tailscale for API clients.
-`deploy/compose` exists so the unattended topology is visible now, even
-though api/scheduler/worker/slack processes are not implemented.
+Setup leads with the API and CLI. Slack is documented as the first
+adapter, not as the product. `deploy/compose` describes the unattended
+control plane even though api/scheduler/worker/adapter processes are
+not implemented.

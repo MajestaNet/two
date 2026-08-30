@@ -3,7 +3,7 @@
 #
 # Linux development-host packaging. The Mac inference node stays native.
 # Do not publish 11434 or 8741 on a public interface.
-# api / scheduler / worker / slack services land in Phase 5.
+# api / scheduler / worker / optional adapter services land in Phase 5.
 
 name: devflow
 

@@ -13,12 +13,12 @@ in [architecture.md](architecture.md). Viability notes are in
 | List inference profiles | Works (`devflow profiles`) |
 | Serve Qwen on the Mac | Not implemented (Phase 1 scripts exit 2) |
 | DeepSeek Harness + DevFlow worker | Not implemented (Phase 2–5) |
-| Slack from phone or any network | Designed; adapter not implemented |
-| Web/CLI from another network | Designed as Tailscale/overlay; not implemented |
+| Messaging adapter (Slack MVP) | Optional; not implemented |
+| CLI/web from another network | Overlay (Tailscale); not implemented |
 | Control-plane Compose | Topology file only; no harness in the image |
 | List deployment topologies | Works (`devflow topology`) |
 
-Last updated: 30 August 2026.
+Last updated: 30 August 2026 (backend-first channels).
 
 ## Choose a topology
 
@@ -28,28 +28,32 @@ a chassis is configuration (`devflow topology`).
 **Default — `split` (24 GB Mini, overnight isolation)**
 
 ```text
-Phone Slack --> Slack cloud --Socket Mode-->  Linux: DevFlow + DSH
-                                                  |
-                               LAN or Tailscale   |
-                                                  v
-                                         Mac: native Ollama only
+CLI / optional adapter -->  Linux: DevFlow + DSH
+                                      |
+                   LAN or Tailscale   |
+                                      v
+                             Mac: native Ollama only
 ```
 
 **Optional — `colocated` (~48 GB+ Mac that does not sleep)**
 
 ```text
-Phone Slack --> Slack cloud --Socket Mode-->  same Mac
-                                              DevFlow + DSH  --127.0.0.1-->  native Ollama
+CLI / optional adapter -->  same Mac
+                            DevFlow + DSH  --127.0.0.1-->  native Ollama
 ```
 
 Colocation is **not** “merge the harness into Ollama.” Same HTTP boundary,
 loopback instead of a LAN name. Do not do this on 24 GB: the ~18 GB model
 plus builds will swap. Do not put Ollama in Docker on the Mac.
 
-- **Phones:** Slack Socket Mode. Do not publish Ollama or DevFlow.
+This repo is the **backend**. A messenger is optional; Slack is only the
+MVP adapter ([channels.md](channels.md)).
+
 - **Interactive contribute:** `uv` on any machine (`make ci`).
 - **Unattended Linux:** Compose on the development host ([ADR 0005](adrs/0005-remote-access-and-compose.md)).
 - **Unattended one Mac:** `colocated` plus disable sleep ([ADR 0006](adrs/0006-logical-split-physical-colocation.md)).
+- **Phone chat:** optional Slack adapter (or later another messenger). Do
+  not publish Ollama or DevFlow.
 
 ## 1. Development host (contributor, works today)
 
@@ -105,21 +109,15 @@ Not automated yet (`scripts/bootstrap-mac.sh` exits 2). Manual intent:
 The development host must reach `MAC_QWEN_BASE_URL`. Use LAN DNS or a
 Tailscale name. Do not publish port 11434 on a public interface.
 
-## 4. Slack from a phone or another network
+## 4. Optional messaging adapter
 
-You do **not** open a port on the development host for Slack.
+You do not need Slack or any messenger. The CLI is enough.
 
-Slack on a phone talks to Slack’s servers. The DevFlow Slack adapter, when
-implemented, uses **Socket Mode**: an outbound WebSocket from the
-development host. That works from home, LTE, or travel Wi‑Fi as long as:
-
-- the adapter process is running on the always-on development host
-- the host has egress to Slack
-- workspace/channel/user allowlists are set
-- tokens stay in the host environment, never in git or in the harness
-
-See [remote-access.md](remote-access.md). Slack is an external processor.
-Default channel output is summaries only.
+If you want phone notifications, enable an adapter. Slack is the MVP
+because it can dial out (Socket Mode). Tokens stay in the host
+environment. See [channels.md](channels.md) and
+[remote-access.md](remote-access.md). Default channel output is summaries
+only.
 
 ## 5. CLI or web from another network
 
@@ -158,6 +156,6 @@ recommended if you want a separate kernel from your daily laptop.
 ## 7. What not to do
 
 - Do not bind Ollama or DevFlow to a publicly routed interface
-- Do not put model weights, Slack tokens, or real hostnames in git
+- Do not put model weights, messenger tokens, or real hostnames in git
 - Do not give the Mac git, build tools, or deployment credentials
 - Do not merge, push, or deploy from the agent
