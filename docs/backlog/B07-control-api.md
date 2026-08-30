@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B07 |
 | Phase | 5 — Durable workflow (API surface) |
-| Status | planned |
+| Status | done |
 | Depends on | B06 |
 | Blocks | B10, B11, B13, B14 |
 | Architecture | §6.3.A, §6.3.H, §8.3, §12.2, ADR 0005, ADR 0007 |
@@ -19,11 +19,12 @@ the bind is not loopback. The API does not call the model.
 
 ## Current tree
 
-- `src/two/api/` is a stub.
+- `src/two/api/` is the FastAPI control API (ADR 0010). Bind policy
+  lives in `two.api.bind`. `two api` starts uvicorn.
 - `config/access/remote.yaml`: `127.0.0.1:8741`,
   `allow_public_bind: false`.
 - `.env.example`: `TWO_API_BIND`, `TWO_API_PORT`, optional
-  socket.
+  socket, commented `TWO_API_TOKEN`.
 - Compose file has no published ports.
 
 ## Out of scope
@@ -82,11 +83,11 @@ the bind is not loopback. The API does not call the model.
 
 ## Acceptance criteria
 
-- [ ] Clients cannot reach the model through this API.
-- [ ] Default bind is loopback or Unix socket.
-- [ ] Ack after durable commit.
-- [ ] Same projection schema the CLI (B13) will consume.
-- [ ] Backend runs without any messenger.
+- [x] Clients cannot reach the model through this API.
+- [x] Default bind is loopback or Unix socket.
+- [x] Ack after durable commit.
+- [x] Same projection schema the CLI (B13) will consume.
+- [x] Backend runs without any messenger.
 
 ## Definition of done
 

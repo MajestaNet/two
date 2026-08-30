@@ -10,7 +10,8 @@ adapter are not implemented yet.
 
 ## Stack
 
-Python 3.12, uv, ruff, mypy --strict on `src/two`, pytest, Pydantic v2.
+Python 3.12, uv, ruff, mypy --strict on `src/two`, pytest, Pydantic v2,
+FastAPI + uvicorn for the control API (ADR 0010).
 System `rg` (ripgrep) is used by the context broker; tests skip that path
 if it is missing. Do not add Poetry, pip-tools, or pre-commit unless an
 ADR says so.
@@ -27,6 +28,7 @@ make ci
 uv run two --help
 uv run two profiles
 uv run two topology
+uv run two api
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
 ```
@@ -42,7 +44,9 @@ listed in `config/repositories/two.yaml`.
   `src/two/context/` is the context broker and structured task memory
   (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
   `src/two/store/` is the SQLite WAL store (tasks, events, leases). CLI
-  does not open it.
+  does not open it at import time.
+  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
+  `two api` lazy-imports it so `two profiles` does not load the store.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
