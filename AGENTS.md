@@ -2,10 +2,11 @@
 
 ## Overview
 
-DevFlow is the durable control plane around DeepSeek Harness. Qwen 3.8 stays on
-a dedicated Mac inference host. This repository implements DevFlow; it does not
-reimplement the harness agent loop. Foundation scaffold only: types, manifest,
-CLI help, config templates. No SQLite store, ACP worker, or Slack adapter yet.
+DevFlow is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays on
+a dedicated Mac inference host. This repository is not a Slack (or other
+messenger) product. Slack is the MVP optional adapter. Foundation scaffold
+only: types, manifest, CLI help, config templates. No SQLite store, ACP
+worker, or messaging adapter yet.
 
 ## Stack
 
@@ -45,8 +46,9 @@ listed in `config/repositories/devflow.yaml`.
 - Keep the src layout. Public types stay in `types.py` and `manifest.py` with
   no I/O.
 - SQLite belongs in `store/` only.
-- `cli.py` and `channels.slack` stay thin. They must not contain workflow
-  policy or git worktree logic.
+- `cli.py` and any `channels.*` adapter stay thin. They must not contain
+  workflow policy or git worktree logic. Do not put vendor UX in
+  `controller`.
 - New source files need the Apache 2.0 header and
   `SPDX-License-Identifier: Apache-2.0`.
 
@@ -65,7 +67,7 @@ listed in `config/repositories/devflow.yaml`.
 
 - New runtime dependency
 - Cloud provider or paid-model route
-- Slack scope changes
+- New messaging adapter or Slack scope changes
 - Task-manifest field changes
 - Changing the *default* inference profile or default topology
   (per-host `colocated` on a large Mac is fine)
@@ -78,7 +80,7 @@ listed in `config/repositories/devflow.yaml`.
 - Commit `.env`, tokens, model weights, or real Mac addresses
 - Edit the canonical checkout of a *target* repository
 - Treat a model self-report as task completion
-- Send full source, raw trajectories, or verbose logs to Slack
+- Send full source, raw trajectories, or verbose logs to any messenger
 - Reimplement the DeepSeek Harness agent loop inside DevFlow
 
 ## Architecture authority
@@ -90,7 +92,8 @@ implementation.
 ## Security
 
 Secrets live in environment variables only. The dummy key `ollama` is not a
-secret. Slack tokens must never reach DeepSeek Harness, Qwen, or target repos.
+secret. Messenger tokens must never reach DeepSeek Harness, Qwen, or target
+repos.
 
 ## PR
 

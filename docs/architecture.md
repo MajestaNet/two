@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Proposed architecture for implementation |
-| Version | 0.4 |
+| Version | 0.5 |
 | Date | 30 August 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
@@ -20,8 +20,8 @@ The system will separate **inference** from **software-development execution**. 
 - DevFlow and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. By default they run on a separate Linux development host.
 - They call Ollama through an OpenAI-compatible HTTP endpoint. The model process never mounts the repository and never executes commands, even if Ollama and the harness share one Mac (`topology: colocated`, intended for ~48 GB+ and no sleep).
 - Colocation is a bind-address change (`127.0.0.1` instead of a LAN name), not a second architecture. See ADR 0006 and `devflow topology`.
-- A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, Slack connection, or Harness process does not define the lifetime of a task.
-- A channel-neutral interaction gateway exposes the same task through CLI, a lightweight web experience, and an optional Slack adapter. These are control surfaces over one durable task record, not separate agent sessions.
+- A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
+- A channel-neutral interaction gateway exposes the same task through the control API. This repository is the backend (API, CLI, later a thin web view). Messaging clients are optional adapters. Slack is the MVP adapter because it is the easiest outbound path; other messengers are in scope via the same contract. These are control surfaces over one durable task record, not separate agent sessions.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
 
 The MVP deliberately uses one model and one inference request at a time. It does not use SSD streaming, macOS swap as working memory, automatic production deployment, or concurrent local subagents.
@@ -46,7 +46,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 6. Allow optional paid specialist models later without coupling the workflow to any one provider.
 7. Persist enough evidence to replay or audit what an automated task did.
 8. Run bounded unattended jobs for several hours or overnight, surviving model, harness, channel, and development-host process restarts without losing repository work or blindly repeating side effects.
-9. Provide a task-scoped, conversational development experience with visible plans, progress, diffs, commands, validation results, questions, approvals, and final reports through CLI, web, and Slack.
+9. Provide a task-scoped, conversational development experience with visible plans, progress, diffs, commands, validation results, questions, approvals, and final reports through the control API (CLI first; optional web and optional messaging adapters).
 
 ### 2.2 Non-functional goals
 
@@ -86,16 +86,16 @@ The MVP deliberately uses one model and one inference request at a time. It does
 5. Target repositories use git and provide reproducible build/test commands or can be given an external repository profile containing them.
 6. Only one automated development task actively uses the local model at a time.
 7. The development host or VM remains powered on for overnight work and runs DevFlow under an operating-system service manager rather than an interactive shell.
-8. Slack, if enabled, is an external control and notification channel. Its outage must not stop a running job, and repository content sent to it is governed by an explicit channel-output policy.
+8. A messaging adapter, if enabled, is an external control and notification channel. Its outage must not stop a running job. Repository content sent to any messenger is governed by channel-output policy. Slack is the MVP adapter only.
 
 ## 5. Architecture overview
 
 ```mermaid
 flowchart TB
-    subgraph Channels["Control channels"]
-        CLI["CLI"]
-        WEB["DevFlow web"]
-        MSG["Slack adapter"]
+    subgraph Channels["Clients and adapters"]
+        CLI["CLI first-party"]
+        WEB["Optional web"]
+        MSG["Optional messenger adapter"]
     end
     CLI --> API["DevFlow control API"]
     WEB --> API
@@ -366,7 +366,7 @@ Repository-specific commands live in an external versioned profile. An existing 
 
 #### G. Durable job runner and supervisor
 
-DevFlow—not DeepSeek Harness—owns task lifetime. The runner is an operating-system service and continues when the initiating CLI exits, a browser closes, or Slack disconnects.
+DevFlow—not DeepSeek Harness—owns task lifetime. The runner is an operating-system service and continues when the initiating CLI exits, a browser closes, or a messaging adapter disconnects.
 
 Each task stores a coarse lifecycle state and a separate workflow stage:
 
@@ -415,11 +415,11 @@ The interaction gateway presents one controller contract to every UI:
 
 The DevFlow API binds to a Unix socket or loopback interface by default. If the web client is used from another machine, access is through the private network or overlay with controller authentication; the API is never exposed directly to the public internet.
 
-Every conversational surface binds to the stable task identifier. A Slack DM or channel mention may create a task, after which one Slack thread is bound to that task. Follow-up messages in the thread continue the existing task; they do not silently create new Harness sessions. Duplicate channel events are discarded using their source event identifier.
+Every conversational surface binds to the stable task identifier. A messenger thread or DM (Slack is the MVP example) may create a task; follow-ups continue that task and do not silently create new Harness sessions. Duplicate channel events are discarded using their source event identifier.
 
-Slack is the preferred first messaging adapter because it provides threads, notifications, and interactive controls. The adapter uses Socket Mode so the development host makes an outbound WebSocket connection and requires no public inbound endpoint. It must:
+Slack is the **MVP adapter** only: easiest outbound path (Socket Mode, threads). This repo does not ship a Slack product. Any adapter must:
 
-- acknowledge Slack interactions immediately and perform all long work asynchronously;
+- acknowledge vendor interactions immediately and perform all long work asynchronously;
 - authenticate with dedicated app and bot tokens stored outside repositories;
 - allow only configured workspace, channel, and user identities;
 - translate messages and button actions into typed DevFlow API commands rather than shell strings;
@@ -428,7 +428,7 @@ Slack is the preferred first messaging adapter because it provides threads, noti
 - expose source excerpts and full logs only on explicit request and under channel-output policy;
 - reconnect with backoff without changing the underlying task state.
 
-Slack is an external data processor even though model inference remains local. The default policy therefore permits objectives, high-level progress, test summaries, and diff statistics, but suppresses secrets, environment values, raw trajectories, and large source excerpts. A self-hosted Matrix/Element adapter can later implement the same gateway contract if fully self-hosted messaging becomes a requirement.
+Any cloud messenger is an external data processor even though model inference remains local. The default policy therefore permits objectives, high-level progress, test summaries, and diff statistics, but suppresses secrets, environment values, raw trajectories, and large source excerpts. Matrix, Discord, or another adapter implements the same gateway contract; do not fork the controller.
 
 ### 6.4 State and storage
 
@@ -636,7 +636,7 @@ The output includes:
 
 The product experience should capture the useful workflow properties of modern AI coding tools without coupling them to a particular UI or Harness implementation:
 
-1. **One task, one durable conversation.** The task, plan, worktree, model sessions, questions, approvals, and evidence share one identifier across CLI, web, and Slack.
+1. **One task, one durable conversation.** The task, plan, worktree, model sessions, questions, approvals, and evidence share one identifier across the CLI, optional web, and any messaging adapter.
 2. **Grounded repository awareness.** Model claims and proposed changes reference concrete paths, symbols, callers, tests, and diff hunks. Search and LSP evidence are available without flooding the conversation.
 3. **Clear working modes.** `review-only` answers and investigates; `interactive` proposes and asks at key boundaries; `workspace-auto` executes a bounded change; `unattended` adds durable scheduling and asynchronous escalation.
 4. **Visible plan and progress.** The UI can show acceptance criteria, current stage, current todo, active command, elapsed and remaining budgets, changed files, and latest validation state without querying the model.
@@ -743,7 +743,7 @@ Recommended processes:
 - SQLite task state;
 - lightweight health poller for the Mac endpoint.
 
-The API, scheduler, worker, and enabled channel adapters run under `systemd` or the development host’s equivalent service manager with automatic restart and bounded restart backoff. On a dedicated Linux host, Docker Compose (`deploy/compose`) is the recommended packaging for those processes; a full VM is optional extra isolation. Ollama stays native on the Mac. The worker count for the local Qwen route is one. Slack from a phone uses Socket Mode (outbound only). CLI/web from another network uses a private overlay, not a public bind. See ADR 0005 and `docs/remote-access.md`.
+The API, scheduler, worker, and enabled channel adapters run under `systemd` or the development host’s equivalent service manager with automatic restart and bounded restart backoff. On a dedicated Linux host, Docker Compose (`deploy/compose`) is the recommended packaging for those processes; a full VM is optional extra isolation. Ollama stays native on the Mac. The worker count for the local Qwen route is one. Optional messaging adapters (Slack MVP) dial out. CLI/web from another network uses a private overlay, not a public bind. See ADR 0005, ADR 0007, and `docs/channels.md`.
 
 ### 12.3 Health states
 
@@ -784,9 +784,9 @@ Arbitrary shell commands cannot be made exactly-once across every possible host 
 
 The development host should use persistent storage with routine snapshots. A laptop can run interactive jobs, but a small always-on Linux VM is the recommended control plane for overnight execution.
 
-### 12.6 Slack operating model
+### 12.6 Messaging adapters (Slack is the MVP)
 
-The Slack adapter runs independently of the worker and uses outbound Socket Mode. No Slack callback, inference endpoint, Harness UI, or DevFlow API needs to be exposed publicly.
+This repo is the backend. Adapters are optional. The Slack adapter, if you use it, runs independently of the worker and uses outbound Socket Mode. No vendor webhook, inference endpoint, Harness UI, or DevFlow API needs to be exposed publicly.
 
 Initial conversational behavior:
 
@@ -890,7 +890,7 @@ Default policy:
 | Harness integration | Durable external DevFlow control plane | Insulates the workflow from developer-preview churn and supplies queueing, recovery, interaction, and deterministic gates |
 | Task lifetime | DevFlow state machine, events, leases, and checkpoints | Allows overnight execution and restart recovery independent of clients or Harness processes |
 | Developer experience | Task-scoped plan, progress, diff, evidence, and conversation contract | Preserves productive coding-agent workflows across replaceable clients |
-| Messaging | Channel-neutral gateway; Slack Socket Mode first | Enables conversational control without exposing a public inbound service or coupling Slack to execution |
+| Messaging | Channel-neutral backend; Slack is the MVP adapter only | Conversational control without publishing an inbound API or coupling the product to one vendor |
 | Repository isolation | Git worktree per task | Recoverability and concurrent task safety |
 | Long-term task memory | Structured external state | Survives compaction without replaying long reasoning traces |
 | Completion authority | Controller validation | Models cannot self-certify tests or acceptance criteria |
@@ -976,6 +976,7 @@ qwen-local-dev-agent/
 ├── Makefile
 ├── docs/
 │   ├── setup.md
+│   ├── channels.md
 │   ├── remote-access.md
 │   ├── architecture.md
 │   ├── operations.md
@@ -1073,7 +1074,7 @@ qwen-local-dev-agent/
 ### Phase 6 — Conversational control
 
 - Implement the interaction contract in the CLI and lightweight DevFlow web view.
-- Add the isolated Slack Socket Mode adapter, allowlists, typed commands, thread binding, deduplication, questions, approvals, and output policy.
+- Add the optional Slack MVP adapter (allowlists, typed commands, thread binding, deduplication, questions, approvals, output policy). The backend must run without any messenger.
 - Pass channel-disconnection, duplicate-event, authorization, and no-terminal workflow tests.
 
 ### Phase 7 — Optional paid routes
@@ -1096,10 +1097,10 @@ The first repository implementation is complete when:
 10. Cloud access cannot occur unless the task manifest explicitly permits it.
 11. An `overnight` task can run for at least eight hours without an attached terminal or browser, while hard budgets and no-progress limits remain enforced.
 12. Restarting the controller, worker, Harness child, or Mac endpoint preserves the task and worktree and resumes from a safe checkpoint or reconciliation state without automatically duplicating a tool action.
-13. CLI, web, and Slack project the same authoritative task, plan, status, questions, approvals, diff summary, tests, and final report.
-14. A Slack thread can create or continue a task, answer a question, approve a specifically scoped action, and issue status, pause, resume, cancel, diff, and test requests without direct access to the model or shell.
-15. Closing or disconnecting every UI leaves an unattended task running; a Slack outage affects notifications only.
-16. Unauthorized Slack users, channels, duplicate events, stale approvals, and altered action digests cannot control or authorize a task.
+13. CLI, optional web, and any enabled adapter project the same authoritative task, plan, status, questions, approvals, diff summary, tests, and final report.
+14. A messaging thread (Slack MVP) can create or continue a task, answer a question, approve a specifically scoped action, and issue status, pause, resume, cancel, diff, and test requests without direct access to the model or shell.
+15. Closing or disconnecting every UI leaves an unattended task running; an adapter outage affects notifications only.
+16. Unauthorized adapter identities, duplicate events, stale approvals, and altered action digests cannot control or authorize a task.
 17. Messaging output suppresses secrets, environment values, full trajectories, large source excerpts, and raw verbose logs by default.
 
 ## 22. References

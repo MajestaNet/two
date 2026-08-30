@@ -12,6 +12,7 @@ Configuration is data. Do not put Python here.
   default, not a ceiling.
 - `deploy/topology.yaml` is physical placement (`split` vs `colocated`).
   Do not collapse Ollama into the harness.
-- `access/remote.yaml` records bind and Slack Socket Mode policy.
+- `access/remote.yaml` records API bind policy. Slack under `channels/`
+  is the MVP adapter template, not a required service.
 - Changing task-manifest fields, the default inference profile, or cloud
   defaults requires an ADR.

@@ -1,6 +1,6 @@
 # DevFlow
 
-DevFlow is a durable control plane for local, private software-development agents. It drives [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) on a development host and calls an official Qwen 3.8 model served from a dedicated Mac mini over a private network.
+DevFlow is a **backend** control plane for local, private software-development agents. It drives [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) on a development host and calls an official Qwen 3.8 model served from a Mac over a private network. Which messaging app you use is your choice; Slack is only the first optional adapter.
 
 Inference stays on the Mac. Repositories, shells, tests, and git worktrees stay on the development host. The model never mounts source and never executes commands on the inference appliance.
 
@@ -15,7 +15,8 @@ Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attri
 Start with the living [setup guide](docs/setup.md). The canonical specification is [docs/architecture.md](docs/architecture.md).
 
 - [Setup](docs/setup.md) — keep this current as the product grows
-- [Remote access](docs/remote-access.md) — Slack from a phone; Tailscale for CLI/web
+- [Channels](docs/channels.md) — backend API; optional adapters; Slack is the MVP
+- [Remote access](docs/remote-access.md) — overlay for CLI/web; outbound adapters only
 - [Viability review](docs/viability.md)
 - [Operations](docs/operations.md)
 - [Unattended operations](docs/unattended-operations.md)
