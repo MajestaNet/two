@@ -12,6 +12,8 @@ Use this page as an index, not a second spec:
 - Timeouts and retries — §12.4
 - Startup recovery and action reconciliation — §12.5
 - Messaging adapters (Slack MVP) — §12.6 and [channels.md](channels.md)
+- Evaluation corpus and promotion soaks — [evals/PROMOTION.md](../evals/PROMOTION.md)
+  (architecture §18). `make eval-offline` is Mac-free. Soaks are not CI-green.
 
 Runtime templates live under `config/mac/` and `config/dsh/`. Mac bootstrap,
 health-check, and soak helpers are `scripts/bootstrap-mac.sh`,

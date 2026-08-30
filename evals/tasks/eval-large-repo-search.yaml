@@ -1,0 +1,13 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-large-repo-search
+architecture_case: large-repo-search
+mode: offline
+fixture: large-search
+objective: Find UNIQUE_SYMBOL_FINDME in a synthetic tree, not a monorepo clone
+acceptance_criteria:
+  - inventory has at least 40 tracked files
+  - search returns only src/core.py
+allowed_paths:
+  - src/**
+notes: Runtime expands src/pkg/mod_00.py through mod_47.py. No production clone.

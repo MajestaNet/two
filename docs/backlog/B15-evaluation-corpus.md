@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B15 |
 | Phase | 5 / 18 — Evaluation |
-| Status | planned |
+| Status | done |
 | Depends on | B03 for fixtures; B10–B12 for promotion claims |
 | Blocks | Unattended overnight promotion |
 | Architecture | §18, §21 |
@@ -18,9 +18,11 @@ alias requires the §18 metrics, not token speed.
 
 ## Current tree
 
-- `evals/tasks/`, `fixtures/`, `expected/` are empty except
-  `.gitkeep`.
-- `evals/AGENTS.md` forbids cloning production repos into the tree.
+- `evals/tasks/` holds architecture §18 YAML (offline, live, skip, soak).
+- `evals/fixtures/` holds tiny synthetic trees (git-initialized at runtime).
+- `evals/expected/` holds oracle overlays and notes.
+- Runner: `src/two/evals/` and `scripts/run-evals.sh`.
+- Promotion checklists: `evals/PROMOTION.md`. Tag comparison: `evals/COMPARE.md`.
 
 ## Out of scope
 
@@ -77,10 +79,10 @@ alias requires the §18 metrics, not token speed.
 
 ## Acceptance criteria
 
-- [ ] Offline eval subset in `make ci` or `make eval-offline`.
-- [ ] Duplicate-side-effect tests exist and expect zero.
-- [ ] No production clones, no secrets.
-- [ ] Promotion remain a human/operator activity.
+- [x] Offline eval subset in `make ci` or `make eval-offline`.
+- [x] Duplicate-side-effect tests exist and expect zero.
+- [x] No production clones, no secrets.
+- [x] Promotion remain a human/operator activity.
 
 ## Definition of done
 

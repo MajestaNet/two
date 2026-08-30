@@ -8,7 +8,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: install fmt lint typecheck test license-check ci profiles topology
+.PHONY: install fmt lint typecheck test license-check eval-offline ci profiles topology
 
 install:
 	uv sync --dev
@@ -36,4 +36,7 @@ topology:
 license-check:
 	./scripts/check-license-headers.sh
 
-ci: license-check lint typecheck test
+eval-offline:
+	uv run python -m two.evals --offline
+
+ci: license-check lint typecheck test eval-offline
