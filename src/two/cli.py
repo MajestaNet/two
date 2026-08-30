@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Thin CLI. Reserved subcommands; no network or store access in the foundation."""
+"""Thin CLI. Subcommands stay free of workflow policy and store I/O."""
 
 from __future__ import annotations
 
@@ -47,6 +47,17 @@ def build_parser() -> argparse.ArgumentParser:
         "topology",
         help="List deployment topologies (split default; colocated optional)",
     )
+    api_cmd = subparsers.add_parser(
+        "api",
+        help="Start the channel-neutral control API (loopback or Unix socket)",
+    )
+    api_cmd.add_argument("--bind", default=None, help="Bind host (default 127.0.0.1)")
+    api_cmd.add_argument("--port", type=int, default=None, help="Bind port (default 8741)")
+    api_cmd.add_argument(
+        "--socket",
+        default=None,
+        help="Unix socket path (overrides host/port)",
+    )
     return parser
 
 
@@ -62,6 +73,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "topology":
         print(format_topology(load_topology()))
         return 0
+    if args.command == "api":
+        from two.api.server import serve
+
+        return serve(bind=args.bind, port=args.port, socket=args.socket)
     if args.command is None:
         parser.print_help()
         return 0

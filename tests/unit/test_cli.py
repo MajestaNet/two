@@ -32,3 +32,9 @@ def test_version_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["version"]) == 0
     captured = capsys.readouterr()
     assert captured.out.strip() == __version__
+
+
+def test_api_subcommand_help() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        main(["api", "--help"])
+    assert exc_info.value.code == 0
