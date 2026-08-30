@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B03 |
 | Phase | 3 — Safe repository execution |
-| Status | planned |
+| Status | done |
 | Depends on | none |
 | Blocks | B04, B05, B09, B15 |
 | Architecture | §6.3.D, §8.2 Stage 2, §15, §21 items 4 and 6 |
@@ -17,10 +17,11 @@ rebase of shared branches, or deploy.
 
 ## Current tree
 
-- `src/two/workspace/` is a stub.
+- `src/two/workspace/` implements `create` / `status` / `remove` (handoff
+  only) plus path-guarded `write_text`. No push or merge APIs.
 - `TWO_WORKSPACE_ROOT` is documented in `.env.example`
-  (`./var/worktrees`).
-- `tests/integration/` is empty and reserved for worktree tests.
+  (`./var/worktrees`) and injectable for tests.
+- `tests/integration/test_workspace.py` uses temporary git repos.
 - `.gitignore` already ignores `var/`, `worktrees/`, `evals/workspaces/`.
 
 ## Out of scope
@@ -74,11 +75,11 @@ rebase of shared branches, or deploy.
 
 ## Acceptance criteria
 
-- [ ] `agent/<task-id>` + worktree layout matches architecture §6.3.D.
-- [ ] Canonical checkout never changes in tests.
-- [ ] Duplicate task worktree is rejected.
-- [ ] No push/merge APIs.
-- [ ] Integration tests run in `make ci` using temp repos.
+- [x] `agent/<task-id>` + worktree layout matches architecture §6.3.D.
+- [x] Canonical checkout never changes in tests.
+- [x] Duplicate task worktree is rejected.
+- [x] No push/merge APIs.
+- [x] Integration tests run in `make ci` using temp repos.
 
 ## Definition of done
 
