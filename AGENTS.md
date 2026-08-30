@@ -63,7 +63,9 @@ listed in `config/repositories/two.yaml`.
 
 ### Always
 
-- Treat worktree isolation as the design (implement it when that phase lands).
+- Treat worktree isolation as the design (`two.workspace`). Run
+  validation in the worktree (`two.validation`), never the canonical
+  checkout.
 - Add or update deterministic tests for code you change.
 - Update this file in the same PR as command or layout changes.
 - Update `docs/setup.md` (and its status table) when install, topology,
