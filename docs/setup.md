@@ -21,8 +21,9 @@ in [architecture.md](architecture.md). Viability notes are in
 | Independent validation gates | Works (`two.validation`; unused by CLI) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; unused by CLI) ([B05](backlog/B05-context-broker.md)) |
 | SQLite WAL store | Works (`two.store.open_store`; unused by CLI) (`TWO_DATA_DIR/two.sqlite`) ([B06](backlog/B06-sqlite-store.md)) |
+| Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket) ([B07](backlog/B07-control-api.md)) |
 
-Last updated: 30 August 2026 (Phase 5: B06 SQLite store).
+Last updated: 30 August 2026 (Phase 5: B07 control API).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -76,6 +77,7 @@ make ci
 uv run two --help
 uv run two profiles
 uv run two topology
+uv run two api
 ```
 
 Copy `.env.example` to `.env` only on the machine that will run services.
@@ -85,7 +87,10 @@ Task artifacts, including structured memory
 `TWO_DATA_DIR/tasks/<id>/memory.json` (default `./var/two`), share the
 B04 artifact tree. The SQLite WAL store is
 `TWO_DATA_DIR/two.sqlite` ([B06](backlog/B06-sqlite-store.md)); the CLI
-does not open it.
+does not open it at import time. Start the control API with
+`uv run two api` (default bind `127.0.0.1:8741`, [B07](backlog/B07-control-api.md)).
+Loopback and Unix sockets use local-trust authentication — do not expose
+that process. Non-loopback binds (private overlay) require `TWO_API_TOKEN`.
 
 ## 2. Pick an inference profile
 
@@ -212,6 +217,9 @@ only.
 ## 5. CLI or web from another network
 
 Loopback (`127.0.0.1` / Unix socket) remains the default API bind.
+`uv run two api` starts the process. On loopback it prints a local-trust
+warning and does not require a token. If you bind a non-loopback overlay
+address, set `TWO_API_TOKEN` and send `Authorization: Bearer …`.
 
 To use the CLI or web UI away from the desk:
 
@@ -219,8 +227,8 @@ To use the CLI or web UI away from the desk:
    (Tailscale or WireGuard).
 2. Bind the API to the overlay address *or* keep loopback and use
    Tailscale Serve / SSH local forward.
-3. Require controller authentication once the API is reachable beyond
-   localhost.
+3. Require controller authentication (`TWO_API_TOKEN`,
+   `Authorization: Bearer`) once the API is reachable beyond localhost.
 4. Never port-forward Ollama or the Majesta Two API to `0.0.0.0` on a public IP.
 
 A public HTTPS hostname (for example a Cloudflare tunnel) is not the
