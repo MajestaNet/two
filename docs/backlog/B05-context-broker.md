@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B05 |
 | Phase | 4 — Large-repository context |
-| Status | planned |
+| Status | done |
 | Depends on | B03 |
 | Blocks | B10 |
 | Architecture | §6.3.E, §7.2–7.3, §21 item 7 |
@@ -18,9 +18,11 @@ and LSP first. No vector database.
 
 ## Current tree
 
-- `src/two/context/` is a stub.
-- Architecture retrieval order and memory fields are specified.
-- 16K context budget table is in §7.2.
+- `src/two/context/` implements structured memory, JSON persistence,
+  git/`rg` retrieval, optional LSP skip, packet builder, and
+  `build_review_handoff`.
+- Policy: `config/policies/context.yaml` (16K table, 72% compaction).
+- Memory path: `{TWO_DATA_DIR}/tasks/{task_id}/memory.json`.
 
 ## Out of scope
 
@@ -79,12 +81,12 @@ and LSP first. No vector database.
 
 ## Acceptance criteria
 
-- [ ] Memory schema matches architecture §6.3.E fields.
-- [ ] Retrieval order is git → rg → LSP-optional, not embeddings.
-- [ ] Fresh-review handoff can be built from memory + diff + validation
+- [x] Memory schema matches architecture §6.3.E fields.
+- [x] Retrieval order is git → rg → LSP-optional, not embeddings.
+- [x] Fresh-review handoff can be built from memory + diff + validation
       without the implementation transcript (function exists even if
       B10 is what calls it).
-- [ ] No vector DB.
+- [x] No vector DB.
 
 ## Definition of done
 

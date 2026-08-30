@@ -37,6 +37,8 @@ listed in `config/repositories/two.yaml`.
 - `src/two/` — Python only. Package implementations live here.
   `src/two/runtime/` holds the Mac lock file, Ollama env/bind policy,
   launchd rendering, and health classification.
+  `src/two/context/` is the context broker and structured task memory
+  (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and

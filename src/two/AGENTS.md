@@ -17,6 +17,10 @@ Python package for the Majesta Two control plane.
 - `validation/` loads `config/repositories/*.yaml` and
   `config/policies/default.yaml`, then runs gates in the task worktree.
   It never writes task lifecycle. `reporting/` formats gate fragments only.
+- `context/` persists structured task memory as JSON under
+  `TWO_DATA_DIR/tasks/<id>/memory.json` and builds bounded retrieval
+  packets (git, `rg`, optional LSP). No embeddings, SQLite, or DSH/Ollama
+  calls. Budget policy lives in `config/policies/context.yaml`.
 - `controller` does not call the model. `worker` will own ACP later.
 - Use Pydantic v2 models with `extra="forbid"` for external payloads.
 - `mypy --strict` applies to this tree. Add explicit return types.

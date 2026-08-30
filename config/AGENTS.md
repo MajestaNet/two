@@ -8,6 +8,8 @@ Configuration is data. Do not put Python here.
   profile. Keep it aligned with `Makefile` targets.
 - `repositories/example.yaml` is a fixture, not a live service.
 - `policies/default.yaml` encodes architecture budgets and forbidden actions.
+- `policies/context.yaml` encodes the 16K context-budget table and the
+  72% compaction threshold (architecture §7.2).
 - `inference/profiles.yaml` is the hardware catalog. 24 GB / 16K is the
   default, not a ceiling.
 - `deploy/topology.yaml` is physical placement (`split` vs `colocated`).
