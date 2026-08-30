@@ -13,4 +13,6 @@ Use this page as an index, not a second spec:
 - Messaging adapters (Slack MVP) — §12.6 and [channels.md](channels.md)
 
 Runtime templates live under `config/mac/` and `config/dsh/`. The bootstrap
-scripts in `scripts/` are Phase 1/5 stubs and exit 2 until those phases land.
+scripts in `scripts/` are Phase 1/5 stubs and exit 2 until backlog items
+[B01](backlog/B01-mac-inference-appliance.md) and
+[B12](backlog/B12-dev-host-services.md) land.

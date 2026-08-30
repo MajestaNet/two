@@ -9,4 +9,5 @@ Machine-readable validation commands for a target repository live in
 source of gates.
 
 See also `config/policies/default.yaml` for default budgets and forbidden
-actions.
+actions. Workflow implementation is backlog
+[B10](backlog/B10-workflow-controller.md).

@@ -35,8 +35,11 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 - GitHub Actions may be skipped if the org has no Actions minutes
 
 Biggest viability risk: DeepSeek Harness is a developer preview. Pinning
-and contract tests (architecture Phase 2) will decide whether the control
-plane can stay small.
+and contract tests (architecture Phase 2 / backlog [B02](backlog/B02-harness-provider-contracts.md))
+will decide whether the control plane can stay small.
+
+Implementation work after this scaffold is tracked in
+[docs/backlog/README.md](backlog/README.md).
 
 ## Ease-of-setup score (operator)
 
