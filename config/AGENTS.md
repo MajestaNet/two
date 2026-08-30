@@ -10,6 +10,8 @@ Configuration is data. Do not put Python here.
 - `policies/default.yaml` encodes architecture budgets and forbidden actions.
 - `inference/profiles.yaml` is the hardware catalog. 24 GB / 16K is the
   default, not a ceiling.
+- `deploy/topology.yaml` is physical placement (`split` vs `colocated`).
+  Do not collapse Ollama into the harness.
 - `access/remote.yaml` records bind and Slack Socket Mode policy.
 - Changing task-manifest fields, the default inference profile, or cloud
   defaults requires an ADR.
