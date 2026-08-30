@@ -21,7 +21,7 @@ was sent externally. Never silently escalate a
 
 - `TaskManifest.cloud_allowed` defaults `false`.
 - `config/policies/default.yaml` `cloud.default_allowed: false`.
-- `src/devflow/providers/` after B02 is local-only.
+- `src/two/providers/` after B02 is local-only.
 
 ## Out of scope
 
@@ -82,14 +82,14 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B16 — Optional paid-model routes**.
+You are implementing **Majesta Two backlog item B16 — Optional paid-model routes**.
 
 Read first:
 
 1. `AGENTS.md`
 2. `docs/architecture.md` section 11 and 21 item 10
 3. `docs/backlog/README.md` and `docs/backlog/B16-paid-model-routes.md`
-4. `src/devflow/providers/`, `src/devflow/manifest.py`, `config/policies/default.yaml`
+4. `src/two/providers/`, `src/two/manifest.py`, `config/policies/default.yaml`
 5. Confirm B10 exists. If not, stop.
 
 Implement **only B16**. Do not change the Mac Ollama endpoint. Do not default any task to cloud.

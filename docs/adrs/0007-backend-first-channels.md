@@ -15,7 +15,7 @@ uses is their choice.
 
 ## Decision
 
-1. **DevFlow is the backend.** The durable control API, CLI, scheduler,
+1. **Majesta Two is the backend.** The durable control API, CLI, scheduler,
    worker, and validation are the product. A messenger is not required
    to run a task.
 2. **Messaging clients are adapters.** They translate a vendor’s events

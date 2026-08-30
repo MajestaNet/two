@@ -14,8 +14,8 @@ from pathlib import Path
 
 import yaml
 
-from devflow.manifest import TaskManifest
-from devflow.types import ExecutionProfile, Mode, OnHumanInputRequired
+from two.manifest import TaskManifest
+from two.types import ExecutionProfile, Mode, OnHumanInputRequired
 
 SECTION_81_YAML = """
 id: task-123

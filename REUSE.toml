@@ -1,6 +1,6 @@
 version = 1
 
-SPDX-PackageName = "devflow"
+SPDX-PackageName = "two"
 SPDX-PackageSupplier = "MajestaNet"
 SPDX-PackageDownloadLocation = "https://github.com/MajestaNet/two"
 

@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-This repository will be developed by coding agents and will later be a DevFlow
+This repository will be developed by coding agents and will later be a Majesta Two
 target. Vendor-specific files (CLAUDE.md, Cursor rules) must not drift from a
 single set of commands and boundaries.
 
@@ -17,7 +17,7 @@ single set of commands and boundaries.
 - Cursor path-scoped rules in `.cursor/rules/` refine, they do not replace,
   `AGENTS.md`.
 - Machine-readable validation commands for this repo live in
-  `config/repositories/devflow.yaml`.
+  `config/repositories/two.yaml`.
 - `docs/architecture.md` remains the product architecture. `AGENTS.md` must
   not paste or rewrite it.
 

@@ -1,4 +1,4 @@
-# Contributing to DevFlow
+# Contributing to Majesta Two
 
 ## License inbound
 
@@ -23,9 +23,9 @@ By contributing, you agree that your contribution is licensed to MajestaNet unde
 
 - [ ] No secrets, tokens, model weights, or real LAN hostnames
 - [ ] LICENSE and NOTICE are untouched unless you are doing license work
-- [ ] New Python lives under `src/devflow/`
+- [ ] New Python lives under `src/two/`
 - [ ] Unit tests do not call a live Mac, Slack, or network model
 
 ## Agent and automation limits
 
-Automated agents and DevFlow itself must not merge, push shared branches, release, or deploy from this repository. Those actions stay with a human maintainer.
+Automated agents and Majesta Two itself must not merge, push shared branches, release, or deploy from this repository. Those actions stay with a human maintainer.

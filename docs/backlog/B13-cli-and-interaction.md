@@ -19,7 +19,7 @@ loopback only.
 
 ## Current tree
 
-- `src/devflow/cli.py` has `version`, `profiles`, `topology` only.
+- `src/two/cli.py` has `version`, `profiles`, `topology` only.
 - `docs/interaction-contract.md` points at §8.3.
 
 ## Out of scope
@@ -32,13 +32,13 @@ loopback only.
 ## Implementation plan
 
 1. **Thin CLI** subcommands (names can be bikeshed but stay stable):
-   - `devflow task submit MANIFEST.yaml`
-   - `devflow task show ID`
-   - `devflow task message ID --text ...`
-   - `devflow task pause|resume|cancel ID`
-   - `devflow task approve ID APPROVAL_ID --digest ...`
-   - `devflow task reject ...`
-   - `devflow task report ID`  
+   - `two task submit MANIFEST.yaml`
+   - `two task show ID`
+   - `two task message ID --text ...`
+   - `two task pause|resume|cancel ID`
+   - `two task approve ID APPROVAL_ID --digest ...`
+   - `two task reject ...`
+   - `two task report ID`  
    Transport: Unix socket or `http://127.0.0.1:8741`. No Ollama URL
    in the CLI.
 
@@ -95,7 +95,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B13 — CLI client and interaction-contract tests**.
+You are implementing **Majesta Two backlog item B13 — CLI client and interaction-contract tests**.
 
 Read first:
 
@@ -103,7 +103,7 @@ Read first:
 2. `docs/architecture.md` section 8.3
 3. `docs/interaction-contract.md`, `docs/channels.md`
 4. `docs/backlog/README.md` and `docs/backlog/B13-cli-and-interaction.md`
-5. `src/devflow/cli.py`
+5. `src/two/cli.py`
 6. Confirm B07 exists. If B10/B11 are missing, implement CLI against queued-task projection and mark incomplete contract tests clearly — do not fake workflow success.
 
 Implement **only B13**. Slack is out of scope. Optional web only after CLI tests pass.

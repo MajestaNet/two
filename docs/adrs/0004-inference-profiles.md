@@ -24,6 +24,6 @@ quality. The 24 GB box remains the reference we optimize and test first.
 
 ## Consequences
 
-`devflow profiles` reads the catalog. Setup and AGENTS.md treat changing
+`two profiles` reads the catalog. Setup and AGENTS.md treat changing
 the *default* profile as an ADR-level change; selecting a non-default
 profile on one host is configuration.

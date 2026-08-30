@@ -1,11 +1,11 @@
 ---
-description: Follow the canonical DevFlow architecture; do not invent parallel designs.
+description: Follow the canonical Majesta Two architecture; do not invent parallel designs.
 alwaysApply: true
 ---
 
 Read `docs/architecture.md` before adding components, APIs, or workflow states.
 
-DevFlow is the control plane. DeepSeek Harness owns the model/tool loop. Qwen
+Majesta Two is the control plane. DeepSeek Harness owns the model/tool loop. Qwen
 stays on the Mac. Do not reimplement the harness inside this repo.
 
 If an implementation would disagree with the spec, stop and add an ADR under

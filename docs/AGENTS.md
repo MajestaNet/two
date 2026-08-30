@@ -12,5 +12,7 @@
   decisions. Do not copy the spec into those files. This repo is the
   backend; do not write Slack-as-the-product docs.
 - Behavior changes that disagree with the spec need a new ADR in `adrs/`.
+- The public product name is Majesta Two (ADR 0008). Do not revive
+  working names such as DevFlow.
 - Do not paste `architecture.md` into `AGENTS.md`.
 - Keep public-repo rules in `public-repo.md`.

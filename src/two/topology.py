@@ -57,7 +57,7 @@ class TopologyCatalog(BaseModel):
 
 
 def discover_catalog_path(start: Path | None = None) -> Path:
-    env = os.environ.get("DEVFLOW_TOPOLOGY_CATALOG")
+    env = os.environ.get("TWO_TOPOLOGY_CATALOG")
     if env:
         return Path(env)
     here = start or Path.cwd()
@@ -66,7 +66,7 @@ def discover_catalog_path(start: Path | None = None) -> Path:
         if path.is_file():
             return path
     raise FileNotFoundError(
-        f"could not find {DEFAULT_CATALOG_RELATIVE} from {here}; set DEVFLOW_TOPOLOGY_CATALOG"
+        f"could not find {DEFAULT_CATALOG_RELATIVE} from {here}; set TWO_TOPOLOGY_CATALOG"
     )
 
 

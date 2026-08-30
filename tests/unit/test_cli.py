@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from devflow import __version__
-from devflow.cli import main
+from two import __version__
+from two.cli import main
 
 
 def test_help_exits_zero() -> None:

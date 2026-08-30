@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import pytest
 
-from devflow.cli import main
-from devflow.topology import load_catalog
-from devflow.types import DeploymentTopologyId
+from two.cli import main
+from two.topology import load_catalog
+from two.types import DeploymentTopologyId
 
 
 def test_default_topology_is_split() -> None:
