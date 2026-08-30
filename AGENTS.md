@@ -8,7 +8,8 @@ messenger) product. Slack is the MVP optional adapter. The SQLite WAL store (`tw
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
-Slack remains the optional adapter and is not implemented.
+The workflow controller owns stage policy, budgets, fresh review, and
+terminal status. Slack remains the optional adapter and is not implemented.
 
 ## Stack
 
@@ -56,6 +57,9 @@ listed in `config/repositories/two.yaml`.
   `src/two/worker/` supervises a pinned ACP child, the action ledger, and
   session resume. Default tests use a fake child (`@pytest.mark.live_dsh`
   is opt-in).
+  `src/two/controller/` drives the durable workflow, binds budgets, starts a
+  fresh review session, and is the only writer of terminal status.
+  `src/two/reporting/` formats gate fragments and Stage 8 final reports.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and

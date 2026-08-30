@@ -18,7 +18,8 @@
 
 Built from the original objective, structured task memory, a diff
 summary, and validation evidence. There is no implementation transcript
-parameter and no transcript field. B10 will call this later.
+parameter and no transcript field. The controller (B10) calls this for
+Stage 7 fresh review.
 """
 
 from __future__ import annotations
