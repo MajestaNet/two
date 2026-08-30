@@ -12,7 +12,7 @@ in [architecture.md](architecture.md). Viability notes are in
 | Clone and run unit CI | Works |
 | List inference profiles | Works (`two profiles`) |
 | Serve Qwen on the Mac | Not implemented ([B01](backlog/B01-mac-inference-appliance.md)) |
-| DeepSeek Harness + Majesta Two worker | Not implemented ([B02](backlog/B02-harness-provider-contracts.md)–[B10](backlog/B10-workflow-controller.md)) |
+| DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)). ACP worker later ([B09](backlog/B09-acp-worker.md)) |
 | Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
 | CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
 | Control-plane Compose | Topology file only; no harness in the image ([B12](backlog/B12-dev-host-services.md)) |
@@ -110,6 +110,38 @@ Not automated yet (`scripts/bootstrap-mac.sh` exits 2). Manual intent:
 
 The development host must reach `MAC_QWEN_BASE_URL`. Use LAN DNS or a
 Tailscale name. Do not publish port 11434 on a public interface.
+
+## 3.1 DeepSeek Harness (Phase 2)
+
+Pinned release: **`dsh-v0.1.2-alpha.1`** (git tag, commit
+`cd5ef8148158c3a752a658978873241fdf8e2bbc`). Recorded in
+`config/runtime/models.lock.example`. Never install `latest`.
+
+Render the Mac Qwen provider from the selected inference profile,
+topology, and env (`MAC_QWEN_BASE_URL`, dummy key `ollama`):
+
+```bash
+uv run python -m two.providers --check
+uv run python -m two.providers --print
+./scripts/smoke-test.sh --dry-run
+```
+
+The committed hostname `mac-inference.internal` is a placeholder. Overlay
+policy is `config/dsh/profile.patch.yml`: workspace-write sandbox,
+compaction at 72% of declared context, local tool/workflow concurrency 1,
+web fetch/search and session telemetry off. Compat switches force the
+system role and `max_tokens` ([ADR 0009](adrs/0009-dsh-ollama-compat.md)).
+
+Live Mac (opt-in, not part of `make ci`):
+
+```bash
+TWO_LIVE_MAC=1 MAC_QWEN_BASE_URL=http://mac-inference.internal:11434/v1 \
+  ./scripts/smoke-test.sh
+```
+
+Default pytest excludes `@pytest.mark.live_mac`. The ACP worker is still
+[B09](backlog/B09-acp-worker.md); this repo does not reimplement the DSH
+agent loop.
 
 ## 4. Optional messaging adapter
 

@@ -3,6 +3,12 @@
 #
 # Record promoted runtime identities here after soak tests.
 # Copy to models.lock on the development host. Do not invent digests.
+#
+# Intended Ollama pin: native macOS build (Homebrew or a GitHub release asset).
+# After install, record `ollama --version` in ollama_version and `brew pin ollama`
+# when using Homebrew. Do not pipe `curl https://ollama.com/install.sh | sh`
+# without recording that version here. Leave digests empty until soak promotion.
+# deepseek_harness_version stays empty until B02.
 
 ollama_version: ""
 upstream_model: qwen3.8:27b-mlx
@@ -22,5 +28,16 @@ sampling:
     temperature: 0.7
     top_p: 0.8
     top_k: 20
-deepseek_harness_version: ""
-notes: "Fill after Phase 1/2 evaluation. See docs/architecture.md §6.1 and §18."
+deepseek_harness_version: "dsh-v0.1.2-alpha.1"
+notes: >-
+  DSH pin is git tag dsh-v0.1.2-alpha.1 (commit
+  cd5ef8148158c3a752a658978873241fdf8e2bbc), published 2026-08-27 as a
+  developer-preview pre-release. Never use latest. The product is not
+  security-audited; sandbox/approvals do not guarantee isolation. This cut
+  enables public WebFetch by default — Majesta Two's profile overlay
+  disables web fetch/search and session telemetry so cloud stays off until
+  a later item sets cloud_allowed. ACP is complete in the pin; Majesta Two
+  does not speak ACP yet (B09). Ollama compat: force system role
+  (supportsDeveloperRole: false) and maxTokensField: max_tokens (ADR 0009).
+  Ollama/model digests remain empty until B01 soak. See architecture §6.1
+  and §18.

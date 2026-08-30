@@ -24,19 +24,25 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
   profiles in `config/inference/profiles.yaml`
 - Backend-first channels: CLI/API required; Slack is the optional MVP adapter
 - Deployment topology: `split` default, `colocated` optional (`two topology`)
+- DeepSeek Harness pin `dsh-v0.1.2-alpha.1`, provider render, and offline
+  OpenAI-compatible contract fixtures (`python -m two.providers --check`,
+  `./scripts/smoke-test.sh --dry-run`)
 
 ## What does not work (by design, still a setup cliff)
 
-- Mac bootstrap scripts exit 2
-- No pinned DeepSeek Harness release, no ACP worker
+- Mac live bootstrap requires Darwin; `--dry-run` and health fixtures work offline
+- No ACP worker; the pin is recorded but DSH is not launched from this repo
 - No SQLite controller, no worktrees, no messaging adapter process
 - Compose file describes the unattended topology; harness is not in the
   image yet
 - GitHub Actions may be skipped if the org has no Actions minutes
 
-Biggest viability risk: DeepSeek Harness is a developer preview. Pinning
-and contract tests (architecture Phase 2 / backlog [B02](backlog/B02-harness-provider-contracts.md))
-will decide whether the control plane can stay small.
+Biggest viability risk: DeepSeek Harness remains a developer preview
+(`dsh-v0.1.2-alpha.1` is not security-audited; public WebFetch is on in
+upstream and is disabled by our overlay). Contract tests cover the
+OpenAI-compatible HTTP shape offline. Live Mac probes stay opt-in
+(`TWO_LIVE_MAC=1`). Upgrades still need the evaluation suite before
+promotion. The control plane can stay small as long as the pin holds.
 
 Implementation work after this scaffold is tracked in
 [docs/backlog/README.md](backlog/README.md).

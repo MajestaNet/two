@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Architectural provider shape from docs/architecture.md §6.3.C.
-# Contract-test against a pinned DeepSeek Harness release before use.
+# Contract-test against pinned DeepSeek Harness dsh-v0.1.2-alpha.1.
+# Renderer adds pin-required compat.maxTokensField (ADR 0009).
 # Replace the baseURL hostname with your private-network name. Do not commit
 # a real LAN address here.
 

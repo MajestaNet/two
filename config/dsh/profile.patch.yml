@@ -1,7 +1,52 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
 #
-# Empty DeepSeek Harness profile patch. Phase 2 will add workspace-write
-# sandboxing, compaction thresholds, and serialized local-subagent policy.
+# DeepSeek Harness profile overlay for pin dsh-v0.1.2-alpha.1.
+# Cordis row `config` replaces the bundle default (it does not deep-merge),
+# so restated fields are complete for the rows we override.
+# Copy onto the DSH profile after substituting the task worktree for
+# sandbox-policy.workspaceRoot. Do not enable cloud features here.
 
-patches: []
+patches:
+  - id: sandbox-policy
+    name: "@deepseek-ai/dsh-sandbox-policy"
+    config:
+      mode: workspace-write
+      workspaceRoot: "."
+
+  - id: compaction-basic
+    name: "@deepseek-ai/dsh-compaction-basic"
+    config:
+      thresholdRatio: 0.72
+      retainRatio: 0.16
+      auto: true
+
+  - id: agent-loop
+    name: "@deepseek-ai/dsh-agent-loop"
+    config:
+      maxParallelToolCalls: 1
+      agents: []
+
+  - id: workflow-worker-thread
+    name: "@deepseek-ai/dsh-workflow-worker-thread"
+    config:
+      provider: spawn
+      maxConcurrentAgents: 1
+
+  - id: tool-web
+    name: "@deepseek-ai/dsh-tool-web"
+    disabled: true
+    config:
+      fetch: false
+
+  - id: web-search-deepseek
+    name: "@deepseek-ai/dsh-web-search-deepseek"
+    disabled: true
+
+  - id: web-fetch-http
+    name: "@deepseek-ai/dsh-web-fetch-http"
+    disabled: true
+
+  - id: session-telemetry-otel
+    name: "@deepseek-ai/dsh-session-telemetry-otel"
+    disabled: true

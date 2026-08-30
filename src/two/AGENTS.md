@@ -6,6 +6,11 @@ Python package for the Majesta Two control plane.
   those modules.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
+- `runtime/` parses `models.lock`, emits the Ollama env contract, renders
+  the launchd plist, and classifies Mac health from JSON. No network.
+- `providers/` renders DSH settings from profile + topology + env and
+  records the OpenAI-compatible HTTP contract. No network on the default
+  path. Do not reimplement the DSH agent loop.
 - Put SQLite in `store/` only. Do not open databases from `cli.py`.
 - `channels/*` adapters must not import `workspace` or run git. Slack is
   the MVP adapter only.
