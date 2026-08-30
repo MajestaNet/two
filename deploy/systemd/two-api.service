@@ -1,0 +1,29 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Template. Compose remains the default unattended packaging (ADR 0005).
+# Copy to ~/.config/systemd/user/ and adjust WorkingDirectory / ExecStart
+# to the clone path. Never bind 0.0.0.0.
+
+[Unit]
+Description=Majesta Two control API (two-api)
+Documentation=https://github.com/MajestaNet/two
+After=network.target
+PartOf=two.target
+
+[Service]
+Type=simple
+Environment=TWO_API_BIND=127.0.0.1
+Environment=TWO_API_PORT=8741
+Environment=TWO_DATA_DIR=%h/.local/share/two
+Environment=TWO_WORKSPACE_ROOT=%h/.local/share/two/worktrees
+EnvironmentFile=-%h/.config/two/env
+WorkingDirectory=%h/two
+ExecStart=/usr/bin/env uv run --no-dev two api
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+[Install]
+WantedBy=two.target

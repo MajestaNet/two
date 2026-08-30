@@ -32,8 +32,11 @@ uv run two --help
 uv run two profiles
 uv run two topology
 uv run two api
+uv run two scheduler
+uv run two worker
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
+./scripts/bootstrap-dev-host.sh --dry-run
 ```
 
 `make ci` is the required gate. Validation commands for this repo are also
@@ -43,7 +46,7 @@ listed in `config/repositories/two.yaml`.
 
 - `src/two/` — Python only. Package implementations live here.
   `src/two/runtime/` holds the Mac lock file, Ollama env/bind policy,
-  launchd rendering, and health classification.
+  launchd rendering, health classification, and the optional Mac HTTP poller.
   `src/two/context/` is the context broker and structured task memory
   (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
   `src/two/store/` is the SQLite WAL store (tasks, events, leases). CLI
@@ -60,15 +63,21 @@ listed in `config/repositories/two.yaml`.
   `src/two/controller/` drives the durable workflow, binds budgets, starts a
   fresh review session, and is the only writer of terminal status.
   `src/two/reporting/` formats gate fragments and Stage 8 final reports.
+  `src/two/recovery/` is development-host startup recovery (architecture
+  §12.5) and the `two scheduler` / `two worker` process loops.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
-  `soak-inference.sh` implement Phase 1 dry-run/live Mac helpers. Other
-  phase scripts remain stubs.
+  `soak-inference.sh` implement Phase 1 dry-run/live Mac helpers.
+  `bootstrap-dev-host.sh` creates `TWO_DATA_DIR` / worktrees (mode 0700)
+  and prints the Compose plan (`--dry-run` for CI).
 - `docs/` — architecture and ADRs. `docs/architecture.md` is canonical.
   `docs/setup.md` is the living operator guide. `docs/backlog/` is the
   implementation tracker (one item per file; agent prompts at the end).
-- `deploy/compose/` — Linux control-plane packaging. No Ollama image.
+- `deploy/compose/` — Linux control-plane packaging (`api`, `scheduler`,
+  `worker`; optional `slack` profile stub). No Ollama image.
+- `deploy/systemd/` — optional user-unit templates. Compose is the default
+  unattended packaging.
 - `evals/` — future evaluation corpus. No production repository clones.
 
 ## Conventions

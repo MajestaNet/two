@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B12 |
 | Phase | 5 — Durable workflow (packaging) |
-| Status | planned |
+| Status | done |
 | Depends on | B07, B08, B09, B10 |
 | Blocks | B15 promotion soak |
 | Architecture | §12.2, §12.5, ADR 0005, ADR 0006, §20 Phase 5, §21 items 11–12, 15 |
@@ -20,8 +20,9 @@ Mac — never in this image.
 
 ## Current tree
 
-- `scripts/bootstrap-dev-host.sh` exits 2.
-- `deploy/compose/docker-compose.yml` is CLI-only, no ports.
+- `scripts/bootstrap-dev-host.sh --dry-run` exits 0; live mkdir is mode 0700.
+- `deploy/compose/docker-compose.yml` runs `api`, `scheduler`, `worker`.
+- `two.recovery.recover_startup` implements architecture §12.5.
 - `deploy/compose/AGENTS.md` forbids Ollama and public binds.
 
 ## Out of scope
@@ -65,11 +66,11 @@ Mac — never in this image.
 
 ## Acceptance criteria
 
-- [ ] `bootstrap-dev-host.sh --dry-run` exits 0.
-- [ ] Compose does not add Ollama or public 11434/8741.
-- [ ] Recovery test: expired lease reclaimed; paused task not started;
+- [x] `bootstrap-dev-host.sh --dry-run` exits 0.
+- [x] Compose does not add Ollama or public 11434/8741.
+- [x] Recovery test: expired lease reclaimed; paused task not started;
       no duplicate action replay (uses B09).
-- [ ] Closing CLI does not require stopping Compose (documented).
+- [x] Closing CLI does not require stopping Compose (documented).
 
 ## Definition of done
 

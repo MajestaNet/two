@@ -15,7 +15,7 @@ in [architecture.md](architecture.md). Viability notes are in
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
 | Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
 | CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
-| Control-plane Compose | Topology file only; no harness in the image ([B12](backlog/B12-dev-host-services.md)) |
+| Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Task worktrees | Works (`two.workspace`; unused by CLI) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation`; unused by CLI) ([B04](backlog/B04-validation-engine.md)) |
@@ -27,7 +27,7 @@ in [architecture.md](architecture.md). Viability notes are in
 | Workflow controller + reports | Works with fakes (`two.controller`; `uv run pytest tests/unit/test_controller.py`) ([B10](backlog/B10-workflow-controller.md)) |
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 
-Last updated: 30 August 2026 (Phase 5: B10 workflow controller on the B06–B09 + B11 stack).
+Last updated: 30 August 2026 (Phase 5: B12 development-host Compose services and startup recovery).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -256,17 +256,57 @@ A public HTTPS hostname (for example a Cloudflare tunnel) is not the
 default. If you use one later, it must terminate authentication and must
 not front Ollama.
 
-## 6. Optional Compose (Linux development host)
+## 6. Compose (Linux development host)
+
+Compose is the default unattended packaging (ADR 0005). Ollama stays native
+on the Mac. systemd user units under `deploy/systemd/` are optional
+templates for a native (non-Compose) install.
 
 ```bash
+./scripts/bootstrap-dev-host.sh --dry-run
+./scripts/bootstrap-dev-host.sh --topology split --data-dir "$HOME/.local/share/two"
 cd deploy/compose
 docker compose run --rm two --help
 docker compose run --rm two profiles
+docker compose up -d api scheduler worker
 ```
 
-This image is the control-plane toolchain, not the model and not yet
-DeepSeek Harness. Do not run this Compose file on the Mac as a substitute
-for native Ollama.
+Services:
+
+| Service | Process | Notes |
+| --- | --- | --- |
+| `api` | `two api` | Binds `127.0.0.1:8741` via `network_mode: host`. `GET /health`. |
+| `scheduler` | `two scheduler` | Runs `two.recovery.recover_startup` then the tick loop. |
+| `worker` | `two worker` | One local-Qwen ACP supervisor. Explicit volume list in the Compose file. |
+| `two` | CLI helper | `docker compose run --rm two --help` (profile `cli`). |
+| `slack` | stub | `profiles: [slack]` until [B14](backlog/B14-slack-adapter.md). |
+
+Volumes (worker/harness mounts are explicit): repository `config/` (read-only),
+named volume `two-data` (`TWO_DATA_DIR`, SQLite and artifacts), named volume
+`two-worktrees` (`TWO_WORKSPACE_ROOT`). Optional host git mirrors can be
+bind-mounted at `/mnt/repos:ro`. A native worker uses the same env vars on
+the host instead of those volumes.
+
+Health from the Linux host:
+
+```bash
+./scripts/health-check.sh --dry-run
+MAC_QWEN_BASE_URL=http://mac-inference.internal:11434 ./scripts/health-check.sh
+curl -fsS http://127.0.0.1:8741/health
+```
+
+The scheduler Mac poller uses `MAC_QWEN_BASE_URL` when set (otherwise it
+stays Healthy/offline so unit tests never open a socket).
+
+**Closing a CLI does not require stopping Compose.** Tasks keep running under
+`api` / `scheduler` / `worker`. Stop the control plane with
+`docker compose down` (or `systemctl --user stop two.target` if you installed
+the templates).
+
+Do not run this Compose file on the Mac as a substitute for native Ollama.
+Do not publish 11434 or 8741 on a public interface. `topology: colocated`
+is a bind-address change (`127.0.0.1` Ollama) for a native Mac control plane,
+not a reason to Dockerize Ollama.
 
 A full VM is stronger isolation than Compose. Compose is the default
 unattended packaging because it is easier to reproduce. A VM remains
