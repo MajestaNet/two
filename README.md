@@ -5,9 +5,9 @@ Majesta Two is a **backend** control plane for local, private software-developme
 Inference stays on the Mac. Repositories, shells, tests, and git worktrees stay on the development host. The model never mounts source and never executes commands on the inference appliance.
 
 This repository is the implementation of that architecture. Durable task
-state lives in SQLite (`two.store`) and the channel-neutral control API
-(`two api`) is the client contract. The ACP worker, scheduler, and
-channel adapters are not implemented yet.
+state lives in SQLite (`two.store`). The control API (`two api`), scheduler
+(`two scheduler`), and ACP worker (`two worker`) run as Compose services on
+a Linux development host. Slack remains an optional adapter (not required).
 
 **Private by default.** Prompts and repository excerpts remain on the private network unless a task explicitly permits a cloud route. The inference API and Majesta Two API must not be exposed to the public internet.
 

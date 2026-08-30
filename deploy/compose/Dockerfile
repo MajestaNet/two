@@ -8,11 +8,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# Control-plane image only. Do not run Ollama here. Harness is not bundled yet.
+# Control-plane image only. Do not run Ollama here. No model weights.
 
 FROM python:3.12-slim-bookworm
 
 COPY --from=ghcr.io/astral-sh/uv:0.12.7 /uv /usr/local/bin/uv
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md LICENSE NOTICE ./

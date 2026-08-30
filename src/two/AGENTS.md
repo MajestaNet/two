@@ -41,6 +41,11 @@ Python package for the Majesta Two control plane.
 - `worker/` supervises ACP children, the action ledger, and session resume.
   It must not import Slack or set lifecycle `complete`. Local Qwen worker
   count is one.
+- `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
+  and the `two scheduler` / `two worker` process loops. It hooks
+  `ActionLedger.recover` (no duplicate replay) and `Scheduler.start`
+  (expired leases only). Human-paused tasks stay paused. Inject health
+  and worktree probes in tests.
 - Use Pydantic v2 models with `extra="forbid"` for external payloads.
 - `mypy --strict` applies to this tree. Add explicit return types.
 - New `.py` files need the Apache 2.0 header and SPDX identifier.

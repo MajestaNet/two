@@ -38,3 +38,12 @@ def test_api_subcommand_help() -> None:
     with pytest.raises(SystemExit) as exc_info:
         main(["api", "--help"])
     assert exc_info.value.code == 0
+
+
+def test_scheduler_and_worker_subcommand_help() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        main(["scheduler", "--help"])
+    assert exc_info.value.code == 0
+    with pytest.raises(SystemExit) as exc_info:
+        main(["worker", "--help"])
+    assert exc_info.value.code == 0
