@@ -16,5 +16,60 @@
 
 """Channel-neutral HTTP/Unix control API. Bind loopback or a Unix socket only.
 
-Not implemented in the foundation scaffold. See docs/architecture.md §6.3.H.
+See docs/architecture.md §6.3.H and ADR 0010. This package maps HTTP to
+``two.store``. It does not call Ollama, git, or messaging adapters.
 """
+
+from two.api.app import create_app
+from two.api.bind import (
+    DEFAULT_BIND,
+    DEFAULT_PORT,
+    ENV_BIND,
+    ENV_PORT,
+    ENV_SOCKET,
+    ENV_TOKEN,
+    LOOPBACK_TRUST_WARNING,
+    ApiPublicBindError,
+    BindPolicyError,
+    BindTarget,
+    resolve_bind,
+)
+from two.api.schemas import (
+    ApprovalDecideRequest,
+    ApprovalDecideResponse,
+    DiffSummary,
+    HealthResponse,
+    QuestionView,
+    TaskBudgets,
+    TaskMessage,
+    TaskMessageReceipt,
+    TaskProjection,
+    TaskReport,
+    ValidationSummary,
+)
+
+__all__ = [
+    "DEFAULT_BIND",
+    "DEFAULT_PORT",
+    "ENV_BIND",
+    "ENV_PORT",
+    "ENV_SOCKET",
+    "ENV_TOKEN",
+    "LOOPBACK_TRUST_WARNING",
+    "ApiPublicBindError",
+    "ApprovalDecideRequest",
+    "ApprovalDecideResponse",
+    "BindPolicyError",
+    "BindTarget",
+    "DiffSummary",
+    "HealthResponse",
+    "QuestionView",
+    "TaskBudgets",
+    "TaskMessage",
+    "TaskMessageReceipt",
+    "TaskProjection",
+    "TaskReport",
+    "ValidationSummary",
+    "create_app",
+    "resolve_bind",
+]
