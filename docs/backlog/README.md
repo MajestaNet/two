@@ -35,7 +35,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B01](B01-mac-inference-appliance.md) | Mac inference appliance | 1 | — | done |
 | [B02](B02-harness-provider-contracts.md) | Pin DeepSeek Harness and provider contracts | 2 | B01 (live); fixtures can start now | done |
 | [B03](B03-worktree-workspace.md) | Git worktree workspace manager | 3 | — | done |
-| [B04](B04-validation-engine.md) | Repository profiles and validation engine | 3 | B03 | planned |
+| [B04](B04-validation-engine.md) | Repository profiles and validation engine | 3 | B03 | done |
 | [B05](B05-context-broker.md) | Context broker and structured task memory | 4 | B03 | planned |
 | [B06](B06-sqlite-store.md) | SQLite store, events, and leases | 5 | — | planned |
 | [B07](B07-control-api.md) | Channel-neutral control API | 5 | B06 | planned |

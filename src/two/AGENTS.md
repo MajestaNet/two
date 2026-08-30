@@ -14,6 +14,9 @@ Python package for the Majesta Two control plane.
 - Put SQLite in `store/` only. Do not open databases from `cli.py`.
 - `channels/*` adapters must not import `workspace` or run git. Slack is
   the MVP adapter only.
+- `validation/` loads `config/repositories/*.yaml` and
+  `config/policies/default.yaml`, then runs gates in the task worktree.
+  It never writes task lifecycle. `reporting/` formats gate fragments only.
 - `controller` does not call the model. `worker` will own ACP later.
 - Use Pydantic v2 models with `extra="forbid"` for external payloads.
 - `mypy --strict` applies to this tree. Add explicit return types.

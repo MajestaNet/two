@@ -17,8 +17,10 @@ in [architecture.md](architecture.md). Viability notes are in
 | CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
 | Control-plane Compose | Topology file only; no harness in the image ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
+| Task worktrees | Works (`two.workspace`; unused by CLI) ([B03](backlog/B03-worktree-workspace.md)) |
+| Independent validation gates | Works (`two.validation`; unused by CLI) ([B04](backlog/B04-validation-engine.md)) |
 
-Last updated: 30 August 2026 (public name: Majesta Two).
+Last updated: 30 August 2026 (Phase 3: B03 worktrees, B04 validation).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
