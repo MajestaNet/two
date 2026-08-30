@@ -17,7 +17,8 @@
 """Channel-neutral HTTP/Unix control API. Bind loopback or a Unix socket only.
 
 See docs/architecture.md §6.3.H and ADR 0010. This package maps HTTP to
-``two.store``. It does not call Ollama, git, or messaging adapters.
+``two.store`` and ``two.approvals``. It does not call Ollama, git, or
+messaging adapters.
 """
 
 from two.api.app import create_app
@@ -37,8 +38,13 @@ from two.api.bind import (
 from two.api.schemas import (
     ApprovalDecideRequest,
     ApprovalDecideResponse,
+    ApprovalRequest,
+    ApprovalView,
     DiffSummary,
     HealthResponse,
+    QuestionAnswerRequest,
+    QuestionAnswerResponse,
+    QuestionAskRequest,
     QuestionView,
     TaskBudgets,
     TaskMessage,
@@ -59,10 +65,15 @@ __all__ = [
     "ApiPublicBindError",
     "ApprovalDecideRequest",
     "ApprovalDecideResponse",
+    "ApprovalRequest",
+    "ApprovalView",
     "BindPolicyError",
     "BindTarget",
     "DiffSummary",
     "HealthResponse",
+    "QuestionAnswerRequest",
+    "QuestionAnswerResponse",
+    "QuestionAskRequest",
     "QuestionView",
     "TaskBudgets",
     "TaskMessage",

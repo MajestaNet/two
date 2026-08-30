@@ -24,11 +24,13 @@ open the database. See docs/architecture.md §6.3.G, §8.4, and §12.5.
 from two.store.engine import BUSY_TIMEOUT_MS, DEFAULT_DB_FILENAME, resolve_db_path
 from two.store.errors import (
     ActionNotFoundError,
+    ApprovalNotFoundError,
     DuplicateActionError,
     DuplicateApprovalError,
     DuplicateQuestionError,
     DuplicateSourceEventError,
     DuplicateTaskError,
+    QuestionNotFoundError,
     StoreError,
     TaskNotFoundError,
 )
@@ -52,6 +54,7 @@ __all__ = [
     "ActionNotFoundError",
     "ActionRecord",
     "ActionStatus",
+    "ApprovalNotFoundError",
     "ApprovalRecord",
     "ChannelBinding",
     "DuplicateActionError",
@@ -61,6 +64,7 @@ __all__ = [
     "DuplicateTaskError",
     "EventRecord",
     "LeaseRecord",
+    "QuestionNotFoundError",
     "QuestionRecord",
     "Store",
     "StoreError",
