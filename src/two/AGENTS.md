@@ -14,9 +14,12 @@ Python package for the Majesta Two control plane.
 - `store/` is the SQLite WAL store (`open_store`). Do not open databases
   from `cli.py` at import time. The `two api` subcommand lazy-imports
   `two.api.server`.
-- `api/` maps HTTP to `two.store`. It must not import `two.workspace` git
-  operations, `two.channels.slack`, or an Ollama client. Bind loopback or
-  a Unix socket by default (ADR 0010).
+- `api/` maps HTTP to `two.store` and `two.approvals`. It must not import
+  `two.workspace` git operations, `two.channels.slack`, or an Ollama
+  client. Bind loopback or a Unix socket by default (ADR 0010).
+- `approvals/` owns question/approval resolution and pause/resume/cancel
+  lifecycle policy. Silence is never approval. Digests are immutable.
+  It does not import git, Slack, or the model.
 - `channels/*` adapters must not import `workspace` or run git. Slack is
   the MVP adapter only.
 - `validation/` loads `config/repositories/*.yaml` and

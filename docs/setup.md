@@ -22,8 +22,9 @@ in [architecture.md](architecture.md). Viability notes are in
 | Context broker + task memory | Works (`two.context`; unused by CLI) ([B05](backlog/B05-context-broker.md)) |
 | SQLite WAL store | Works (`two.store.open_store`; unused by CLI) (`TWO_DATA_DIR/two.sqlite`) ([B06](backlog/B06-sqlite-store.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket) ([B07](backlog/B07-control-api.md)) |
+| Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 
-Last updated: 30 August 2026 (Phase 5: B07 control API).
+Last updated: 30 August 2026 (Phase 5: B11 questions, approvals, pause/resume/cancel).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -91,6 +92,16 @@ does not open it at import time. Start the control API with
 `uv run two api` (default bind `127.0.0.1:8741`, [B07](backlog/B07-control-api.md)).
 Loopback and Unix sockets use local-trust authentication — do not expose
 that process. Non-loopback binds (private overlay) require `TWO_API_TOKEN`.
+Questions and approvals are durable rows on that API ([B11](backlog/B11-questions-approvals.md),
+architecture §8.4): `POST /v1/tasks/{id}/questions`,
+`POST /v1/tasks/{id}/questions/{question_id}/answer`,
+`POST /v1/tasks/{id}/approvals`,
+`POST /v1/tasks/{id}/approvals/{approval_id}/decide` (optional
+`action_digest`; mismatch is 409; duplicates return `ignored: true`),
+and `POST /v1/tasks/{id}/pause|resume|cancel`. Resume is allowed from
+`paused` or `awaiting_input` and keeps the same task id. Cancelled is
+terminal. Silence is never approval. The principal is an `actor` string
+(default `local`); Slack allowlists are B14.
 
 ## 2. Pick an inference profile
 

@@ -129,6 +129,7 @@ def test_pause_resume_cancel(client: TestClient, store: Store) -> None:
     assert cancelled.status_code == 200
     assert cancelled.json()["lifecycle"] == "cancelled"
     assert client.post("/v1/tasks/task-123/pause").status_code == 409
+    assert client.post("/v1/tasks/task-123/resume").status_code == 409
 
 
 def test_post_message_persists_event(client: TestClient, store: Store) -> None:
@@ -188,12 +189,138 @@ def test_approval_decide_persists_when_row_exists(client: TestClient, store: Sto
     )
     assert decided.status_code == 200
     body = decided.json()
-    assert body["status"] == "recorded"
+    assert body["ignored"] is False
     assert body["decision"] == "reject"
+    assert body["action_digest"] == "sha256:deadbeef"
+    assert body["principal"] == "operator"
+    assert "status" not in body or body.get("status") != "recorded"
     event = store.get_event(body["event_id"])
     assert event is not None
     assert event.type == "approval.decide"
     assert event.payload["action_digest"] == "sha256:deadbeef"
+    assert event.payload["ignored"] is False
+    row = store.get_approval("ap-1")
+    assert row is not None
+    assert row.status == "rejected"
+    assert row.action_digest == "sha256:deadbeef"
+
+
+def test_duplicate_decide_returns_ignored(client: TestClient, store: Store) -> None:
+    client.post("/v1/tasks", json=MANIFEST)
+    store.insert_approval(
+        "ap-1",
+        "task-123",
+        action_class="dependency_lock_change",
+        action_digest="sha256:deadbeef",
+        paths=["uv.lock"],
+    )
+    first = client.post(
+        "/v1/tasks/task-123/approvals/ap-1/decide",
+        json={"decision": "approve", "actor": "first", "action_digest": "sha256:deadbeef"},
+    )
+    assert first.status_code == 200
+    assert first.json()["ignored"] is False
+    duplicate = client.post(
+        "/v1/tasks/task-123/approvals/ap-1/decide",
+        json={"decision": "reject", "actor": "second", "action_digest": "sha256:deadbeef"},
+    )
+    assert duplicate.status_code == 200
+    body = duplicate.json()
+    assert body["ignored"] is True
+    assert body["decision"] == "approve"
+    assert store.get_approval("ap-1").status == "approved"
+
+
+def test_stale_digest_decide_is_409(client: TestClient, store: Store) -> None:
+    client.post("/v1/tasks", json=MANIFEST)
+    store.insert_approval(
+        "ap-1",
+        "task-123",
+        action_class="dependency_lock_change",
+        action_digest="sha256:deadbeef",
+        paths=["uv.lock"],
+    )
+    response = client.post(
+        "/v1/tasks/task-123/approvals/ap-1/decide",
+        json={"decision": "approve", "action_digest": "sha256:patched"},
+    )
+    assert response.status_code == 409
+    assert "stale" in response.json()["detail"]
+    assert store.get_approval("ap-1").status == "open"
+
+
+def test_ask_question_sets_awaiting_input(client: TestClient, store: Store) -> None:
+    client.post("/v1/tasks", json=MANIFEST)
+    asked = client.post(
+        "/v1/tasks/task-123/questions",
+        json={
+            "id": "q-1",
+            "stage": "plan",
+            "reason": "ambiguous strategy",
+            "options": ["keep lock", "retry"],
+            "recommendation": "keep lock",
+        },
+    )
+    assert asked.status_code == 201
+    body = asked.json()
+    assert body["lifecycle"] == "awaiting_input"
+    assert body["questions"][0]["id"] == "q-1"
+    assert body["questions"][0]["status"] == "open"
+    persisted = store.get_task("task-123")
+    assert persisted is not None
+    assert persisted.lifecycle is LifecycleState.AWAITING_INPUT
+    answered = client.post(
+        "/v1/tasks/task-123/questions/q-1/answer",
+        json={"answer": "keep lock", "actor": "operator"},
+    )
+    assert answered.status_code == 200
+    assert answered.json()["ignored"] is False
+    duplicate = client.post(
+        "/v1/tasks/task-123/questions/q-1/answer",
+        json={"answer": "retry", "actor": "other"},
+    )
+    assert duplicate.status_code == 200
+    assert duplicate.json()["ignored"] is True
+    resumed = client.post("/v1/tasks/task-123/resume")
+    assert resumed.status_code == 200
+    assert resumed.json()["id"] == "task-123"
+    assert resumed.json()["lifecycle"] == "queued"
+
+
+def test_pause_retains_worktree_and_rows(client: TestClient, store: Store) -> None:
+    client.post("/v1/tasks", json=MANIFEST)
+    store.update_task(
+        "task-123",
+        worktree_path="/tmp/worktrees/example-service/task-123",
+        branch="agent/task-123",
+        set_worktree_path=True,
+        set_branch=True,
+    )
+    store.insert_question(
+        "q-keep",
+        "task-123",
+        stage=WorkflowStage.PLAN,
+        options=["a"],
+        reason="keep me",
+    )
+    paused = client.post("/v1/tasks/task-123/pause")
+    assert paused.status_code == 200
+    assert paused.json()["lifecycle"] == "paused"
+    assert paused.json()["worktree_path"] == "/tmp/worktrees/example-service/task-123"
+    assert store.get_question("q-keep") is not None
+    assert store.get_task("task-123").worktree_path == "/tmp/worktrees/example-service/task-123"
+
+
+def test_cancelled_cannot_resume(client: TestClient, store: Store) -> None:
+    client.post("/v1/tasks", json=MANIFEST)
+    cancelled = client.post("/v1/tasks/task-123/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["lifecycle"] == "cancelled"
+    resumed = client.post("/v1/tasks/task-123/resume")
+    assert resumed.status_code == 409
+    assert store.get_task("task-123").lifecycle is LifecycleState.CANCELLED
+    assert store.get_task("task-123").lifecycle is not LifecycleState.RUNNING
+    assert client.post("/v1/tasks/task-123/pause").status_code == 409
 
 
 def test_creating_a_task_does_not_start_a_worker(client: TestClient, store: Store) -> None:

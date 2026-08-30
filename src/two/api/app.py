@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""ASGI application factory. Maps HTTP to store functions. No git, no Slack."""
+"""ASGI application factory. Maps HTTP to store and ``two.approvals``. No git, no Slack."""
 
 from __future__ import annotations
 
@@ -32,8 +32,13 @@ from two import __version__
 from two.api.schemas import (
     ApprovalDecideRequest,
     ApprovalDecideResponse,
+    ApprovalRequest,
+    ApprovalView,
     DiffSummary,
     HealthResponse,
+    QuestionAnswerRequest,
+    QuestionAnswerResponse,
+    QuestionAskRequest,
     QuestionView,
     TaskBudgets,
     TaskMessage,
@@ -42,18 +47,31 @@ from two.api.schemas import (
     TaskReport,
     ValidationSummary,
 )
-from two.manifest import TaskManifest
-from two.store import DuplicateTaskError, Store, open_store
-from two.store.models import EventRecord, QuestionRecord, TaskRecord
-from two.types import LifecycleState
-
-_TERMINAL = frozenset(
-    {
-        LifecycleState.COMPLETE,
-        LifecycleState.FAILED,
-        LifecycleState.CANCELLED,
-    }
+from two.approvals import (
+    NotResumableError,
+    StaleDigestError,
+    TerminalLifecycleError,
+    answer_question,
+    ask_question,
+    cancel_task,
+    decide_approval,
+    pause_task,
+    request_approval,
+    resume_task,
 )
+from two.manifest import TaskManifest
+from two.store import (
+    ApprovalNotFoundError,
+    DuplicateApprovalError,
+    DuplicateQuestionError,
+    DuplicateTaskError,
+    QuestionNotFoundError,
+    Store,
+    TaskNotFoundError,
+    open_store,
+)
+from two.store.models import ApprovalRecord, EventRecord, QuestionRecord, TaskRecord
+
 _PLAN_EVENT_TYPES = frozenset({"plan", "task.plan"})
 _TODO_EVENT_TYPES = frozenset({"todos", "task.todos"})
 _BLOCKER_EVENT_TYPES = frozenset({"blocker", "task.blocker"})
@@ -126,6 +144,23 @@ def create_app(
     router.add_api_route("/v1/tasks/{task_id}/resume", _resume_task, methods=["POST"])
     router.add_api_route("/v1/tasks/{task_id}/cancel", _cancel_task, methods=["POST"])
     router.add_api_route(
+        "/v1/tasks/{task_id}/questions",
+        _ask_question,
+        methods=["POST"],
+        status_code=201,
+    )
+    router.add_api_route(
+        "/v1/tasks/{task_id}/questions/{question_id}/answer",
+        _answer_question,
+        methods=["POST"],
+    )
+    router.add_api_route(
+        "/v1/tasks/{task_id}/approvals",
+        _request_approval,
+        methods=["POST"],
+        status_code=201,
+    )
+    router.add_api_route(
         "/v1/tasks/{task_id}/approvals/{approval_id}/decide",
         _decide_approval,
         methods=["POST"],
@@ -191,52 +226,133 @@ async def _post_message(
 async def _pause_task(request: Request, task_id: str) -> TaskProjection:
     box = _box(request)
     async with box.lock:
-        record = _require_task(box.store, task_id)
-        if record.lifecycle in _TERMINAL:
-            raise HTTPException(
-                status_code=409,
-                detail=f"cannot pause task in lifecycle {record.lifecycle.value}",
-            )
-        if record.lifecycle is not LifecycleState.PAUSED:
-            record = box.store.update_task(task_id, lifecycle=LifecycleState.PAUSED)
-            box.store.append_event(task_id, "task.paused", {"lifecycle": "paused"})
+        try:
+            record = pause_task(box.store, task_id)
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except TerminalLifecycleError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _project(box.store, record)
 
 
 async def _resume_task(request: Request, task_id: str) -> TaskProjection:
     box = _box(request)
     async with box.lock:
-        record = _require_task(box.store, task_id)
-        if record.lifecycle in _TERMINAL:
-            raise HTTPException(
-                status_code=409,
-                detail=f"cannot resume task in lifecycle {record.lifecycle.value}",
-            )
-        if record.lifecycle is LifecycleState.QUEUED:
-            return _project(box.store, record)
-        if record.lifecycle is not LifecycleState.PAUSED:
-            raise HTTPException(
-                status_code=409,
-                detail=f"cannot resume task in lifecycle {record.lifecycle.value}",
-            )
-        record = box.store.update_task(task_id, lifecycle=LifecycleState.QUEUED)
-        box.store.append_event(task_id, "task.resumed", {"lifecycle": "queued"})
+        try:
+            record = resume_task(box.store, task_id)
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (TerminalLifecycleError, NotResumableError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _project(box.store, record)
 
 
 async def _cancel_task(request: Request, task_id: str) -> TaskProjection:
     box = _box(request)
     async with box.lock:
-        record = _require_task(box.store, task_id)
-        if record.lifecycle is not LifecycleState.CANCELLED:
-            if record.lifecycle is LifecycleState.COMPLETE:
-                raise HTTPException(
-                    status_code=409,
-                    detail="cannot cancel a complete task",
-                )
-            record = box.store.update_task(task_id, lifecycle=LifecycleState.CANCELLED)
-            box.store.append_event(task_id, "task.cancelled", {"lifecycle": "cancelled"})
+        try:
+            record = cancel_task(box.store, task_id)
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except TerminalLifecycleError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _project(box.store, record)
+
+
+async def _ask_question(
+    request: Request,
+    task_id: str,
+    body: QuestionAskRequest,
+) -> JSONResponse:
+    box = _box(request)
+    async with box.lock:
+        try:
+            ask_question(
+                box.store,
+                task_id,
+                question_id=body.id,
+                stage=body.stage,
+                options=body.options,
+                reason=body.reason,
+                recommendation=body.recommendation,
+                actor=body.actor,
+            )
+            record = _require_task(box.store, task_id)
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except DuplicateQuestionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except TerminalLifecycleError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        projection = _project(box.store, record)
+    return JSONResponse(
+        status_code=201,
+        content=projection.model_dump(mode="json"),
+        headers={"Location": f"/v1/tasks/{task_id}/questions/{body.id}"},
+    )
+
+
+async def _answer_question(
+    request: Request,
+    task_id: str,
+    question_id: str,
+    body: QuestionAnswerRequest,
+) -> QuestionAnswerResponse:
+    box = _box(request)
+    async with box.lock:
+        try:
+            result = answer_question(
+                box.store,
+                task_id,
+                question_id,
+                answer=body.answer,
+                principal=body.actor,
+            )
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except QuestionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except TerminalLifecycleError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return QuestionAnswerResponse(
+        task_id=task_id,
+        question_id=question_id,
+        ignored=result.ignored,
+        event_id=result.event_id,
+        principal=result.principal,
+        status=result.question.status,
+    )
+
+
+async def _request_approval(
+    request: Request,
+    task_id: str,
+    body: ApprovalRequest,
+) -> JSONResponse:
+    box = _box(request)
+    async with box.lock:
+        try:
+            request_approval(
+                box.store,
+                task_id,
+                approval_id=body.id,
+                action_class=body.action_class,
+                action_digest=body.action_digest,
+                paths=body.paths,
+            )
+            record = _require_task(box.store, task_id)
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except DuplicateApprovalError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except TerminalLifecycleError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        projection = _project(box.store, record)
+    return JSONResponse(
+        status_code=201,
+        content=projection.model_dump(mode="json"),
+        headers={"Location": f"/v1/tasks/{task_id}/approvals/{body.id}"},
+    )
 
 
 async def _decide_approval(
@@ -247,25 +363,30 @@ async def _decide_approval(
 ) -> ApprovalDecideResponse:
     box = _box(request)
     async with box.lock:
-        _require_task(box.store, task_id)
-        approval = box.store.get_approval(approval_id)
-        if approval is None or approval.task_id != task_id:
-            raise HTTPException(status_code=404, detail=f"unknown approval: {approval_id}")
-        payload: dict[str, object] = {
-            "approval_id": approval_id,
-            "decision": body.decision,
-            "action_digest": approval.action_digest,
-        }
-        if body.actor is not None:
-            payload["actor"] = body.actor
-        if body.comment is not None:
-            payload["comment"] = body.comment
-        event_id = box.store.append_event(task_id, "approval.decide", payload)
+        try:
+            result = decide_approval(
+                box.store,
+                task_id,
+                approval_id,
+                decision=body.decision,
+                principal=body.actor,
+                action_digest=body.action_digest,
+                comment=body.comment,
+            )
+        except TaskNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ApprovalNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except StaleDigestError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ApprovalDecideResponse(
         task_id=task_id,
         approval_id=approval_id,
-        decision=body.decision,
-        event_id=event_id,
+        decision=result.decision,
+        event_id=result.event_id,
+        ignored=result.ignored,
+        action_digest=result.approval.action_digest,
+        principal=result.principal,
     )
 
 
@@ -302,6 +423,7 @@ def _require_projection(store: Store, task_id: str) -> TaskProjection:
 def _project(store: Store, record: TaskRecord) -> TaskProjection:
     events = store.list_events(record.id)
     questions = [_question_view(item) for item in store.list_questions(record.id)]
+    approvals = [_approval_view(item) for item in store.list_approvals(record.id)]
     plan = _latest_object(events, _PLAN_EVENT_TYPES)
     todos = _latest_list(events, _TODO_EVENT_TYPES)
     blockers = _blocker_messages(events)
@@ -331,6 +453,7 @@ def _project(store: Store, record: TaskRecord) -> TaskProjection:
         validation_summary=validation,
         blockers=blockers,
         questions=questions,
+        approvals=approvals,
         worktree_path=record.worktree_path,
         branch=record.branch,
         created_at=record.created_at,
@@ -346,6 +469,16 @@ def _question_view(record: QuestionRecord) -> QuestionView:
         options=list(record.options),
         recommendation=record.recommendation,
         reason=record.reason,
+    )
+
+
+def _approval_view(record: ApprovalRecord) -> ApprovalView:
+    return ApprovalView(
+        id=record.id,
+        action_class=record.action_class,
+        action_digest=record.action_digest,
+        paths=list(record.paths),
+        status=record.status,
     )
 
 

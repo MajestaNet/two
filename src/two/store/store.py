@@ -40,11 +40,13 @@ from two.manifest import TaskManifest
 from two.store.engine import prepare_database
 from two.store.errors import (
     ActionNotFoundError,
+    ApprovalNotFoundError,
     DuplicateActionError,
     DuplicateApprovalError,
     DuplicateQuestionError,
     DuplicateSourceEventError,
     DuplicateTaskError,
+    QuestionNotFoundError,
     StoreError,
     TaskNotFoundError,
 )
@@ -566,7 +568,7 @@ class Store:
         reason: str | None = None,
         now: datetime | None = None,
     ) -> QuestionRecord:
-        """Insert a question row and commit. Resolution is B11."""
+        """Insert a question row and commit. Use ``resolve_question`` to answer."""
         if not question_id:
             raise StoreError("question_id must be non-empty")
         stage_value = stage.value if isinstance(stage, WorkflowStage) else stage
@@ -635,7 +637,7 @@ class Store:
         status: str = "open",
         now: datetime | None = None,
     ) -> ApprovalRecord:
-        """Insert an approval row and commit. Decision policy is B11."""
+        """Insert an approval row and commit. ``action_digest`` is never updated."""
         if not approval_id or not action_class or not action_digest:
             raise StoreError("approval_id, action_class, and action_digest must be non-empty")
         stamp = _iso(_utc(now))
@@ -689,6 +691,144 @@ class Store:
             (task_id,),
         ).fetchall()
         return [_approval_from_row(row) for row in rows]
+
+    def resolve_question(
+        self,
+        question_id: str,
+        *,
+        status: str,
+        resolver: str,
+        now: datetime | None = None,
+    ) -> tuple[QuestionRecord, bool]:
+        """First-writer-wins status change. Commits before return.
+
+        Returns ``(record, True)`` when this caller moved the row off
+        ``open``. Later callers receive the existing row and ``False``.
+        """
+        if status not in {"answered", "expired"}:
+            raise StoreError("question status must be answered or expired")
+        if not resolver:
+            raise StoreError("resolver must be non-empty")
+        stamp = _iso(_utc(now))
+        with self._txn():
+            existing = self._connection.execute(
+                "SELECT * FROM questions WHERE id = ?",
+                (question_id,),
+            ).fetchone()
+            if existing is None:
+                raise QuestionNotFoundError(f"unknown question: {question_id}")
+            cursor = self._connection.execute(
+                """
+                UPDATE questions
+                SET status = ?, resolved_at = ?, resolver = ?
+                WHERE id = ? AND status = 'open'
+                """,
+                (status, stamp, resolver, question_id),
+            )
+            first = cursor.rowcount == 1
+        record = self.get_question(question_id)
+        if record is None:
+            raise QuestionNotFoundError(f"unknown question: {question_id}")
+        return record, first
+
+    def resolve_approval(
+        self,
+        approval_id: str,
+        *,
+        status: str,
+        now: datetime | None = None,
+    ) -> tuple[ApprovalRecord, bool]:
+        """First-writer-wins status change. Commits before return.
+
+        ``action_digest`` is not in the SET list and cannot change.
+        Returns ``(record, True)`` when this caller moved the row off
+        ``open``. Later callers receive the existing row and ``False``.
+        """
+        if status not in {"approved", "rejected", "expired"}:
+            raise StoreError("approval status must be approved, rejected, or expired")
+        stamp = _iso(_utc(now))
+        with self._txn():
+            existing = self._connection.execute(
+                "SELECT * FROM approvals WHERE id = ?",
+                (approval_id,),
+            ).fetchone()
+            if existing is None:
+                raise ApprovalNotFoundError(f"unknown approval: {approval_id}")
+            cursor = self._connection.execute(
+                """
+                UPDATE approvals
+                SET status = ?, resolved_at = ?
+                WHERE id = ? AND status = 'open'
+                """,
+                (status, stamp, approval_id),
+            )
+            first = cursor.rowcount == 1
+        record = self.get_approval(approval_id)
+        if record is None:
+            raise ApprovalNotFoundError(f"unknown approval: {approval_id}")
+        return record, first
+
+    def expire_open_input(
+        self,
+        task_id: str,
+        *,
+        resolver: str = "timeout",
+        now: datetime | None = None,
+    ) -> tuple[list[QuestionRecord], list[ApprovalRecord]]:
+        """Expire open questions and approvals. Never sets ``approved``.
+
+        Commits before return. ``action_digest`` columns are not written.
+        """
+        if not resolver:
+            raise StoreError("resolver must be non-empty")
+        stamp = _iso(_utc(now))
+        with self._txn():
+            self._require_task(task_id)
+            question_rows = self._connection.execute(
+                """
+                SELECT * FROM questions
+                WHERE task_id = ? AND status = 'open'
+                ORDER BY created_at ASC, id ASC
+                """,
+                (task_id,),
+            ).fetchall()
+            approval_rows = self._connection.execute(
+                """
+                SELECT * FROM approvals
+                WHERE task_id = ? AND status = 'open'
+                ORDER BY created_at ASC, id ASC
+                """,
+                (task_id,),
+            ).fetchall()
+            self._connection.execute(
+                """
+                UPDATE questions
+                SET status = 'expired', resolved_at = ?, resolver = ?
+                WHERE task_id = ? AND status = 'open'
+                """,
+                (stamp, resolver, task_id),
+            )
+            self._connection.execute(
+                """
+                UPDATE approvals
+                SET status = 'expired', resolved_at = ?
+                WHERE task_id = ? AND status = 'open'
+                """,
+                (stamp, task_id),
+            )
+        question_ids = [_as_str(row["id"], "id") for row in question_rows]
+        approval_ids = [_as_str(row["id"], "id") for row in approval_rows]
+        questions_out: list[QuestionRecord] = []
+        for question_id in question_ids:
+            question = self.get_question(question_id)
+            if question is not None:
+                questions_out.append(question)
+        approvals_out: list[ApprovalRecord] = []
+        for approval_id in approval_ids:
+            approval = self.get_approval(approval_id)
+            if approval is not None:
+                approvals_out.append(approval)
+        return questions_out, approvals_out
 
     def _require_task(self, task_id: str) -> None:
         row = self._connection.execute(

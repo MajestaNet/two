@@ -73,6 +73,18 @@ class QuestionView(BaseModel):
     reason: str | None = None
 
 
+class ApprovalView(BaseModel):
+    """Durable approval as projected to clients (architecture §8.4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    action_class: str
+    action_digest: str
+    paths: list[str] = Field(default_factory=list)
+    status: str
+
+
 class TaskProjection(BaseModel):
     """Authoritative task view. Clients never query the model for status."""
 
@@ -94,6 +106,7 @@ class TaskProjection(BaseModel):
     validation_summary: ValidationSummary = Field(default_factory=ValidationSummary)
     blockers: list[str] = Field(default_factory=list)
     questions: list[QuestionView] = Field(default_factory=list)
+    approvals: list[ApprovalView] = Field(default_factory=list)
     worktree_path: str | None = None
     branch: str | None = None
     created_at: datetime
@@ -118,6 +131,52 @@ class TaskMessageReceipt(BaseModel):
     event_id: int
 
 
+class QuestionAskRequest(BaseModel):
+    """Ask a durable question. Sets lifecycle ``awaiting_input``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    stage: str
+    reason: str
+    options: list[Any] = Field(default_factory=list)
+    recommendation: str | None = None
+    actor: str | None = None
+
+
+class QuestionAnswerRequest(BaseModel):
+    """Answer one stored question. First valid principal wins."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: Any
+    actor: str | None = None
+
+
+class QuestionAnswerResponse(BaseModel):
+    """Answer persisted. Duplicates return ``ignored: true``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str
+    question_id: str
+    ignored: bool = False
+    event_id: int
+    principal: str
+    status: str
+
+
+class ApprovalRequest(BaseModel):
+    """Request a scoped approval. Digest is stored at insert and never updated."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    action_class: str
+    action_digest: str
+    paths: list[str] = Field(default_factory=list)
+
+
 class ApprovalDecideRequest(BaseModel):
     """Approve or reject one stored approval record."""
 
@@ -126,10 +185,11 @@ class ApprovalDecideRequest(BaseModel):
     decision: Literal["approve", "reject"]
     actor: str | None = None
     comment: str | None = None
+    action_digest: str | None = None
 
 
 class ApprovalDecideResponse(BaseModel):
-    """Decision persisted as an event. B11 applies first-valid policy."""
+    """First-writer-wins decision. Duplicates return ``ignored: true``."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -137,7 +197,9 @@ class ApprovalDecideResponse(BaseModel):
     approval_id: str
     decision: Literal["approve", "reject"]
     event_id: int
-    status: Literal["recorded"] = "recorded"
+    ignored: bool = False
+    action_digest: str
+    principal: str
 
 
 class TaskReport(BaseModel):
