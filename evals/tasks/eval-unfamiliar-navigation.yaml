@@ -1,0 +1,13 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-unfamiliar-navigation
+architecture_case: unfamiliar-repo-navigation
+mode: offline
+fixture: navigate
+objective: Locate invoice_total without reading the whole tree
+acceptance_criteria:
+  - inventory lists src/billing/invoices.py
+  - lexical search for invoice_total hits only billing
+allowed_paths:
+  - src/**
+notes: Uses two.context inventory and search. No vector DB.

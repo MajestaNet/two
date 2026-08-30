@@ -1,0 +1,14 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-misleading-test-output
+architecture_case: misleading-test-output
+mode: offline
+fixture: misleading
+objective: Do not treat a failing test as passing because it prints ALL TESTS PASSED
+acceptance_criteria:
+  - validation.passed is false on the broken fixture
+  - the test log still contains the misleading PASSED string
+allowed_paths:
+  - src/**
+  - tests/**
+notes: Offline contract is that the gate fails despite the banner.

@@ -1,0 +1,17 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-multi-file-feature
+architecture_case: multi-file-feature
+mode: offline
+fixture: greeter
+objective: Add a title-cased Hello greeting that uses format_name
+acceptance_criteria:
+  - greet("ada") returns Hello, Ada!
+  - tests cover greet and format_name
+allowed_paths:
+  - src/**
+  - tests/**
+oracle:
+  overlay: eval-multi-file-feature
+expected: eval-multi-file-feature
+notes: Oracle overlay across src/names.py, src/greet.py, and tests.

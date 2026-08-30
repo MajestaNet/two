@@ -1,0 +1,10 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: soak-stale-approval
+architecture_case: soak-stale-approval-policy
+mode: soak
+objective: Slack cannot authorize a changed action by replaying an earlier approval
+acceptance_criteria:
+  - digest mismatch is rejected
+  - first-writer-wins still holds
+notes: Offline digest rejection is covered by eval-overnight-pause-resume. Slack path is B14.

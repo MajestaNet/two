@@ -1,0 +1,11 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-controller-restart-lease
+architecture_case: controller-restart-active-lease
+mode: offline
+objective: Recover an expired lease without replaying the last action
+acceptance_criteria:
+  - expired running lease is requeued
+  - paused tasks stay paused
+  - recorded-without-result actions reconcile and are not replayed
+notes: Uses two.recovery.recover_startup (B12). No Mac.

@@ -28,6 +28,7 @@ make lint
 make typecheck
 make test
 make ci
+make eval-offline
 uv run two --help
 uv run two profiles
 uv run two topology
@@ -37,6 +38,7 @@ uv run two worker
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
 ./scripts/bootstrap-dev-host.sh --dry-run
+./scripts/run-evals.sh --offline
 ```
 
 `make ci` is the required gate. Validation commands for this repo are also
@@ -65,6 +67,8 @@ listed in `config/repositories/two.yaml`.
   `src/two/reporting/` formats gate fragments and Stage 8 final reports.
   `src/two/recovery/` is development-host startup recovery (architecture
   §12.5) and the `two scheduler` / `two worker` process loops.
+  `src/two/evals/` runs the architecture §18 corpus (offline default;
+  `TWO_LIVE_EVAL=1` for live Mac cases). Soaks are not auto-passed.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
@@ -78,7 +82,12 @@ listed in `config/repositories/two.yaml`.
   `worker`; optional `slack` profile stub). No Ollama image.
 - `deploy/systemd/` — optional user-unit templates. Compose is the default
   unattended packaging.
-- `evals/` — future evaluation corpus. No production repository clones.
+- `evals/` — evaluation corpus (architecture §18). Tasks, tiny synthetic
+  fixtures, expected overlays, and promotion checklists. No production
+  clones. Offline runner: `make eval-offline` / `python -m two.evals`.
+  Live cases need `TWO_LIVE_EVAL=1`. Soaks stay operator-owned
+  (`evals/PROMOTION.md`); CI must not mark them passed.
+  `src/two/evals/` is the runner.
 
 ## Conventions
 

@@ -1,0 +1,4 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+duplicate_side_effects: 0
+notes: Kill before and after a tool result. Runner invoke count must stay 1.
