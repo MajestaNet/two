@@ -1,6 +1,6 @@
-# src/devflow
+# src/two
 
-Python package for the DevFlow control plane.
+Python package for the Majesta Two control plane.
 
 - Keep enums in `types.py` and the task request in `manifest.py`. No I/O in
   those modules.

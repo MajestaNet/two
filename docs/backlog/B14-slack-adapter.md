@@ -11,14 +11,14 @@
 
 ## Goal
 
-Optional Socket Mode adapter: map Slack events to **typed** DevFlow
+Optional Socket Mode adapter: map Slack events to **typed** Majesta Two
 API commands, bind a thread to a task id, dedupe by source event id,
 post summaries under channel-output policy. The backend runs with the
 adapter disabled. Slack is not the product.
 
 ## Current tree
 
-- `src/devflow/channels/slack/` is a stub.
+- `src/two/channels/slack/` is a stub.
 - `config/channels/slack-app-manifest.yaml.template` exists.
 - `config/policies/default.yaml` `channel_output` allow/suppress lists.
 - `.env.example` Slack tokens empty.
@@ -33,7 +33,7 @@ adapter disabled. Slack is not the product.
 ## Implementation plan
 
 1. **Process**
-   - Isolated `devflow-slack` or `devflow channel slack`.
+   - Isolated `two-slack` or `two channel slack`.
    - Outbound Socket Mode only.
    - Immediate ack; long work is API-side.
 
@@ -69,7 +69,7 @@ adapter disabled. Slack is not the product.
    - Allowlist denial.
    - Dedup.
    - Output policy strips a fake secret and a fake source file dump.
-   - Adapter module must not import `devflow.workspace`.
+   - Adapter module must not import `two.workspace`.
 
 9. **Compose**  
    Optional profile; tokens from env. No inbound ports.
@@ -96,15 +96,15 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B14 — Slack MVP adapter**.
+You are implementing **Majesta Two backlog item B14 — Slack MVP adapter**.
 
 Read first:
 
-1. `AGENTS.md` and `src/devflow/AGENTS.md`
+1. `AGENTS.md` and `src/two/AGENTS.md`
 2. `docs/architecture.md` sections 6.3.H, 12.6, 15
 3. `docs/channels.md`, `docs/adrs/0007-backend-first-channels.md`
 4. `docs/backlog/README.md` and `docs/backlog/B14-slack-adapter.md`
-5. `src/devflow/channels/slack/`, `config/channels/`, `config/policies/default.yaml`
+5. `src/two/channels/slack/`, `config/channels/`, `config/policies/default.yaml`
 6. Confirm B07 and B11 exist. If not, stop.
 
 Implement **only B14**. Do not add Matrix/Discord. Do not put vendor UX in `controller`.

@@ -1,7 +1,7 @@
 # Task manifest
 
 The reproducible task request is specified in [architecture.md](architecture.md)
-section 8.1. Field names in `devflow.manifest.TaskManifest` must stay aligned
+section 8.1. Field names in `two.manifest.TaskManifest` must stay aligned
 with that example.
 
 Machine-readable validation commands for a target repository live in

@@ -13,12 +13,12 @@
 
 Supervise a DeepSeek Harness ACP child per running task: heartbeats,
 bounded cancellation, session resume, an action ledger written **before**
-tool execution, and **at-most-once** automatic replay. DevFlow owns
+tool execution, and **at-most-once** automatic replay. Majesta Two owns
 task lifetime; DSH does not.
 
 ## Current tree
 
-- `src/devflow/worker/` is a stub.
+- `src/two/worker/` is a stub.
 - B02 pins DSH and provider config; B06 has `actions` rows; B08
   grants the single slot.
 
@@ -96,7 +96,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B09 — ACP worker, action ledger, reconciliation**.
+You are implementing **Majesta Two backlog item B09 — ACP worker, action ledger, reconciliation**.
 
 Read first:
 
@@ -104,7 +104,7 @@ Read first:
 2. `docs/architecture.md` sections 6.3.G, 10, 12.4, 12.5, 14
 3. `docs/unattended-operations.md`
 4. `docs/backlog/README.md` and `docs/backlog/B09-acp-worker.md`
-5. `src/devflow/worker/`
+5. `src/two/worker/`
 6. Confirm B02 pin notes, B03 workspace, B06 actions table, B08 slot. If any are missing, stop.
 
 Implement **only B09**. Do not implement workflow stages, Slack, or completion certification.

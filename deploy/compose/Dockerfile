@@ -21,5 +21,5 @@ COPY config ./config
 
 RUN uv sync --frozen --no-dev
 
-ENTRYPOINT ["uv", "run", "--no-dev", "devflow"]
+ENTRYPOINT ["uv", "run", "--no-dev", "two"]
 CMD ["--help"]

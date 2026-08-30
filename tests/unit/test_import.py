@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 
-def test_import_devflow() -> None:
-    import devflow
+def test_import_two() -> None:
+    import two
 
-    assert devflow.__version__
+    assert two.__version__

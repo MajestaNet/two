@@ -17,13 +17,13 @@ running the harness?
 ## Decision
 
 1. **Off-LAN chat = an optional messaging adapter** that dials out (Slack
-   Socket Mode is the MVP example). Do not expose DevFlow or Ollama so a
+   Socket Mode is the MVP example). Do not expose the Majesta Two API or Ollama so a
    vendor can webhook in. See ADR 0007.
 2. **Off-LAN CLI or web = private overlay** (Tailscale or WireGuard) plus
    controller authentication. Default API bind stays loopback or a Unix
    socket.
 3. **Ollama stays native on the Mac.** No Docker on the inference host.
-4. **Compose is the recommended unattended packaging** for DevFlow on a
+4. **Compose is the recommended unattended packaging** for Majesta Two on a
    Linux development host. A full VM is optional extra isolation, not
    required to contribute.
 5. **Harness is not in the foundation image.** Interactive use keeps DSH

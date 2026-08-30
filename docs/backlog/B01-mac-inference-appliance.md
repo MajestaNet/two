@@ -23,12 +23,12 @@ development host can call. Unit CI must stay offline.
   `config/mac/ollama.launchd.plist.template`.
 - Catalog: `config/inference/profiles.yaml` (default `m24-qwen38-16k`).
 - Lock example: `config/runtime/models.lock.example`.
-- `devflow profiles` already lists profiles. No lock-file parser yet.
+- `two profiles` already lists profiles. No lock-file parser yet.
 
 ## Out of scope
 
 - Pinning or launching DeepSeek Harness (B02).
-- DevFlow API, scheduler, worker, Compose Ollama image.
+- Majesta Two API, scheduler, worker, Compose Ollama image.
 - Changing the *default* inference profile (ADR 0004).
 - Loading two local models. Binding `:11434` on a public interface.
 - 24-hour soak as a required CI job (document the procedure; do not
@@ -37,7 +37,7 @@ development host can call. Unit CI must stay offline.
 ## Implementation plan
 
 1. **Lock-file schema (Python, no I/O beyond parsing)**  
-   Add `src/devflow/runtime/lock.py` (or `src/devflow/runtime.py`) with a
+   Add `src/two/runtime/lock.py` (or `src/two/runtime.py`) with a
    Pydantic model matching `config/runtime/models.lock.example`: Ollama
    version, upstream tag, upstream digest, alias, alias digest, context,
    KV cache, flash attention, sampling contract, DSH version (empty
@@ -129,7 +129,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B01 — Mac inference appliance**.
+You are implementing **Majesta Two backlog item B01 — Mac inference appliance**.
 
 Read first, in this order:
 
@@ -146,9 +146,9 @@ control API, scheduler, or worker.
 Standing orders:
 
 - `docs/architecture.md` wins. If you would disagree, stop and write an ADR under `docs/adrs/`.
-- Python 3.12, uv, ruff, `mypy --strict` on `src/devflow`, pytest. `make ci` must stay green.
+- Python 3.12, uv, ruff, `mypy --strict` on `src/two`, pytest. `make ci` must stay green.
 - No new runtime dependency.
-- SQLite does not belong in this item. CLI stays thin; you may add `devflow health` later — prefer scripts for B01.
+- SQLite does not belong in this item. CLI stays thin; you may add `two health` later — prefer scripts for B01.
 - Apache 2.0 header and `SPDX-License-Identifier: Apache-2.0` on new source files.
 - Never bind Ollama to a public interface. Never commit `.env`, tokens, real Mac addresses, or model weights.
 - Unit tests must not call a live Mac, Slack, or network model.

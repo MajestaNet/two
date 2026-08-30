@@ -6,13 +6,13 @@
 # Replace display names. Do not commit workspace IDs, channel IDs, or tokens.
 
 display_information:
-  name: DevFlow
+  name: Majesta Two
   description: Durable local development-agent control surface
   background_color: "#111111"
 
 features:
   bot_user:
-    display_name: DevFlow
+    display_name: Majesta Two
     always_online: false
   app_home:
     messages_tab_enabled: true

@@ -22,16 +22,16 @@ lint:
 	uv run ruff check src tests
 
 typecheck:
-	uv run mypy src/devflow
+	uv run mypy src/two
 
 test:
 	uv run pytest
 
 profiles:
-	uv run devflow profiles
+	uv run two profiles
 
 topology:
-	uv run devflow topology
+	uv run two topology
 
 license-check:
 	./scripts/check-license-headers.sh

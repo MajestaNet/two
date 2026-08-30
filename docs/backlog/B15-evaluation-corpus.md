@@ -57,7 +57,7 @@ alias requires the §18 metrics, not token speed.
    - `evals` Python module or `scripts/run-evals.sh`.
    - Offline subset runs in CI (policy/forbidden-path, store
      reconcile using fakes).
-   - Live subset: `DEVFLOW_LIVE_EVAL=1`.
+   - Live subset: `TWO_LIVE_EVAL=1`.
 
 4. **Metrics captured** (even if values are N/A offline)
    - accepted-task rate, tool-call correctness, validation success,
@@ -96,7 +96,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B15 — Evaluation corpus and promotion gates**.
+You are implementing **Majesta Two backlog item B15 — Evaluation corpus and promotion gates**.
 
 Read first:
 

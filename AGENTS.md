@@ -2,7 +2,7 @@
 
 ## Overview
 
-DevFlow is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays on
+Majesta Two is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays on
 a dedicated Mac inference host. This repository is not a Slack (or other
 messenger) product. Slack is the MVP optional adapter. Foundation scaffold
 only: types, manifest, CLI help, config templates. No SQLite store, ACP
@@ -10,7 +10,7 @@ worker, or messaging adapter yet.
 
 ## Stack
 
-Python 3.12, uv, ruff, mypy --strict on `src/devflow`, pytest, Pydantic v2.
+Python 3.12, uv, ruff, mypy --strict on `src/two`, pytest, Pydantic v2.
 Do not add Poetry, pip-tools, or pre-commit unless an ADR says so.
 
 ## Commands
@@ -22,17 +22,17 @@ make lint
 make typecheck
 make test
 make ci
-uv run devflow --help
-uv run devflow profiles
-uv run devflow topology
+uv run two --help
+uv run two profiles
+uv run two topology
 ```
 
 `make ci` is the required gate. Validation commands for this repo are also
-listed in `config/repositories/devflow.yaml`.
+listed in `config/repositories/two.yaml`.
 
 ## Layout
 
-- `src/devflow/` — Python only. Package implementations live here.
+- `src/two/` — Python only. Package implementations live here.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — operational stubs until later phases.
@@ -77,12 +77,12 @@ listed in `config/repositories/devflow.yaml`.
 ### Never
 
 - Merge, push, release, or deploy from agent-authored automation
-- Bind inference or the DevFlow API to a public interface
+- Bind inference or the Majesta Two API to a public interface
 - Commit `.env`, tokens, model weights, or real Mac addresses
 - Edit the canonical checkout of a *target* repository
 - Treat a model self-report as task completion
 - Send full source, raw trajectories, or verbose logs to any messenger
-- Reimplement the DeepSeek Harness agent loop inside DevFlow
+- Reimplement the DeepSeek Harness agent loop inside Majesta Two
 
 ## Architecture authority
 

@@ -1,7 +1,7 @@
 [project]
-name = "devflow"
+name = "two"
 version = "0.1.0"
-description = "Durable control plane for local Qwen-backed software-development agents."
+description = "Majesta Two — local, private software-development agent control plane."
 readme = "README.md"
 license = "Apache-2.0"
 authors = [{ name = "MajestaNet" }]
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-devflow = "devflow.cli:main"
+two = "two.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/MajestaNet/two"
@@ -33,7 +33,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-# Editable installs must put src/ on sys.path so `import devflow` works.
+# Editable installs must put src/ on sys.path so `import two` works.
 dev-mode-dirs = ["src"]
 
 [tool.ruff]
@@ -47,7 +47,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src/devflow"]
+files = ["src/two"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

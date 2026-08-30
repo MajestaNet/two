@@ -19,10 +19,10 @@ results.
 
 ## Current tree
 
-- `config/repositories/devflow.yaml` and `example.yaml` exist.
+- `config/repositories/two.yaml` and `example.yaml` exist.
 - `config/policies/default.yaml` has budgets, forbidden actions,
   approval classes, channel-output policy.
-- `src/devflow/validation/` and `src/devflow/reporting/` are stubs.
+- `src/two/validation/` and `src/two/reporting/` are stubs.
 - `TaskManifest.validation_profile` already exists.
 
 ## Out of scope
@@ -45,12 +45,12 @@ results.
    approval-required classes, and default budgets. Do not invent extra
    forbidden actions.
 
-3. **Validation runner** in `src/devflow/validation/`
+3. **Validation runner** in `src/two/validation/`
    - `cwd` is the **worktree**, never the canonical checkout.
    - Run configured commands (format, lint, typecheck, test, build,
      `ci` as listed). Capture exit code, duration, and a **truncated**
      log. Persist full logs under the task artifact directory
-     (`DEVFLOW_DATA_DIR` / per-task). Return a summary + artifact path
+     (`TWO_DATA_DIR` / per-task). Return a summary + artifact path
      to callers.
    - `git diff --check` and clean-status inspection.
    - Diff policy: `max_changed_lines` from the manifest when set;
@@ -67,12 +67,12 @@ results.
    writes here.
 
 5. **Minimal report fragment**  
-   In `src/devflow/reporting/`, a function that formats validation
+   In `src/two/reporting/`, a function that formats validation
    results for later inclusion in the final report (commands, exit
    codes, summaries). Full Stage 8 reports wait for B10.
 
 6. **Tests**
-   - Parse `devflow.yaml` and `example.yaml`.
+   - Parse `two.yaml` and `example.yaml`.
    - Fixture git repo: failing and passing `test` command.
    - Path policy rejects a file outside `allowed_paths`.
    - Forbidden action names from policy YAML are loaded.
@@ -85,7 +85,7 @@ results.
 - [ ] Failing tests produce `passed=False` regardless of any string
       the model might have said (there is no model in this item).
 - [ ] Artifacts are files, not giant strings in return values.
-- [ ] `make ci` remains the DevFlow repo gate; the engine can invoke it
+- [ ] `make ci` remains the Majesta Two repo gate; the engine can invoke it
       when the profile says so, in a worktree copy, not on the agent's
       dirty checkout as a side effect of unit tests.
 
@@ -103,7 +103,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B04 — Repository profiles and validation engine**.
+You are implementing **Majesta Two backlog item B04 — Repository profiles and validation engine**.
 
 Read first:
 
@@ -111,7 +111,7 @@ Read first:
 2. `docs/architecture.md` sections 6.3.F, 8.2 (Validate/Repair and Completion), 9, 15
 3. `docs/task-manifest.md`
 4. `docs/backlog/README.md` and `docs/backlog/B04-validation-engine.md`
-5. `config/repositories/*.yaml`, `config/policies/default.yaml`, `src/devflow/validation/`, `src/devflow/reporting/`
+5. `config/repositories/*.yaml`, `config/policies/default.yaml`, `src/two/validation/`, `src/two/reporting/`
 6. Confirm B03 worktree APIs exist. If B03 is not on this branch, stop and say so.
 
 Implement **only B04**. Do not set task lifecycle to complete. Do not call Ollama or DSH.
