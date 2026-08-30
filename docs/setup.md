@@ -20,8 +20,9 @@ in [architecture.md](architecture.md). Viability notes are in
 | Task worktrees | Works (`two.workspace`; unused by CLI) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation`; unused by CLI) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; unused by CLI) ([B05](backlog/B05-context-broker.md)) |
+| SQLite WAL store | Works (`two.store.open_store`; unused by CLI) (`TWO_DATA_DIR/two.sqlite`) ([B06](backlog/B06-sqlite-store.md)) |
 
-Last updated: 30 August 2026 (Phase 4: B05 context broker).
+Last updated: 30 August 2026 (Phase 5: B06 SQLite store).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -82,7 +83,9 @@ Never commit `.env`. Task worktrees are created under `TWO_WORKSPACE_ROOT`
 (default `./var/worktrees`; architecture [§6.3.D](architecture.md)).
 Task artifacts, including structured memory
 `TWO_DATA_DIR/tasks/<id>/memory.json` (default `./var/two`), share the
-B04 artifact tree.
+B04 artifact tree. The SQLite WAL store is
+`TWO_DATA_DIR/two.sqlite` ([B06](backlog/B06-sqlite-store.md)); the CLI
+does not open it.
 
 ## 2. Pick an inference profile
 
