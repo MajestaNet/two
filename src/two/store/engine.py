@@ -38,9 +38,17 @@ def resolve_db_path(path: Path | str | None = None) -> Path:
     return resolve_data_dir() / DEFAULT_DB_FILENAME
 
 
-def connect(path: Path) -> sqlite3.Connection:
-    """Open ``path`` in autocommit mode and apply WAL / FK / busy-timeout pragmas."""
-    connection = sqlite3.connect(path, isolation_level=None)
+def connect(path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection:
+    """Open ``path`` in autocommit mode and apply WAL / FK / busy-timeout pragmas.
+
+    ``check_same_thread=False`` is for the ASGI control API, which may hop
+    threads (TestClient / middleware). Callers must still serialize access.
+    """
+    connection = sqlite3.connect(
+        path,
+        isolation_level=None,
+        check_same_thread=check_same_thread,
+    )
     connection.row_factory = sqlite3.Row
     _apply_pragmas(connection)
     return connection
@@ -55,11 +63,15 @@ def _apply_pragmas(connection: sqlite3.Connection) -> None:
     connection.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
 
 
-def prepare_database(path: Path | str | None = None) -> tuple[Path, sqlite3.Connection]:
+def prepare_database(
+    path: Path | str | None = None,
+    *,
+    check_same_thread: bool = True,
+) -> tuple[Path, sqlite3.Connection]:
     """Create parent directories, connect, migrate, and return ``(path, connection)``."""
     resolved = resolve_db_path(path)
     resolved.parent.mkdir(parents=True, exist_ok=True)
-    connection = connect(resolved)
+    connection = connect(resolved, check_same_thread=check_same_thread)
     try:
         apply_migrations(connection)
     except Exception:
