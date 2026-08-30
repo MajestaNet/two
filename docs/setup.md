@@ -22,8 +22,9 @@ in [architecture.md](architecture.md). Viability notes are in
 | Context broker + task memory | Works (`two.context`; unused by CLI) ([B05](backlog/B05-context-broker.md)) |
 | SQLite WAL store | Works (`two.store.open_store`; unused by CLI) (`TWO_DATA_DIR/two.sqlite`) ([B06](backlog/B06-sqlite-store.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket) ([B07](backlog/B07-control-api.md)) |
+| Durable scheduler (single slot) | Works (`two.scheduler`; unused by CLI) ([B08](backlog/B08-scheduler.md)) |
 
-Last updated: 30 August 2026 (Phase 5: B07 control API).
+Last updated: 30 August 2026 (Phase 5: B07 control API, B08 scheduler).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
