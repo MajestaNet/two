@@ -14,8 +14,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 from two.context import (
     TaskMemory,
@@ -29,6 +32,8 @@ from two.context import (
     search_lexical,
 )
 from two.workspace import WorkspaceManager
+
+_RG_AVAILABLE = shutil.which("rg") is not None
 
 _GIT_ENV = {
     **os.environ,
@@ -90,6 +95,7 @@ def _init_canonical(root: Path) -> Path:
     return repo
 
 
+@pytest.mark.skipif(not _RG_AVAILABLE, reason="rg not on PATH")
 def test_inventory_and_retrieval_on_worktree(tmp_path: Path) -> None:
     canonical = _init_canonical(tmp_path)
     manager = WorkspaceManager(workspace_root=tmp_path / "ws")

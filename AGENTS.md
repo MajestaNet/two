@@ -11,7 +11,9 @@ worker, or messaging adapter yet.
 ## Stack
 
 Python 3.12, uv, ruff, mypy --strict on `src/two`, pytest, Pydantic v2.
-Do not add Poetry, pip-tools, or pre-commit unless an ADR says so.
+System `rg` (ripgrep) is used by the context broker; tests skip that path
+if it is missing. Do not add Poetry, pip-tools, or pre-commit unless an
+ADR says so.
 
 ## Commands
 

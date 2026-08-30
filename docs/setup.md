@@ -62,7 +62,10 @@ MVP adapter ([channels.md](channels.md)).
 
 ## 1. Development host (contributor, works today)
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and
+[ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) for context-broker
+tests. GitHub Actions installs `ripgrep` before `make ci`. Tests skip the
+live `rg` path when it is not on `PATH`.
 
 ```bash
 git clone https://github.com/MajestaNet/two.git

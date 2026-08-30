@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -44,6 +45,8 @@ from two.context import (
     should_compact,
 )
 from two.validation.results import GateResult, ValidationResult
+
+_RG_AVAILABLE = shutil.which("rg") is not None
 
 
 def _memory(**overrides: object) -> TaskMemory:
@@ -110,6 +113,18 @@ def test_inventory_excludes_vendor_and_generated_paths() -> None:
     assert not is_excluded_path("README.md")
 
 
+def test_missing_rg_is_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def _missing(*_args: object, **_kwargs: object) -> object:
+        raise FileNotFoundError("rg")
+
+    monkeypatch.setattr("two.context.search._run_rg", _missing)
+    result = search_lexical(tmp_path, "UNIQUE_BROKER_TOKEN")
+    assert result.status == "unavailable"
+    assert "rg" in result.reason
+    assert result.excerpts == []
+
+
+@pytest.mark.skipif(not _RG_AVAILABLE, reason="rg not on PATH")
 def test_rg_returns_excerpts_not_whole_files(tmp_path: Path) -> None:
     src = tmp_path / "src"
     src.mkdir()
