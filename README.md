@@ -1,7 +1,5 @@
 # Majesta Two
 
-This is the `two` repository in the Majesta GitHub project.
-
 Majesta Two is a **backend** control plane for local, private software-development agents. It drives [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) on a development host and calls an official Qwen 3.8 model served from a Mac over a private network. Which messaging app you use is your choice; Slack is only the first optional adapter.
 
 Inference stays on the Mac. Repositories, shells, tests, and git worktrees stay on the development host. The model never mounts source and never executes commands on the inference appliance.
