@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/models",
+    "headers": {
+      "Authorization": "Bearer ollama"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "object": "list",
+      "data": [
+        {
+          "id": "qwen38-agent-16k",
+          "object": "model",
+          "created": 1756531200,
+          "owned_by": "library"
+        },
+        {
+          "id": "qwen3.8:27b-mlx",
+          "object": "model",
+          "created": 1756531200,
+          "owned_by": "library"
+        }
+      ]
+    }
+  }
+}
