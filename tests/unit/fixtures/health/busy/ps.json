@@ -1,0 +1,13 @@
+{
+  "models": [
+    {
+      "name": "qwen38-agent-16k:latest",
+      "model": "qwen38-agent-16k:latest",
+      "size": 1,
+      "digest": "sha256:test-fixture-not-a-promoted-digest"
+    }
+  ],
+  "active_requests": 1,
+  "queue_depth": 1,
+  "max_queue": 8
+}

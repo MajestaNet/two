@@ -3,6 +3,12 @@
 #
 # Record promoted runtime identities here after soak tests.
 # Copy to models.lock on the development host. Do not invent digests.
+#
+# Intended Ollama pin: native macOS build (Homebrew or a GitHub release asset).
+# After install, record `ollama --version` in ollama_version and `brew pin ollama`
+# when using Homebrew. Do not pipe `curl https://ollama.com/install.sh | sh`
+# without recording that version here. Leave digests empty until soak promotion.
+# deepseek_harness_version stays empty until B02.
 
 ollama_version: ""
 upstream_model: qwen3.8:27b-mlx
