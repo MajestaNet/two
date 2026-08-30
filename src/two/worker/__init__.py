@@ -14,8 +14,58 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""ACP supervisor, heartbeats, action ledger, and reconciliation.
+"""ACP supervisor, action ledger, session resume, and at-most-once replay.
 
-Local Qwen worker count is one. Not implemented in the foundation scaffold.
-See docs/architecture.md §6.3.G and §10.
+Local Qwen worker count is one. The worker supervises a DeepSeek Harness
+ACP child; it does not reimplement the agent loop, import Slack, or set
+task lifecycle ``complete``. See docs/architecture.md §6.3.G, §10, §12.4–12.5.
 """
+
+from two.worker.child import SupervisedChild, build_dsh_argv, default_child_env
+from two.worker.errors import ActionReplayError, ChildError, WorkerError
+from two.worker.ledger import ActionLedger
+from two.worker.models import (
+    CancelOutcome,
+    ChildConfig,
+    RepairAction,
+    RepairDecision,
+    SessionMode,
+    SessionPlan,
+)
+from two.worker.repair import ToolCallRepairPolicy, tool_call_fingerprint
+from two.worker.session import plan_session
+from two.worker.timeouts import (
+    CANCEL_GRACE_SECONDS,
+    CHILD_HEARTBEAT_STALE_SECONDS,
+    CONNECT_TIMEOUT_SECONDS,
+    INFERENCE_TIMEOUT_SECONDS,
+    LOCAL_QWEN_WORKER_COUNT,
+    STREAM_LIVENESS_SECONDS,
+)
+from two.worker.worker import AcpWorker
+
+__all__ = [
+    "CANCEL_GRACE_SECONDS",
+    "CHILD_HEARTBEAT_STALE_SECONDS",
+    "CONNECT_TIMEOUT_SECONDS",
+    "INFERENCE_TIMEOUT_SECONDS",
+    "LOCAL_QWEN_WORKER_COUNT",
+    "STREAM_LIVENESS_SECONDS",
+    "AcpWorker",
+    "ActionLedger",
+    "ActionReplayError",
+    "CancelOutcome",
+    "ChildConfig",
+    "ChildError",
+    "RepairAction",
+    "RepairDecision",
+    "SessionMode",
+    "SessionPlan",
+    "SupervisedChild",
+    "ToolCallRepairPolicy",
+    "WorkerError",
+    "build_dsh_argv",
+    "default_child_env",
+    "plan_session",
+    "tool_call_fingerprint",
+]
