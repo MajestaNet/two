@@ -5,20 +5,21 @@
 | Field | Value |
 | --- | --- |
 | Status | Proposed architecture for implementation |
-| Version | 0.3 |
-| Date | 29 August 2026 |
+| Version | 0.4 |
+| Date | 30 August 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
-| Development host | Separate Linux VM or development workstation |
+| Development host | Separate Linux host by default; same Mac allowed when topology is `colocated` |
 
 ## 1. Executive decision
 
-The system will separate **inference** from **software-development execution**:
+The system will separate **inference** from **software-development execution**. That split is **logical** (processes and trust), not a requirement for two chassis:
 
-- The Mac mini is a dedicated, always-on inference appliance. It runs the official Qwen3.8-27B model through native Ollama on Apple Silicon, using the MLX-tagged model as the initial performance candidate.
-- The development host owns the source repository, DeepSeek Harness, shell access, file editing, language servers, builds, tests, git worktrees, task state, and optional paid-model routes.
-- DeepSeek Harness calls the Mac through an OpenAI-compatible private-network endpoint. The model never mounts the repository and never executes commands on the Mac.
+- Native Ollama on Apple Silicon runs the official Qwen3.8 model. The default physical layout is a dedicated always-on Mac appliance (`topology: split`).
+- DevFlow and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. By default they run on a separate Linux development host.
+- They call Ollama through an OpenAI-compatible HTTP endpoint. The model process never mounts the repository and never executes commands, even if Ollama and the harness share one Mac (`topology: colocated`, intended for ~48 GB+ and no sleep).
+- Colocation is a bind-address change (`127.0.0.1` instead of a LAN name), not a second architecture. See ADR 0006 and `devflow topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, Slack connection, or Harness process does not define the lifetime of a task.
 - A channel-neutral interaction gateway exposes the same task through CLI, a lightweight web experience, and an optional Slack adapter. These are control surfaces over one durable task record, not separate agent sessions.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
@@ -65,7 +66,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 - Loading multiple local models at once.
 - Parallel Qwen inference or parallel Qwen-backed subagents.
 - Training, fine-tuning, or modifying Qwen weights.
-- Giving the Mac access to git repositories, build tools, credentials, or deployment environments.
+- Giving the Ollama/inference process access to git repositories, build tools, credentials, or deployment environments (the Mac may host those processes when `topology` is `colocated`, but they stay separate from Ollama).
 - Automatically merging, pushing, releasing, applying infrastructure, or deploying production changes.
 - Exposing the inference API or DeepSeek Harness UI to the public internet.
 - Treating SSD or macOS swap as a substitute for unified memory.
@@ -76,11 +77,12 @@ The MVP deliberately uses one model and one inference request at a time. It does
 ## 4. Assumptions
 
 1. “Original Qwen3.8-27B” means the official post-trained Qwen model rather than an abliterated, uncensored, merged, or task-specific derivative. The default 24 GB profile requires a 4-bit runtime representation. Larger unified memory may use a higher-quality official quant or a larger official Qwen tag after soak tests. One local model remains loaded at a time.
-2. The Mac and development host can reach each other over a trusted private LAN or private overlay network.
-3. The private network is the inference API trust boundary. No application API key, reverse proxy, or TLS termination is required for the MVP.
+2. In `split` topology the Mac and development host can reach each other over a trusted private LAN or overlay. In `colocated` topology the endpoint is loopback on one Mac.
+3. The inference API trust boundary is that private path (LAN, overlay, or localhost). No public bind. Application auth is still required once any non-loopback client exists.
 4. The development host is either:
-   - a Linux VM, recommended for unattended jobs and stronger process isolation; or
-   - a developer laptop/workstation for interactive use.
+   - a Linux VM or workstation (`split`), recommended for overnight isolation; or
+   - the same Mac as Ollama (`colocated`), for operators with enough unified memory who accept macOS as the unattended host; or
+   - a developer laptop for interactive use.
 5. Target repositories use git and provide reproducible build/test commands or can be given an external repository profile containing them.
 6. Only one automated development task actively uses the local model at a time.
 7. The development host or VM remains powered on for overnight work and runs DevFlow under an operating-system service manager rather than an interactive shell.
@@ -986,6 +988,8 @@ qwen-local-dev-agent/
 ├── config/
 │   ├── inference/
 │   │   └── profiles.yaml
+│   ├── deploy/
+│   │   └── topology.yaml
 │   ├── access/
 │   │   └── remote.yaml
 │   ├── mac/

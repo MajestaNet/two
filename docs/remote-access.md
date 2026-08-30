@@ -11,8 +11,9 @@ operator view of [architecture.md](architecture.md) §6.2, §6.3.H, and §12.6.
 | CLI / web on the same machine | Unix socket or `127.0.0.1` | No |
 | CLI / web on another network | Private overlay (Tailscale/WireGuard) plus auth | Only on the overlay |
 
-The inference API (Ollama on the Mac) is never a remote-user endpoint.
-Only the development host calls it.
+The inference API (Ollama) is never a remote-user endpoint. Only DevFlow
+on the development host — or the same Mac, if `topology` is `colocated` —
+calls it. Colocation still binds Ollama to `127.0.0.1`.
 
 ## Slack from a phone
 
