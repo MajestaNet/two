@@ -19,7 +19,7 @@ writes the records and API).
 
 ## Current tree
 
-- `src/devflow/approvals/` is a stub.
+- `src/two/approvals/` is a stub.
 - Store tables for questions/approvals specified in B06.
 - API stubs for decide/pause in B07.
 
@@ -86,14 +86,14 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B11 — Questions, approvals, pause/resume/cancel**.
+You are implementing **Majesta Two backlog item B11 — Questions, approvals, pause/resume/cancel**.
 
 Read first:
 
 1. `AGENTS.md`
 2. `docs/architecture.md` sections 8.3, 8.4, 15
 3. `docs/backlog/README.md` and `docs/backlog/B11-questions-approvals.md`
-4. `src/devflow/approvals/`
+4. `src/two/approvals/`
 5. B06 tables and B07 routes. If missing, stop.
 
 Implement **only B11**. Do not add a Slack adapter. Do not call the model.

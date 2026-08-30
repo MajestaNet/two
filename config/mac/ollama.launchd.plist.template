@@ -9,7 +9,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>local.devflow.ollama</string>
+  <string>local.two.ollama</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/ollama</string>

@@ -19,7 +19,7 @@ Slack.
 
 ## Current tree
 
-- `src/devflow/scheduler/` is a stub.
+- `src/two/scheduler/` is a stub.
 - Execution profiles and budgets live in `config/policies/default.yaml`
   and `types.ExecutionProfile`.
 - Health states are specified in architecture §12.3.
@@ -92,14 +92,14 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B08 — Scheduler, single slot, and Mac health**.
+You are implementing **Majesta Two backlog item B08 — Scheduler, single slot, and Mac health**.
 
 Read first:
 
 1. `AGENTS.md`
 2. `docs/architecture.md` sections 6.3.G, 12.2, 12.3, 12.4, 12.5
 3. `docs/backlog/README.md` and `docs/backlog/B08-scheduler.md`
-4. `src/devflow/scheduler/`, `src/devflow/types.py`
+4. `src/two/scheduler/`, `src/two/types.py`
 5. B06 store + B01 health classifier if present. If B06 is missing, stop.
 
 Implement **only B08**. Do not spawn DeepSeek Harness. Do not import Slack.

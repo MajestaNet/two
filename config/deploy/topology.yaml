@@ -1,7 +1,7 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
 #
-# Physical placement. The logical split (Ollama vs DevFlow/DSH) never collapses.
+# Physical placement. The logical split (Ollama vs Majesta Two/DSH) never collapses.
 # See docs/adrs/0006-logical-split-physical-colocation.md.
 
 default: split
@@ -12,7 +12,7 @@ topologies:
     ollama_bind: private-lan-or-overlay
     harness_host: development-host
     notes: >-
-      Default. Dedicated Apple Silicon inference appliance. DevFlow and
+      Default. Dedicated Apple Silicon inference appliance. Majesta Two and
       DeepSeek Harness run on a Linux host or workstation. Use this on a
       24 GB Mini and for overnight isolation.
 
@@ -21,6 +21,6 @@ topologies:
     ollama_bind: "127.0.0.1"
     harness_host: same-as-ollama
     notes: >-
-      Optional. One larger Mac runs native Ollama plus DevFlow/DSH as
+      Optional. One larger Mac runs native Ollama plus Majesta Two/DSH as
       separate processes. Bind Ollama to loopback only. Disable sleep.
       Not recommended on 24 GB: the model plus builds will swap.

@@ -63,7 +63,7 @@ class InferenceCatalog(BaseModel):
 
 
 def discover_catalog_path(start: Path | None = None) -> Path:
-    env = os.environ.get("DEVFLOW_INFERENCE_CATALOG")
+    env = os.environ.get("TWO_INFERENCE_CATALOG")
     if env:
         return Path(env)
     here = start or Path.cwd()
@@ -72,7 +72,7 @@ def discover_catalog_path(start: Path | None = None) -> Path:
         if path.is_file():
             return path
     raise FileNotFoundError(
-        f"could not find {DEFAULT_CATALOG_RELATIVE} from {here}; set DEVFLOW_INFERENCE_CATALOG"
+        f"could not find {DEFAULT_CATALOG_RELATIVE} from {here}; set TWO_INFERENCE_CATALOG"
     )
 
 

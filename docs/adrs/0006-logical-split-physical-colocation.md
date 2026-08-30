@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 A two-machine setup is the largest operator cost. It is tempting to assume
-more RAM on the Mac and run Ollama, DeepSeek Harness, and DevFlow as one
+more RAM on the Mac and run Ollama, DeepSeek Harness, and Majesta Two as one
 host. That would drop the LAN hop. It would not drop pinning,
 sleep, soak tests, or the need for an always-on box.
 
@@ -16,7 +16,7 @@ drop the trust boundary that the model never executes tools.
 
 ## Decision
 
-1. **Logical split is required.** Ollama only decodes. DevFlow and DeepSeek
+1. **Logical split is required.** Ollama only decodes. Majesta Two and DeepSeek
    Harness own git, shell, tests, and credentials. They talk over the
    OpenAI-compatible HTTP API even when they share a kernel.
 2. **Physical split is the default** (`topology: split`): dedicated Mac
@@ -33,4 +33,4 @@ drop the trust boundary that the model never executes tools.
 Two-machine networking stays optional. A 24 GB Mini should stay
 inference-only. A 64 GB Studio can run the control plane locally without
 a second architecture. See `config/deploy/topology.yaml` and
-`devflow topology`.
+`two topology`.

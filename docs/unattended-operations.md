@@ -9,7 +9,7 @@ Index:
 - Startup recovery and at-most-once action reconciliation — §12.5
 - Overnight promotion gates — §18
 
-DevFlow—not DeepSeek Harness—owns task lifetime. Closing a CLI, browser, or
+Majesta Two—not DeepSeek Harness—owns task lifetime. Closing a CLI, browser, or
 messaging-adapter disconnect must not cancel a controller-owned task.
 
 Packaging and recovery implementation: backlog

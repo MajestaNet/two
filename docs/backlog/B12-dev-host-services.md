@@ -36,14 +36,14 @@ Mac — never in this image.
 
 1. **`scripts/bootstrap-dev-host.sh`**
    - `--dry-run` for CI.
-   - Create `DEVFLOW_DATA_DIR` and workspace root with safe perms.
+   - Create `TWO_DATA_DIR` and workspace root with safe perms.
    - Topology-aware env: `split` vs `colocated` (`127.0.0.1` Ollama).
    - Install systemd user units **or** document Compose as the default
      and generate unit files as templates under `deploy/systemd/`.
 
 2. **Compose services**
    - `api`, `scheduler`, `worker` as separate processes (or one
-     `devflow-supervisor` with subcommands if that is simpler — prefer
+     `two-supervisor` with subcommands if that is simpler — prefer
      the architecture's four names: api, scheduler, worker, optional
      slack).
    - No `ports:` to `0.0.0.0`. Loopback-only if any publish.
@@ -84,7 +84,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B12 — Development-host services and Compose**.
+You are implementing **Majesta Two backlog item B12 — Development-host services and Compose**.
 
 Read first:
 
@@ -112,6 +112,6 @@ Concrete work:
 4. systemd unit templates if useful; Compose remains the default unattended packaging.
 5. Update setup/operations/unattended/viability docs. Mark B12 `done` when criteria pass.
 
-Commit: `feat: package DevFlow control-plane services and recovery`.
+Commit: `feat: package Majesta Two control-plane services and recovery`.
 
 Done when: dry-run bootstrap exits 0, Compose has no Ollama, recovery tests pass, `make ci` is green.

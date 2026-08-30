@@ -1,7 +1,7 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
 #
-# How clients reach the DevFlow backend. See docs/channels.md and ADR 0007.
+# How clients reach the Majesta Two backend. See docs/channels.md and ADR 0007.
 
 api:
   default_bind: "127.0.0.1"

@@ -1,11 +1,12 @@
-# Qwen 3.8 Local Development Agent
+# Majesta Two
 
 ## Technical Architecture Specification
 
 | Field | Value |
 | --- | --- |
+| Product | Majesta Two (`MajestaNet/two`) |
 | Status | Proposed architecture for implementation |
-| Version | 0.5 |
+| Version | 0.6 |
 | Date | 30 August 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
@@ -17,9 +18,9 @@
 The system will separate **inference** from **software-development execution**. That split is **logical** (processes and trust), not a requirement for two chassis:
 
 - Native Ollama on Apple Silicon runs the official Qwen3.8 model. The default physical layout is a dedicated always-on Mac appliance (`topology: split`).
-- DevFlow and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. By default they run on a separate Linux development host.
+- Majesta Two and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. By default they run on a separate Linux development host.
 - They call Ollama through an OpenAI-compatible HTTP endpoint. The model process never mounts the repository and never executes commands, even if Ollama and the harness share one Mac (`topology: colocated`, intended for ~48 GB+ and no sleep).
-- Colocation is a bind-address change (`127.0.0.1` instead of a LAN name), not a second architecture. See ADR 0006 and `devflow topology`.
+- Colocation is a bind-address change (`127.0.0.1` instead of a LAN name), not a second architecture. See ADR 0006 and `two topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
 - A channel-neutral interaction gateway exposes the same task through the control API. This repository is the backend (API, CLI, later a thin web view). Messaging clients are optional adapters. Slack is the MVP adapter because it is the easiest outbound path; other messengers are in scope via the same contract. These are control surfaces over one durable task record, not separate agent sessions.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
@@ -85,7 +86,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
    - a developer laptop for interactive use.
 5. Target repositories use git and provide reproducible build/test commands or can be given an external repository profile containing them.
 6. Only one automated development task actively uses the local model at a time.
-7. The development host or VM remains powered on for overnight work and runs DevFlow under an operating-system service manager rather than an interactive shell.
+7. The development host or VM remains powered on for overnight work and runs Majesta Two under an operating-system service manager rather than an interactive shell.
 8. A messaging adapter, if enabled, is an external control and notification channel. Its outage must not stop a running job. Repository content sent to any messenger is governed by channel-output policy. Slack is the MVP adapter only.
 
 ## 5. Architecture overview
@@ -97,7 +98,7 @@ flowchart TB
         WEB["Optional web"]
         MSG["Optional messenger adapter"]
     end
-    CLI --> API["DevFlow control API"]
+    CLI --> API["Majesta Two control API"]
     WEB --> API
     MSG --> API
     API --> C["Durable controller and queue"]
@@ -198,7 +199,7 @@ The service binds only to the trusted private-network address. It does not bind 
 
 #### Hardware profiles
 
-24 GB / 16K is the **default reference profile**, not a product constraint. Named profiles live in `config/inference/profiles.yaml` and are listed by `devflow profiles`. Operators with 36 GB, 48 GB, or 64 GB+ unified memory may select a larger context or a larger official Qwen tag. Changing the *repository default* is an ADR; selecting a non-default profile on one host is configuration. See ADR 0004.
+24 GB / 16K is the **default reference profile**, not a product constraint. Named profiles live in `config/inference/profiles.yaml` and are listed by `two profiles`. Operators with 36 GB, 48 GB, or 64 GB+ unified memory may select a larger context or a larger official Qwen tag. Changing the *repository default* is an ADR; selecting a non-default profile on one host is configuration. See ADR 0004.
 
 #### Capacity-expansion profile
 
@@ -233,7 +234,7 @@ No application authentication is added. DeepSeek Harness supplies the dummy key 
 
 The development host contains eight logical components.
 
-#### A. DevFlow controller
+#### A. Majesta Two controller
 
 A small service with a command-line client that provides the stable workflow boundary around the rapidly evolving harness.
 
@@ -366,7 +367,7 @@ Repository-specific commands live in an external versioned profile. An existing 
 
 #### G. Durable job runner and supervisor
 
-DevFlow—not DeepSeek Harness—owns task lifetime. The runner is an operating-system service and continues when the initiating CLI exits, a browser closes, or a messaging adapter disconnects.
+Majesta Two—not DeepSeek Harness—owns task lifetime. The runner is an operating-system service and continues when the initiating CLI exits, a browser closes, or a messaging adapter disconnects.
 
 Each task stores a coarse lifecycle state and a separate workflow stage:
 
@@ -387,8 +388,8 @@ Durability rules:
 - A worker obtains a time-limited lease and emits heartbeats. After restart, the scheduler reclaims only expired leases.
 - Every model turn, tool request, tool result, stage transition, question, answer, approval, and cancellation is written to an append-only event log with a stable identifier.
 - Before a tool action, the runner records its action identifier and intent. After execution it records exit status, relevant output, repository diff fingerprint, and resulting checkpoint.
-- If a crash occurs between execution and result persistence, the task enters reconciliation. DevFlow inspects the worktree and action evidence; it never blindly reruns an action whose outcome is unknown.
-- A valid Harness session may be resumed. If it cannot be resumed, DevFlow starts a fresh session from the objective, acceptance criteria, structured task memory, current diff, and validation evidence.
+- If a crash occurs between execution and result persistence, the task enters reconciliation. Majesta Two inspects the worktree and action evidence; it never blindly reruns an action whose outcome is unknown.
+- A valid Harness session may be resumed. If it cannot be resumed, Majesta Two starts a fresh session from the objective, acceptance criteria, structured task memory, current diff, and validation evidence.
 - Pause and cancellation are cooperative at safe boundaries. A non-responsive child process receives a bounded grace period before termination; its worktree is never discarded automatically.
 - Waiting for a human, an unavailable Mac, or a messaging outage does not consume model turns. Active and wall-clock budgets are recorded separately.
 
@@ -413,7 +414,7 @@ The interaction gateway presents one controller contract to every UI:
 - request a review or final report;
 - open the retained worktree or branch from a development-capable client.
 
-The DevFlow API binds to a Unix socket or loopback interface by default. If the web client is used from another machine, access is through the private network or overlay with controller authentication; the API is never exposed directly to the public internet.
+The Majesta Two API binds to a Unix socket or loopback interface by default. If the web client is used from another machine, access is through the private network or overlay with controller authentication; the API is never exposed directly to the public internet.
 
 Every conversational surface binds to the stable task identifier. A messenger thread or DM (Slack is the MVP example) may create a task; follow-ups continue that task and do not silently create new Harness sessions. Duplicate channel events are discarded using their source event identifier.
 
@@ -422,7 +423,7 @@ Slack is the **MVP adapter** only: easiest outbound path (Socket Mode, threads).
 - acknowledge vendor interactions immediately and perform all long work asynchronously;
 - authenticate with dedicated app and bot tokens stored outside repositories;
 - allow only configured workspace, channel, and user identities;
-- translate messages and button actions into typed DevFlow API commands rather than shell strings;
+- translate messages and button actions into typed Majesta Two API commands rather than shell strings;
 - remain unable to call the model, shell, git, or deployment systems directly;
 - post concise stage changes, questions, approval requests, failures, and completion summaries rather than token-by-token model output;
 - expose source excerpts and full logs only on explicit request and under channel-output policy;
@@ -641,11 +642,11 @@ The product experience should capture the useful workflow properties of modern A
 3. **Clear working modes.** `review-only` answers and investigates; `interactive` proposes and asks at key boundaries; `workspace-auto` executes a bounded change; `unattended` adds durable scheduling and asynchronous escalation.
 4. **Visible plan and progress.** The UI can show acceptance criteria, current stage, current todo, active command, elapsed and remaining budgets, changed files, and latest validation state without querying the model.
 5. **Diff-first review.** The authoritative output is the branch/worktree diff plus validation evidence. Chat summaries never replace inspectable code changes.
-6. **Checkpoints and undo.** DevFlow records safe stage checkpoints and can restore a task to a prior checkpoint or abandon its complete worktree without touching the base checkout.
+6. **Checkpoints and undo.** Majesta Two records safe stage checkpoints and can restore a task to a prior checkpoint or abandon its complete worktree without touching the base checkout.
 7. **Tests as first-class evidence.** Commands, exit codes, concise diagnostics, and artifact links are attached to the task. A green-looking chat response cannot override a failing gate.
-8. **Background execution.** Closing a client detaches from the task; it does not cancel it. Reopening from any channel reconstructs state from DevFlow, not from client-local history.
+8. **Background execution.** Closing a client detaches from the task; it does not cancel it. Reopening from any channel reconstructs state from Majesta Two, not from client-local history.
 9. **Material interruptions only.** The agent asks when ambiguity changes the implementation materially, an approval boundary is reached, or safe progress is impossible. Questions include the decision, bounded options, a recommendation, and the effect of waiting.
-10. **Clean handoff.** Completion provides the branch, diff summary, acceptance-criteria result, tests, risks, and suggested next action. The user can continue the same conversation for a follow-up task while DevFlow creates a new isolated worktree when required.
+10. **Clean handoff.** Completion provides the branch, diff summary, acceptance-criteria result, tests, risks, and suggested next action. The user can continue the same conversation for a follow-up task while Majesta Two creates a new isolated worktree when required.
 
 The exact widgets, message blocks, slash commands, ACP calls, and Harness plugin points are implementation details. These ten behaviors are architecture-level acceptance contracts and should be tested independently of the selected UI.
 
@@ -676,7 +677,7 @@ Even in unattended mode, the MVP does not merge, push, deploy, publish packages,
 ### 10.1 Standard and headless paths
 
 - Use the DSH Web UI for interactive development and trajectory inspection.
-- Use DSH ACP from DevFlow for queued/headless tasks.
+- Use DSH ACP from Majesta Two for queued/headless tasks.
 - Keep both paths on the same pinned provider configuration and repository policies.
 - Treat the DSH Web UI as an inspection or supervised interaction surface, not the authoritative job store. Closing it must not terminate a controller-owned task.
 - Run ACP sessions as supervised children with task identifiers, health heartbeats, bounded cancellation, and resumable session references.
@@ -690,7 +691,7 @@ The local Mac has one inference stream. Consequently:
 - parallelism is reserved for deterministic host tools such as independent lint/test commands;
 - cloud-backed subagents may run concurrently only when explicitly configured and budgeted.
 
-DeepSeek Harness’s Ralph workflow may be introduced for bounded fresh-agent repair loops. It cannot certify completion by itself: DSH documents that Ralph completion is a worker report. DevFlow’s independent validation remains authoritative. Initial Ralph ceiling: three rounds.
+DeepSeek Harness’s Ralph workflow may be introduced for bounded fresh-agent repair loops. It cannot certify completion by itself: DSH documents that Ralph completion is a worker report. Majesta Two’s independent validation remains authoritative. Initial Ralph ceiling: three rounds.
 
 ## 11. Paid-model extension
 
@@ -733,11 +734,11 @@ The Mac should be configured not to sleep while acting as an inference node and 
 
 Recommended processes:
 
-- `devflow-api`: channel-neutral task, conversation, approval, and evidence API;
-- `devflow-scheduler`: durable queue, leases, budgets, and recovery;
-- `devflow-worker`: single local-model execution worker and ACP supervisor;
+- `two-api`: channel-neutral task, conversation, approval, and evidence API;
+- `two-scheduler`: durable queue, leases, budgets, and recovery;
+- `two-worker`: single local-model execution worker and ACP supervisor;
 - pinned DeepSeek Harness runtime, launched or attached per task;
-- optional `devflow-slack`: isolated Socket Mode channel adapter;
+- optional `two-slack`: isolated Socket Mode channel adapter;
 - optional DSH Web UI bound locally or to the private network;
 - repository language servers and build toolchains;
 - SQLite task state;
@@ -770,7 +771,7 @@ Automatic cloud failover is disabled unless the task explicitly permits cloud us
 
 ### 12.5 Startup recovery and action reconciliation
 
-On development-host service startup, DevFlow:
+On development-host service startup, Majesta Two:
 
 1. opens and verifies the SQLite store and event log;
 2. scans non-terminal tasks and reclaims expired worker leases;
@@ -780,13 +781,13 @@ On development-host service startup, DevFlow:
 6. resumes runnable tasks in queue order and leaves human-paused tasks untouched;
 7. emits one recovery event and channel notification rather than constructing a new task.
 
-Arbitrary shell commands cannot be made exactly-once across every possible host crash. DevFlow therefore guarantees **at-most-once automatic replay**: an action with an uncertain outcome is reconciled from filesystem, git, process, and captured-command evidence or is escalated. It is never automatically issued twice merely because its result event is missing.
+Arbitrary shell commands cannot be made exactly-once across every possible host crash. Majesta Two therefore guarantees **at-most-once automatic replay**: an action with an uncertain outcome is reconciled from filesystem, git, process, and captured-command evidence or is escalated. It is never automatically issued twice merely because its result event is missing.
 
 The development host should use persistent storage with routine snapshots. A laptop can run interactive jobs, but a small always-on Linux VM is the recommended control plane for overnight execution.
 
 ### 12.6 Messaging adapters (Slack is the MVP)
 
-This repo is the backend. Adapters are optional. The Slack adapter, if you use it, runs independently of the worker and uses outbound Socket Mode. No vendor webhook, inference endpoint, Harness UI, or DevFlow API needs to be exposed publicly.
+This repo is the backend. Adapters are optional. The Slack adapter, if you use it, runs independently of the worker and uses outbound Socket Mode. No vendor webhook, inference endpoint, Harness UI, or Majesta Two API needs to be exposed publicly.
 
 Initial conversational behavior:
 
@@ -887,8 +888,8 @@ Default policy:
 | Default context | 16K with q8 KV | Stable 24 GB baseline; large-repo support comes from retrieval |
 | Concurrency | One local inference request | Prevents multiplied KV allocation and throughput collapse |
 | Harness | DeepSeek Harness | Plugin architecture, tool loop, sessions, sandbox, workflows, ACP |
-| Harness integration | Durable external DevFlow control plane | Insulates the workflow from developer-preview churn and supplies queueing, recovery, interaction, and deterministic gates |
-| Task lifetime | DevFlow state machine, events, leases, and checkpoints | Allows overnight execution and restart recovery independent of clients or Harness processes |
+| Harness integration | Durable external Majesta Two control plane | Insulates the workflow from developer-preview churn and supplies queueing, recovery, interaction, and deterministic gates |
+| Task lifetime | Majesta Two state machine, events, leases, and checkpoints | Allows overnight execution and restart recovery independent of clients or Harness processes |
 | Developer experience | Task-scoped plan, progress, diff, evidence, and conversation contract | Preserves productive coding-agent workflows across replaceable clients |
 | Messaging | Channel-neutral backend; Slack is the MVP adapter only | Conversational control without publishing an inbound API or coupling the product to one vendor |
 | Repository isolation | Git worktree per task | Recoverability and concurrent task safety |
@@ -969,7 +970,7 @@ Before promoting unattended overnight mode, the system must also pass:
 ## 19. Proposed implementation-repository shape
 
 ```text
-qwen-local-dev-agent/
+two/
 ├── README.md
 ├── AGENTS.md
 ├── .env.example
@@ -1005,20 +1006,22 @@ qwen-local-dev-agent/
 │   ├── channels/
 │   │   └── slack-app-manifest.yaml.template
 │   └── repositories/
+│       ├── two.yaml
 │       └── example.yaml
 ├── src/
-│   ├── api/
-│   ├── controller/
-│   ├── scheduler/
-│   ├── worker/
-│   ├── workspace/
-│   ├── context/
-│   ├── validation/
-│   ├── providers/
-│   ├── approvals/
-│   ├── channels/
-│   │   └── slack/
-│   └── reporting/
+│   └── two/
+│       ├── api/
+│       ├── controller/
+│       ├── scheduler/
+│       ├── worker/
+│       ├── workspace/
+│       ├── context/
+│       ├── validation/
+│       ├── providers/
+│       ├── approvals/
+│       ├── channels/
+│       │   └── slack/
+│       └── reporting/
 ├── scripts/
 │   ├── bootstrap-mac.sh
 │   ├── bootstrap-dev-host.sh
@@ -1078,7 +1081,7 @@ invent a second architecture.
 
 ### Phase 6 — Conversational control
 
-- Implement the interaction contract in the CLI and lightweight DevFlow web view.
+- Implement the interaction contract in the CLI and lightweight Majesta Two web view.
 - Add the optional Slack MVP adapter (allowlists, typed commands, thread binding, deduplication, questions, approvals, output policy). The backend must run without any messenger.
 - Pass channel-disconnection, duplicate-event, authorization, and no-terminal workflow tests.
 

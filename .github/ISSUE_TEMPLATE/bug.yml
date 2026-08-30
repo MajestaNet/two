@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a defect in DevFlow or the scaffold
+description: Report a defect in Majesta Two
 labels: [bug]
 body:
   - type: markdown

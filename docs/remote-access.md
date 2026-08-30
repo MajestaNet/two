@@ -1,6 +1,6 @@
 # Remote access
 
-How a client on another network reaches the **DevFlow backend**.
+How a client on another network reaches the **Majesta Two backend**.
 Operator view of [architecture.md](architecture.md) §6.2 and §6.3.H.
 Messaging product rules are in [channels.md](channels.md).
 
@@ -12,7 +12,7 @@ Messaging product rules are in [channels.md](channels.md).
 | CLI / web on the same machine | Unix socket or `127.0.0.1` | No |
 | CLI / web on another network | Private overlay (Tailscale/WireGuard) plus auth | Only on the overlay |
 
-The inference API (Ollama) is never a remote-user endpoint. Only DevFlow
+The inference API (Ollama) is never a remote-user endpoint. Only Majesta Two
 on the development host — or the same Mac, if `topology` is `colocated` —
 calls it. Colocation still binds Ollama to `127.0.0.1`.
 
@@ -22,7 +22,7 @@ You do not need a messenger. CLI on the host is enough.
 
 A phone Slack (or later Matrix/Discord) app talks to that vendor’s cloud.
 The adapter on the development host connects outbound. That works from
-home, LTE, or travel Wi‑Fi without publishing DevFlow.
+home, LTE, or travel Wi‑Fi without publishing the Majesta Two API.
 
 Do not “fix” phone access by opening the control API to the internet.
 
@@ -45,7 +45,7 @@ client. Then either:
 
 - SSH: `ssh -N -L 8741:127.0.0.1:8741 dev-host` and keep the API on
   loopback; or
-- bind DevFlow to the Tailscale IP only (`tailscale0`), never to a
+- bind the Majesta Two API to the Tailscale IP only (`tailscale0`), never to a
   public Ethernet/WAN address.
 
 A naked `docker -p 8741:8741` on a public IP is forbidden.

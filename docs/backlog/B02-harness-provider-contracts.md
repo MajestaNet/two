@@ -12,7 +12,7 @@
 ## Goal
 
 Pin an exact DeepSeek Harness (DSH) release, generate the Mac Qwen
-provider config from DevFlow topology/profile, and prove the
+provider config from Majesta Two topology/profile, and prove the
 OpenAI-compatible contract: `/v1/models`, streaming, reasoning efforts,
 tool calls, tool results, multi-turn history, cancellation. Record
 the pin in the runtime lock file.
@@ -22,7 +22,7 @@ the pin in the runtime lock file.
 - `config/dsh/settings.yaml.template` is the architecture §6.3.C shape.
 - `config/dsh/profile.patch.yml` is `patches: []`.
 - `scripts/smoke-test.sh` exits 2.
-- `src/devflow/providers/` is a stub.
+- `src/two/providers/` is a stub.
 - `tests/contract/` is empty.
 - ADR 0001 already allows pinning `deepseek-harness-sdk` in this
   phase. Adding that SDK is in scope here; adding any other runtime
@@ -31,7 +31,7 @@ the pin in the runtime lock file.
 ## Out of scope
 
 - ACP worker, leases, workflow stages (B08–B10).
-- Reimplementing the agent loop inside DevFlow.
+- Reimplementing the agent loop inside Majesta Two.
 - Enabling local-model subagent fan-out.
 - Paid providers (B16).
 - Changing sampling defaults unless an eval later demands it.
@@ -46,7 +46,7 @@ the pin in the runtime lock file.
    pin it in `uv.lock` via `uv add`.
 
 2. **Provider adapter**  
-   Implement `src/devflow/providers/` so it can render a DSH settings
+   Implement `src/two/providers/` so it can render a DSH settings
    fragment from:
    - `MAC_QWEN_BASE_URL` / topology bind
    - selected inference profile alias and `contextWindow`
@@ -78,7 +78,7 @@ the pin in the runtime lock file.
 
 5. **`scripts/smoke-test.sh`**  
    Offline: validate rendered settings against the template schema.
-   Live (opt-in env `DEVFLOW_LIVE_MAC=1`): hit `/v1/models` and one
+   Live (opt-in env `TWO_LIVE_MAC=1`): hit `/v1/models` and one
    short completion. Exit 2 only on live failure when opted in.
 
 6. **Docs**  
@@ -115,7 +115,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B02 — Pin DeepSeek Harness and provider contracts**.
+You are implementing **Majesta Two backlog item B02 — Pin DeepSeek Harness and provider contracts**.
 
 Read first:
 
@@ -123,7 +123,7 @@ Read first:
 2. `docs/architecture.md` sections 6.3.B, 6.3.C, 7, 10, 16, 18, 20 Phase 2
 3. `docs/adrs/0001-python-uv.md`
 4. `docs/backlog/README.md` and `docs/backlog/B02-harness-provider-contracts.md`
-5. `config/dsh/settings.yaml.template`, `config/dsh/profile.patch.yml`, `src/devflow/providers/`
+5. `config/dsh/settings.yaml.template`, `config/dsh/profile.patch.yml`, `src/two/providers/`
 
 Implement **only B02**. Do not build the ACP worker, scheduler, or Slack adapter.
 
@@ -140,7 +140,7 @@ Standing orders:
 Concrete work:
 
 1. Record `deepseek_harness_version` in the lock example. Add the SDK to the project only if needed to speak ACP later; for B02, rendering config + HTTP contract tests is enough if the SDK is not yet required.
-2. Implement provider rendering in `src/devflow/providers/` from profile + topology + env.
+2. Implement provider rendering in `src/two/providers/` from profile + topology + env.
 3. Fill `config/dsh/profile.patch.yml` (workspace-write, compaction 70–75%, concurrency 1).
 4. Add `tests/contract/` with recorded fixtures for models, streaming, reasoning, tool calls, multi-turn, cancellation. `@pytest.mark.live_mac` for opt-in live tests; exclude from default pytest.
 5. Implement `scripts/smoke-test.sh` offline path (exit 0) and optional live path.

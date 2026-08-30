@@ -21,16 +21,16 @@ from __future__ import annotations
 import argparse
 import sys
 
-from devflow import __version__
-from devflow.profiles import format_catalog, load_catalog
-from devflow.topology import format_catalog as format_topology
-from devflow.topology import load_catalog as load_topology
+from two import __version__
+from two.profiles import format_catalog, load_catalog
+from two.topology import format_catalog as format_topology
+from two.topology import load_catalog as load_topology
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="devflow",
-        description="DevFlow control plane for local Qwen-backed development agents.",
+        prog="two",
+        description="Majesta Two control plane for local Qwen-backed development agents.",
     )
     parser.add_argument(
         "--version",

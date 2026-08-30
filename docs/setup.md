@@ -10,27 +10,27 @@ in [architecture.md](architecture.md). Viability notes are in
 | Capability | Status |
 | --- | --- |
 | Clone and run unit CI | Works |
-| List inference profiles | Works (`devflow profiles`) |
+| List inference profiles | Works (`two profiles`) |
 | Serve Qwen on the Mac | Not implemented ([B01](backlog/B01-mac-inference-appliance.md)) |
-| DeepSeek Harness + DevFlow worker | Not implemented ([B02](backlog/B02-harness-provider-contracts.md)–[B10](backlog/B10-workflow-controller.md)) |
+| DeepSeek Harness + Majesta Two worker | Not implemented ([B02](backlog/B02-harness-provider-contracts.md)–[B10](backlog/B10-workflow-controller.md)) |
 | Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
 | CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
 | Control-plane Compose | Topology file only; no harness in the image ([B12](backlog/B12-dev-host-services.md)) |
-| List deployment topologies | Works (`devflow topology`) |
+| List deployment topologies | Works (`two topology`) |
 
-Last updated: 30 August 2026 (implementation backlog B01–B16).
+Last updated: 30 August 2026 (public name: Majesta Two).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
 ## Choose a topology
 
 Keep inference and execution as **separate processes**. Whether they share
-a chassis is configuration (`devflow topology`).
+a chassis is configuration (`two topology`).
 
 **Default — `split` (24 GB Mini, overnight isolation)**
 
 ```text
-CLI / optional adapter -->  Linux: DevFlow + DSH
+CLI / optional adapter -->  Linux: Majesta Two + DSH
                                       |
                    LAN or Tailscale   |
                                       v
@@ -41,7 +41,7 @@ CLI / optional adapter -->  Linux: DevFlow + DSH
 
 ```text
 CLI / optional adapter -->  same Mac
-                            DevFlow + DSH  --127.0.0.1-->  native Ollama
+                            Majesta Two + DSH  --127.0.0.1-->  native Ollama
 ```
 
 Colocation is **not** “merge the harness into Ollama.” Same HTTP boundary,
@@ -55,7 +55,7 @@ MVP adapter ([channels.md](channels.md)).
 - **Unattended Linux:** Compose on the development host ([ADR 0005](adrs/0005-remote-access-and-compose.md)).
 - **Unattended one Mac:** `colocated` plus disable sleep ([ADR 0006](adrs/0006-logical-split-physical-colocation.md)).
 - **Phone chat:** optional Slack adapter (or later another messenger). Do
-  not publish Ollama or DevFlow.
+  not publish Ollama or the Majesta Two API.
 
 ## 1. Development host (contributor, works today)
 
@@ -66,9 +66,9 @@ git clone https://github.com/MajestaNet/two.git
 cd two
 uv sync --dev
 make ci
-uv run devflow --help
-uv run devflow profiles
-uv run devflow topology
+uv run two --help
+uv run two profiles
+uv run two topology
 ```
 
 Copy `.env.example` to `.env` only on the machine that will run services.
@@ -79,7 +79,7 @@ Never commit `.env`.
 24 GB unified memory is the **default reference**, not a ceiling.
 
 ```bash
-uv run devflow profiles
+uv run two profiles
 ```
 
 | Profile | Min RAM | Default context | When to use |
@@ -91,7 +91,7 @@ uv run devflow profiles
 | `m64-qwen38-plus` | 64 GB | operator | Higher-quality quant or a larger official Qwen |
 | `custom` | operator | operator | Anything else, still official weights |
 
-Set `DEVFLOW_INFERENCE_PROFILE` in `.env`. Record the promoted digest in
+Set `TWO_INFERENCE_PROFILE` in `.env`. Record the promoted digest in
 `config/runtime/models.lock` (copy from the example) after soak tests.
 Catalog: `config/inference/profiles.yaml`.
 
@@ -133,7 +133,7 @@ To use the CLI or web UI away from the desk:
    Tailscale Serve / SSH local forward.
 3. Require controller authentication once the API is reachable beyond
    localhost.
-4. Never port-forward Ollama or DevFlow to `0.0.0.0` on a public IP.
+4. Never port-forward Ollama or the Majesta Two API to `0.0.0.0` on a public IP.
 
 A public HTTPS hostname (for example a Cloudflare tunnel) is not the
 default. If you use one later, it must terminate authentication and must
@@ -143,8 +143,8 @@ not front Ollama.
 
 ```bash
 cd deploy/compose
-docker compose run --rm devflow --help
-docker compose run --rm devflow profiles
+docker compose run --rm two --help
+docker compose run --rm two profiles
 ```
 
 This image is the control-plane toolchain, not the model and not yet
@@ -157,7 +157,7 @@ recommended if you want a separate kernel from your daily laptop.
 
 ## 7. What not to do
 
-- Do not bind Ollama or DevFlow to a publicly routed interface
+- Do not bind Ollama or the Majesta Two API to a publicly routed interface
 - Do not put model weights, messenger tokens, or real hostnames in git
 - Do not give the Mac git, build tools, or deployment credentials
 - Do not merge, push, or deploy from the agent
