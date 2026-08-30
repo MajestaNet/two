@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "json": {
+      "model": "qwen38-agent-16k",
+      "stream": false,
+      "reasoning_effort": "medium",
+      "max_tokens": 64,
+      "messages": [
+        { "role": "system", "content": "You are a local coding assistant." },
+        { "role": "user", "content": "Reply with the word accepted." }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "chatcmpl-fixture-reasoning",
+      "object": "chat.completion",
+      "created": 1756531200,
+      "model": "qwen38-agent-16k",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "accepted",
+            "reasoning": "The user asked for a single word confirmation."
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": { "prompt_tokens": 24, "completion_tokens": 4, "total_tokens": 28 }
+    }
+  }
+}

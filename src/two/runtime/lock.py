@@ -57,8 +57,8 @@ class SamplingContract(BaseModel):
 class ModelsLock(BaseModel):
     """Pinned Ollama / alias / sampling identities after soak promotion.
 
-    Digests and versions stay empty until an operator records a real pin.
-    ``deepseek_harness_version`` stays empty until B02.
+    Ollama digests and ``ollama_version`` stay empty until an operator
+    records a real pin. ``deepseek_harness_version`` is the B02 pin.
     """
 
     model_config = ConfigDict(extra="forbid")
