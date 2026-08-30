@@ -37,7 +37,8 @@ listed in `config/repositories/devflow.yaml`.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — operational stubs until later phases.
 - `docs/` — architecture and ADRs. `docs/architecture.md` is canonical.
-  `docs/setup.md` is the living operator guide.
+  `docs/setup.md` is the living operator guide. `docs/backlog/` is the
+  implementation tracker (one item per file; agent prompts at the end).
 - `deploy/compose/` — Linux control-plane packaging. No Ollama image.
 - `evals/` — future evaluation corpus. No production repository clones.
 
