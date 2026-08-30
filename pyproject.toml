@@ -51,7 +51,8 @@ files = ["src/two"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-q", "--strict-markers", "-m", "not live_mac"]
+addopts = ["-q", "--strict-markers", "-m", "not live_mac and not live_dsh"]
 markers = [
     "live_mac: opt-in tests that call a live Mac Ollama endpoint (TWO_LIVE_MAC=1)",
+    "live_dsh: opt-in tests that launch a pinned DeepSeek Harness binary (TWO_LIVE_DSH=1)",
 ]

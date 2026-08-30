@@ -62,6 +62,7 @@ class TaskRecord:
     retry_count: int = 0
     active_elapsed_ms: int = 0
     active_started_at: datetime | None = None
+    dsh_session_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

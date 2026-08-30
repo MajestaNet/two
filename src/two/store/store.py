@@ -212,13 +212,16 @@ class Store:
         active_elapsed_ms: int | None = None,
         active_started_at: datetime | None = None,
         set_active_started_at: bool = False,
+        dsh_session_id: str | None = None,
+        set_dsh_session_id: bool = False,
         now: datetime | None = None,
     ) -> TaskRecord:
         """Update selected task fields and commit before returning.
 
         Nullable worktree fields are only written when the matching ``set_*``
         flag is true, so ``None`` can mean “clear” without clearing by accident.
-        The same applies to ``next_attempt_at`` and ``active_started_at``.
+        The same applies to ``next_attempt_at``, ``active_started_at``, and
+        ``dsh_session_id``.
         """
         assignments: list[str] = []
         values: list[object] = []
@@ -253,6 +256,9 @@ class Store:
         if set_active_started_at:
             assignments.append("active_started_at = ?")
             values.append(_iso(active_started_at) if active_started_at is not None else None)
+        if set_dsh_session_id:
+            assignments.append("dsh_session_id = ?")
+            values.append(dsh_session_id)
         if not assignments:
             raise StoreError("update_task requires at least one field")
         assignments.append("updated_at = ?")
@@ -840,6 +846,9 @@ def _task_from_row(row: sqlite3.Row) -> TaskRecord:
             if row["active_started_at"] is not None
             else None
         ),
+        dsh_session_id=_optional_str(row["dsh_session_id"], "dsh_session_id")
+        if "dsh_session_id" in row.keys()
+        else None,
     )
 
 
