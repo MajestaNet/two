@@ -12,7 +12,7 @@ in [architecture.md](architecture.md). Viability notes are in
 | Clone and run unit CI | Works |
 | List inference profiles | Works (`two profiles`) |
 | Serve Qwen on the Mac | Scripts exist (`bootstrap-mac.sh`, `health-check.sh`, `soak-inference.sh`); live path requires a Mac ([B01](backlog/B01-mac-inference-appliance.md)) |
-| DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)). ACP worker later ([B09](backlog/B09-acp-worker.md)) |
+| DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
 | Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
 | CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
 | Control-plane Compose | Topology file only; no harness in the image ([B12](backlog/B12-dev-host-services.md)) |
@@ -23,8 +23,9 @@ in [architecture.md](architecture.md). Viability notes are in
 | SQLite WAL store | Works (`two.store.open_store`; unused by CLI) (`TWO_DATA_DIR/two.sqlite`) ([B06](backlog/B06-sqlite-store.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket) ([B07](backlog/B07-control-api.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; unused by CLI) ([B08](backlog/B08-scheduler.md)) |
+| ACP worker + action ledger | Works (`two.worker`; fake child in default pytest) ([B09](backlog/B09-acp-worker.md)) |
 
-Last updated: 30 August 2026 (Phase 5: B07 control API, B08 scheduler).
+Last updated: 30 August 2026 (Phase 5: B07 control API, B08 scheduler, B09 ACP worker).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -201,9 +202,10 @@ TWO_LIVE_MAC=1 MAC_QWEN_BASE_URL=http://mac-inference.internal:11434/v1 \
   ./scripts/smoke-test.sh
 ```
 
-Default pytest excludes `@pytest.mark.live_mac`. The ACP worker is still
-[B09](backlog/B09-acp-worker.md); this repo does not reimplement the DSH
-agent loop.
+Default pytest excludes `@pytest.mark.live_mac` and `@pytest.mark.live_dsh`.
+The ACP worker (`two.worker`) supervises a pinned DeepSeek Harness child and
+an at-most-once action ledger. Default tests use a fake child; this repo
+does not reimplement the DSH agent loop.
 
 ## 4. Optional messaging adapter
 

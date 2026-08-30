@@ -7,7 +7,8 @@ a dedicated Mac inference host. This repository is not a Slack (or other
 messenger) product. Slack is the MVP optional adapter. The SQLite WAL store
 (`two.store`) persists tasks, events, and leases. The durable scheduler
 (`two.scheduler`) owns the single local-model slot, leases, retry_wait, and
-Mac health mapping. ACP worker and messaging adapter are not implemented yet.
+Mac health mapping. The ACP worker (`two.worker`) supervises a DeepSeek Harness
+child with an at-most-once action ledger. Messaging adapter is not implemented yet.
 
 ## Stack
 
@@ -50,6 +51,9 @@ listed in `config/repositories/two.yaml`.
   `two api` lazy-imports it so `two profiles` does not load the store.
   `src/two/scheduler/` owns the single local-model queue slot, lease
   heartbeat/reclaim, retry_wait backoff, and Mac health mapping.
+  `src/two/worker/` supervises a pinned ACP child, the action ledger, and
+  session resume. Default tests use a fake child (`@pytest.mark.live_dsh`
+  is opt-in).
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and

@@ -255,7 +255,7 @@ def test_release_lease_owned_only(store: Store) -> None:
     assert store.get_lease("task-123") is None
 
 
-def test_schema_v2_migrates_next_attempt_columns(tmp_path: Path) -> None:
+def test_schema_migrates_from_v1_through_current(tmp_path: Path) -> None:
     from two.store.engine import connect
     from two.store.schema import MIGRATIONS, current_schema_version
 
@@ -302,22 +302,26 @@ def test_schema_v2_migrates_next_attempt_columns(tmp_path: Path) -> None:
 
     with open_store(path) as opened:
         assert opened.schema_version() == SCHEMA_VERSION
-        assert SCHEMA_VERSION == 2
+        assert SCHEMA_VERSION == 3
         loaded = opened.get_task("task-123")
         assert loaded is not None
         assert loaded.worktree_path == "/tmp/wt"
         assert loaded.next_attempt_at is None
         assert loaded.retry_count == 0
         assert loaded.active_elapsed_ms == 0
+        assert loaded.dsh_session_id is None
         updated = opened.update_task(
             "task-123",
             next_attempt_at=T0 + timedelta(seconds=4),
             set_next_attempt_at=True,
             retry_count=1,
+            dsh_session_id="sess-1",
+            set_dsh_session_id=True,
             now=T0,
         )
         assert updated.retry_count == 1
         assert updated.next_attempt_at == T0 + timedelta(seconds=4)
+        assert updated.dsh_session_id == "sess-1"
 
 
 def test_obtain_lease_refuses_unexpired(store: Store) -> None:

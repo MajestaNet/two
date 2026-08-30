@@ -29,7 +29,9 @@ Python package for the Majesta Two control plane.
   `TWO_DATA_DIR/tasks/<id>/memory.json` and builds bounded retrieval
   packets (git, `rg`, optional LSP). No embeddings, SQLite, or DSH/Ollama
   calls. Budget policy lives in `config/policies/context.yaml`.
-- `controller` does not call the model. `worker` will own ACP later.
+- `controller` does not call the model. `worker/` supervises ACP children,
+  the action ledger, and session resume. It must not import Slack or set
+  lifecycle `complete`. Local Qwen worker count is one.
 - Use Pydantic v2 models with `extra="forbid"` for external payloads.
 - `mypy --strict` applies to this tree. Add explicit return types.
 - New `.py` files need the Apache 2.0 header and SPDX identifier.
