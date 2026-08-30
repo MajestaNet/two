@@ -349,6 +349,8 @@ def test_questions_and_approvals_persist(store: Store) -> None:
     assert approval.paths == ["uv.lock"]
     assert store.get_question("q-1") is not None
     assert store.get_approval("ap-1") is not None
+    assert [row.id for row in store.list_questions("task-123")] == ["q-1"]
+    assert [row.id for row in store.list_approvals("task-123")] == ["ap-1"]
 
 
 def test_update_and_list_tasks(store: Store) -> None:

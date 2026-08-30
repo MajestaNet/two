@@ -46,7 +46,8 @@ client. Then either:
 - SSH: `ssh -N -L 8741:127.0.0.1:8741 dev-host` and keep the API on
   loopback; or
 - bind the Majesta Two API to the Tailscale IP only (`tailscale0`), never to a
-  public Ethernet/WAN address.
+  public Ethernet/WAN address. Set `TWO_API_TOKEN` and send
+  `Authorization: Bearer`; loopback/Unix stays local-trust.
 
 A naked `docker -p 8741:8741` on a public IP is forbidden.
 
