@@ -12,7 +12,14 @@ Python package for the Majesta Two control plane.
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop.
 - `store/` is the SQLite WAL store (`open_store`). Do not open databases
-  from `cli.py`.
+  from `cli.py` at import time. The `two api` subcommand lazy-imports
+  `two.api.server`.
+- `api/` maps HTTP to `two.store` and `two.approvals`. It must not import
+  `two.workspace` git operations, `two.channels.slack`, or an Ollama
+  client. Bind loopback or a Unix socket by default (ADR 0010).
+- `approvals/` owns question/approval resolution and pause/resume/cancel
+  lifecycle policy. Silence is never approval. Digests are immutable.
+  It does not import git, Slack, or the model.
 - `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
   budgets clock, and Mac health mapping. Inject a health probe and worker
   callback; do not call the network or ACP from this package.
