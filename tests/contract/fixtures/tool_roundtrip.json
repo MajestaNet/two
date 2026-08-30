@@ -1,0 +1,115 @@
+{
+  "turns": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "json": {
+          "model": "qwen38-agent-16k",
+          "stream": false,
+          "messages": [
+            { "role": "system", "content": "You are a local coding assistant. Use tools when asked." },
+            { "role": "user", "content": "Read the value of key alpha from the store." }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "read_store",
+                "description": "Read a key from the task store.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "key": { "type": "string" }
+                  },
+                  "required": ["key"]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "json": {
+          "id": "chatcmpl-fixture-tool-1",
+          "object": "chat.completion",
+          "created": 1756531200,
+          "model": "qwen38-agent-16k",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [
+                  {
+                    "id": "call_alpha",
+                    "type": "function",
+                    "function": {
+                      "name": "read_store",
+                      "arguments": "{\"key\":\"alpha\"}"
+                    }
+                  }
+                ]
+              },
+              "finish_reason": "tool_calls"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "json": {
+          "model": "qwen38-agent-16k",
+          "stream": false,
+          "messages": [
+            { "role": "system", "content": "You are a local coding assistant. Use tools when asked." },
+            { "role": "user", "content": "Read the value of key alpha from the store." },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_alpha",
+                  "type": "function",
+                  "function": {
+                    "name": "read_store",
+                    "arguments": "{\"key\":\"alpha\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_alpha",
+              "content": "{\"value\":\"42\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "json": {
+          "id": "chatcmpl-fixture-tool-2",
+          "object": "chat.completion",
+          "created": 1756531201,
+          "model": "qwen38-agent-16k",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "alpha is 42."
+              },
+              "finish_reason": "stop"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
