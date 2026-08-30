@@ -10,7 +10,7 @@ Use this page as an index, not a second spec:
 - Development-host services — §12.2
 - Health states — §12.3
 - Timeouts and retries — §12.4
-- Slack operating model — §12.6
+- Messaging adapters (Slack MVP) — §12.6 and [channels.md](channels.md)
 
 Runtime templates live under `config/mac/` and `config/dsh/`. The bootstrap
 scripts in `scripts/` are Phase 1/5 stubs and exit 2 until those phases land.

@@ -14,8 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Slack Socket Mode adapter. Typed commands, allowlists, output policy.
+"""Optional Slack MVP adapter (Socket Mode). Not the product.
 
-Must not import workspace git code or call the model. Not implemented yet.
-See docs/architecture.md §6.3.H and §12.6.
+Typed commands, allowlists, output policy. Must not import workspace git
+or call the model. Not implemented yet. See docs/channels.md.
 """
