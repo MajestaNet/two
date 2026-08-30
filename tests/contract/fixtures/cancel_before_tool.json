@@ -1,0 +1,36 @@
+{
+  "aborted": true,
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "json": {
+      "model": "qwen38-agent-16k",
+      "stream": true,
+      "messages": [
+        { "role": "system", "content": "You are a local coding assistant." },
+        { "role": "user", "content": "Call a tool if you need one, otherwise start thinking." }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "run_shell",
+            "parameters": {
+              "type": "object",
+              "properties": { "command": { "type": "string" } },
+              "required": ["command"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "aborted": true,
+    "sse": [
+      "data: {\"id\":\"chatcmpl-fixture-cancel\",\"object\":\"chat.completion.chunk\",\"created\":1756531200,\"model\":\"qwen38-agent-16k\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Let me look\"},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-fixture-cancel\",\"object\":\"chat.completion.chunk\",\"created\":1756531200,\"model\":\"qwen38-agent-16k\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" this up\"},\"finish_reason\":null}]}"
+    ]
+  }
+}

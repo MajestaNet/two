@@ -18,4 +18,37 @@
 
 Cloud access requires cloud_allowed on the task. Not implemented yet.
 See docs/architecture.md §6.3.C and §11.
+
+This package renders DeepSeek Harness settings and records the OpenAI-
+compatible HTTP contract. It does not reimplement the DSH agent loop.
 """
+
+from two.providers.patch import (
+    ProfilePatchFile,
+    load_profile_patch,
+    validate_mvp_policy,
+)
+from two.providers.render import (
+    DSH_PIN,
+    DSH_PIN_COMMIT,
+    DUMMY_API_KEY,
+    PLACEHOLDER_BASE_URL,
+    REASONING_EFFORTS,
+    render_mac_qwen_settings,
+    render_mac_qwen_yaml,
+    validate_rendered_against_template,
+)
+
+__all__ = [
+    "DSH_PIN",
+    "DSH_PIN_COMMIT",
+    "DUMMY_API_KEY",
+    "PLACEHOLDER_BASE_URL",
+    "REASONING_EFFORTS",
+    "ProfilePatchFile",
+    "load_profile_patch",
+    "render_mac_qwen_settings",
+    "render_mac_qwen_yaml",
+    "validate_mvp_policy",
+    "validate_rendered_against_template",
+]

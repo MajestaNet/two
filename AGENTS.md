@@ -25,6 +25,8 @@ make ci
 uv run two --help
 uv run two profiles
 uv run two topology
+uv run python -m two.providers --check
+./scripts/smoke-test.sh --dry-run
 ```
 
 `make ci` is the required gate. Validation commands for this repo are also

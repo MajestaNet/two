@@ -33,7 +33,7 @@ def test_parse_models_lock_example() -> None:
     assert lock.ollama_version == ""
     assert lock.upstream_digest == ""
     assert lock.alias_digest == ""
-    assert lock.deepseek_harness_version == ""
+    assert lock.deepseek_harness_version == "dsh-v0.1.2-alpha.1"
     assert lock.sampling.thinking.temperature == 1.0
     assert lock.sampling.thinking.top_p == 0.95
     assert lock.sampling.thinking.top_k == 20

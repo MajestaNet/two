@@ -51,4 +51,7 @@ files = ["src/two"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-q", "--strict-markers"]
+addopts = ["-q", "--strict-markers", "-m", "not live_mac"]
+markers = [
+    "live_mac: opt-in tests that call a live Mac Ollama endpoint (TWO_LIVE_MAC=1)",
+]

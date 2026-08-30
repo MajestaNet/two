@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "json": {
+      "model": "qwen38-agent-16k",
+      "stream": true,
+      "messages": [
+        { "role": "system", "content": "You are a local coding assistant." },
+        { "role": "user", "content": "Say hello in one word." }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "text/event-stream" },
+    "sse": [
+      "data: {\"id\":\"chatcmpl-fixture-stream\",\"object\":\"chat.completion.chunk\",\"created\":1756531200,\"model\":\"qwen38-agent-16k\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Hel\"},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-fixture-stream\",\"object\":\"chat.completion.chunk\",\"created\":1756531200,\"model\":\"qwen38-agent-16k\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"lo\"},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-fixture-stream\",\"object\":\"chat.completion.chunk\",\"created\":1756531200,\"model\":\"qwen38-agent-16k\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+      "data: [DONE]"
+    ]
+  }
+}

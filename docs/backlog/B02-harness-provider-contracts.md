@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B02 |
 | Phase | 2 — Harness conformance |
-| Status | planned |
+| Status | done |
 | Depends on | B01 for live Mac probes; recorded HTTP fixtures can land first |
 | Blocks | B09 |
 | Architecture | §6.3.B–C, §7, §10, §16, §18, §20 Phase 2, §21 items 3 and 9 |
@@ -20,10 +20,10 @@ the pin in the runtime lock file.
 ## Current tree
 
 - `config/dsh/settings.yaml.template` is the architecture §6.3.C shape.
-- `config/dsh/profile.patch.yml` is `patches: []`.
-- `scripts/smoke-test.sh` exits 2.
-- `src/two/providers/` is a stub.
-- `tests/contract/` is empty.
+- `config/dsh/profile.patch.yml` pins workspace-write, 72% compaction, concurrency 1, cloud off.
+- `scripts/smoke-test.sh` validates the render offline (exit 0) and probes a live Mac only when `TWO_LIVE_MAC=1`.
+- `src/two/providers/` renders settings from profile + topology + env.
+- `tests/contract/` holds recorded OpenAI-compatible HTTP fixtures.
 - ADR 0001 already allows pinning `deepseek-harness-sdk` in this
   phase. Adding that SDK is in scope here; adding any other runtime
   library is not.
@@ -95,12 +95,12 @@ the pin in the runtime lock file.
 
 ## Acceptance criteria
 
-- [ ] DSH version is pinned, not `latest`.
-- [ ] Provider render is tested without network.
-- [ ] Contract suite exists for streaming, tools, reasoning, history.
-- [ ] Local concurrency remains 1; workspace-write is the sandbox.
-- [ ] `scripts/smoke-test.sh` no longer unconditionally exits 2.
-- [ ] Cloud is still off unless a later item sets `cloud_allowed`.
+- [x] DSH version is pinned, not `latest`.
+- [x] Provider render is tested without network.
+- [x] Contract suite exists for streaming, tools, reasoning, history.
+- [x] Local concurrency remains 1; workspace-write is the sandbox.
+- [x] `scripts/smoke-test.sh` no longer unconditionally exits 2.
+- [x] Cloud is still off unless a later item sets `cloud_allowed`.
 
 ## Definition of done
 
