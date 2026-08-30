@@ -23,6 +23,7 @@ make test
 make ci
 uv run devflow --help
 uv run devflow profiles
+uv run devflow topology
 ```
 
 `make ci` is the required gate. Validation commands for this repo are also
@@ -66,7 +67,8 @@ listed in `config/repositories/devflow.yaml`.
 - Cloud provider or paid-model route
 - Slack scope changes
 - Task-manifest field changes
-- Changing the *default* inference profile (per-host profile selection is fine)
+- Changing the *default* inference profile or default topology
+  (per-host `colocated` on a large Mac is fine)
 - Adding a vector database
 
 ### Never

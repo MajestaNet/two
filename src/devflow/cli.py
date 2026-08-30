@@ -23,6 +23,8 @@ import sys
 
 from devflow import __version__
 from devflow.profiles import format_catalog, load_catalog
+from devflow.topology import format_catalog as format_topology
+from devflow.topology import load_catalog as load_topology
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
         "profiles",
         help="List inference hardware profiles (24 GB / 16K is the default)",
     )
+    subparsers.add_parser(
+        "topology",
+        help="List deployment topologies (split default; colocated optional)",
+    )
     return parser
 
 
@@ -52,6 +58,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "profiles":
         print(format_catalog(load_catalog()))
+        return 0
+    if args.command == "topology":
+        print(format_topology(load_topology()))
         return 0
     if args.command is None:
         parser.print_help()
