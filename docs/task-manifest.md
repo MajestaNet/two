@@ -5,8 +5,9 @@ section 8.1. Field names in `two.manifest.TaskManifest` must stay aligned
 with that example.
 
 Machine-readable validation commands for a target repository live in
-`config/repositories/*.yaml`. `AGENTS.md` is model guidance and is not the sole
-source of gates.
+`config/repositories/*.yaml` and are executed by `two.validation.run_validation`
+inside the task worktree ([B04](backlog/B04-validation-engine.md)). `AGENTS.md`
+is model guidance and is not the sole source of gates.
 
 The isolated task branch is named `agent/<task-id>` from the manifest `id`
 (architecture [§6.3.D](architecture.md)). That name is not a separate

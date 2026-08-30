@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B04 |
 | Phase | 3 — Safe repository execution |
-| Status | planned |
+| Status | done |
 | Depends on | B03 (run gates inside a worktree) |
 | Blocks | B10 |
 | Architecture | §6.3.F, §8.2 Stage 6 and 8, §9, §21 items 5 and 8 |
@@ -80,19 +80,19 @@ results.
 
 ## Acceptance criteria
 
-- [ ] Repository YAML is the source of commands.
-- [ ] Gates run in the worktree.
-- [ ] Failing tests produce `passed=False` regardless of any string
+- [x] Repository YAML is the source of commands.
+- [x] Gates run in the worktree.
+- [x] Failing tests produce `passed=False` regardless of any string
       the model might have said (there is no model in this item).
-- [ ] Artifacts are files, not giant strings in return values.
-- [ ] `make ci` remains the Majesta Two repo gate; the engine can invoke it
+- [x] Artifacts are files, not giant strings in return values.
+- [x] `make ci` remains the Majesta Two repo gate; the engine can invoke it
       when the profile says so, in a worktree copy, not on the agent's
       dirty checkout as a side effect of unit tests.
 
 ## Definition of done
 
-Validation module tested; reporting stub can format a result. Status
-`done`.
+Validation module tested; reporting formats a gate fragment without
+setting task status. Status `done`.
 
 ---
 
