@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B06 |
 | Phase | 5 — Durable automated workflow (storage) |
-| Status | planned |
+| Status | done |
 | Depends on | none |
 | Blocks | B07, B08, B09, B11 |
 | Architecture | §6.3.G, §6.4, §8.4, §12.5, §21 items 6, 11–12 |
@@ -18,9 +18,12 @@ acknowledgement. No server database besides SQLite.
 
 ## Current tree
 
-- `src/two/store/` is a stub.
+- `src/two/store/` is the SQLite WAL store: versioned migrations,
+  `open_store`, tasks, leases, append-only events, questions,
+  approvals, channel bindings, and the action ledger.
 - `LifecycleState` and `WorkflowStage` exist in `types.py`.
-- `TWO_DATA_DIR` defaults to `./var/two` (gitignored).
+- `TWO_DATA_DIR` defaults to `./var/two` (gitignored);
+  the database file is `TWO_DATA_DIR/two.sqlite`.
 - `AGENTS.md`: SQLite belongs in `store/` only; CLI must not open DBs.
 
 ## Out of scope
@@ -78,11 +81,11 @@ acknowledgement. No server database besides SQLite.
 
 ## Acceptance criteria
 
-- [ ] WAL SQLite, schema versioned, tests reopen the file.
-- [ ] UI-facing create-task helper does not exist yet without commit
+- [x] WAL SQLite, schema versioned, tests reopen the file.
+- [x] UI-facing create-task helper does not exist yet without commit
       semantics: any `insert_task` commits before return.
-- [ ] CLI does not import the store.
-- [ ] `.gitignore` still excludes `*.db` / `var/`.
+- [x] CLI does not import the store.
+- [x] `.gitignore` still excludes `*.db` / `var/`.
 
 ## Definition of done
 

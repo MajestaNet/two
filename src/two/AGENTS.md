@@ -11,7 +11,8 @@ Python package for the Majesta Two control plane.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop.
-- Put SQLite in `store/` only. Do not open databases from `cli.py`.
+- `store/` is the SQLite WAL store (`open_store`). Do not open databases
+  from `cli.py`.
 - `channels/*` adapters must not import `workspace` or run git. Slack is
   the MVP adapter only.
 - `validation/` loads `config/repositories/*.yaml` and

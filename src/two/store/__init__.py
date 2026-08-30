@@ -16,6 +16,56 @@
 
 """SQLite WAL store for tasks, leases, events, questions, and approvals.
 
-A successful commit is required before any UI acknowledgement.
-Not implemented in the foundation scaffold. See docs/architecture.md §6.4.
+A successful commit is required before any UI acknowledgement
+(architecture §6.4). The factory is ``open_store``; ``two.cli`` must not
+open the database. See docs/architecture.md §6.3.G, §8.4, and §12.5.
 """
+
+from two.store.engine import BUSY_TIMEOUT_MS, DEFAULT_DB_FILENAME, resolve_db_path
+from two.store.errors import (
+    ActionNotFoundError,
+    DuplicateActionError,
+    DuplicateApprovalError,
+    DuplicateQuestionError,
+    DuplicateSourceEventError,
+    DuplicateTaskError,
+    StoreError,
+    TaskNotFoundError,
+)
+from two.store.models import (
+    ActionRecord,
+    ActionStatus,
+    ApprovalRecord,
+    ChannelBinding,
+    EventRecord,
+    LeaseRecord,
+    QuestionRecord,
+    TaskRecord,
+)
+from two.store.schema import SCHEMA_VERSION
+from two.store.store import Store, open_store
+
+__all__ = [
+    "BUSY_TIMEOUT_MS",
+    "DEFAULT_DB_FILENAME",
+    "SCHEMA_VERSION",
+    "ActionNotFoundError",
+    "ActionRecord",
+    "ActionStatus",
+    "ApprovalRecord",
+    "ChannelBinding",
+    "DuplicateActionError",
+    "DuplicateApprovalError",
+    "DuplicateQuestionError",
+    "DuplicateSourceEventError",
+    "DuplicateTaskError",
+    "EventRecord",
+    "LeaseRecord",
+    "QuestionRecord",
+    "Store",
+    "StoreError",
+    "TaskNotFoundError",
+    "TaskRecord",
+    "open_store",
+    "resolve_db_path",
+]
