@@ -13,6 +13,9 @@ Python package for the Majesta Two control plane.
   path. Do not reimplement the DSH agent loop.
 - `store/` is the SQLite WAL store (`open_store`). Do not open databases
   from `cli.py`.
+- `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
+  budgets clock, and Mac health mapping. Inject a health probe and worker
+  callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Slack is
   the MVP adapter only.
 - `validation/` loads `config/repositories/*.yaml` and

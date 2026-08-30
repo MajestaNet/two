@@ -5,8 +5,9 @@
 Majesta Two is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays on
 a dedicated Mac inference host. This repository is not a Slack (or other
 messenger) product. Slack is the MVP optional adapter. The SQLite WAL store
-(`two.store`) persists tasks, events, and leases. ACP worker and messaging
-adapter are not implemented yet.
+(`two.store`) persists tasks, events, and leases. The durable scheduler
+(`two.scheduler`) owns the single local-model slot, leases, retry_wait, and
+Mac health mapping. ACP worker and messaging adapter are not implemented yet.
 
 ## Stack
 
@@ -43,6 +44,8 @@ listed in `config/repositories/two.yaml`.
   (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
   `src/two/store/` is the SQLite WAL store (tasks, events, leases). CLI
   does not open it.
+  `src/two/scheduler/` owns the single local-model queue slot, lease
+  heartbeat/reclaim, retry_wait backoff, and Mac health mapping.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
