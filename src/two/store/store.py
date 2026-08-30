@@ -66,14 +66,19 @@ from two.types import ExecutionProfile, LifecycleState, Mode, WorkflowStage
 _TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
-def open_store(path: Path | str | None = None) -> Store:
+def open_store(
+    path: Path | str | None = None,
+    *,
+    check_same_thread: bool = True,
+) -> Store:
     """Open (or create) the WAL store at ``path`` or ``{TWO_DATA_DIR}/two.sqlite``.
 
     Creates parent directories, enables WAL / foreign keys / busy timeout, and
     applies versioned migrations. Intended as the factory for the later API
-    process; ``two.cli`` must not call this.
+    process; ``two.cli`` must not call this at import time. The ASGI API passes
+    ``check_same_thread=False`` because TestClient may hop threads.
     """
-    resolved, connection = prepare_database(path)
+    resolved, connection = prepare_database(path, check_same_thread=check_same_thread)
     return Store(connection, path=resolved)
 
 
@@ -653,6 +658,17 @@ class Store:
             return None
         return _question_from_row(row)
 
+    def list_questions(self, task_id: str) -> list[QuestionRecord]:
+        """Return questions for ``task_id`` oldest-first."""
+        rows = self._connection.execute(
+            """
+            SELECT * FROM questions WHERE task_id = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (task_id,),
+        ).fetchall()
+        return [_question_from_row(row) for row in rows]
+
     def insert_approval(
         self,
         approval_id: str,
@@ -707,6 +723,17 @@ class Store:
         if row is None:
             return None
         return _approval_from_row(row)
+
+    def list_approvals(self, task_id: str) -> list[ApprovalRecord]:
+        """Return approvals for ``task_id`` oldest-first."""
+        rows = self._connection.execute(
+            """
+            SELECT * FROM approvals WHERE task_id = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (task_id,),
+        ).fetchall()
+        return [_approval_from_row(row) for row in rows]
 
     def _require_task(self, task_id: str) -> None:
         row = self._connection.execute(
