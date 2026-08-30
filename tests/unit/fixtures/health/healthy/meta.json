@@ -1,0 +1,7 @@
+{
+  "expected_alias": "qwen38-agent-16k",
+  "memory_pressure": "normal",
+  "page_outs_rising": false,
+  "active_requests": 0,
+  "queue_depth": 0
+}
