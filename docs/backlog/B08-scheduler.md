@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B08 |
 | Phase | 5 — Durable workflow (queue) |
-| Status | planned |
+| Status | done |
 | Depends on | B06; B01 health-check contract for Mac probes |
 | Blocks | B09, B10 |
 | Architecture | §6.3.G, §12.2–12.4, §21 items 11–12 |
@@ -19,10 +19,17 @@ Slack.
 
 ## Current tree
 
-- `src/two/scheduler/` is a stub.
+- `src/two/scheduler/` owns the single local-model slot: queue dispatch,
+  renewable leases, heartbeats, `retry_wait` backoff, active vs wall-clock
+  budgets, and Mac health mapping (architecture §12.3).
 - Execution profiles and budgets live in `config/policies/default.yaml`
-  and `types.ExecutionProfile`.
-- Health states are specified in architecture §12.3.
+  and `types.ExecutionProfile`. Heartbeat interval and lease TTL are
+  named constants on `SchedulerConfig` (`LEASE_TTL_SECONDS=30`,
+  `HEARTBEAT_INTERVAL_SECONDS=10`).
+- Health states are classified by `two.runtime.health` (B01). The
+  scheduler injects a probe; it does not call the network.
+- Store schema v2 adds `next_attempt_at`, `retry_count`,
+  `active_elapsed_ms`, and `active_started_at` on `tasks`.
 
 ## Out of scope
 
@@ -73,10 +80,10 @@ Slack.
 
 ## Acceptance criteria
 
-- [ ] One local inference slot.
-- [ ] Expired leases only are reclaimed.
-- [ ] Human-paused and awaiting-input tasks are not auto-started.
-- [ ] No Slack, no ACP in this module.
+- [x] One local inference slot.
+- [x] Expired leases only are reclaimed.
+- [x] Human-paused and awaiting-input tasks are not auto-started.
+- [x] No Slack, no ACP in this module.
 
 ## Definition of done
 
