@@ -1,0 +1,10 @@
+{
+  "models": [
+    {
+      "name": "unrelated-model:latest",
+      "model": "unrelated-model:latest",
+      "size": 1,
+      "digest": "sha256:test-fixture-wrong-model"
+    }
+  ]
+}

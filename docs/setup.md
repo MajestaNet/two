@@ -11,7 +11,7 @@ in [architecture.md](architecture.md). Viability notes are in
 | --- | --- |
 | Clone and run unit CI | Works |
 | List inference profiles | Works (`two profiles`) |
-| Serve Qwen on the Mac | Not implemented ([B01](backlog/B01-mac-inference-appliance.md)) |
+| Serve Qwen on the Mac | Scripts exist (`bootstrap-mac.sh`, `health-check.sh`, `soak-inference.sh`); live path requires a Mac ([B01](backlog/B01-mac-inference-appliance.md)) |
 | DeepSeek Harness + Majesta Two worker | Not implemented ([B02](backlog/B02-harness-provider-contracts.md)–[B10](backlog/B10-workflow-controller.md)) |
 | Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
 | CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
@@ -99,14 +99,57 @@ Do not run two local models at once in the MVP.
 
 ## 3. Mac inference appliance (Phase 1)
 
-Not automated yet (`scripts/bootstrap-mac.sh` exits 2). Manual intent:
+Scripts exist. CI uses `--dry-run` and health fixtures (no Mac, no Ollama).
+The live path requires Darwin, native Ollama, and a private bind address.
 
-1. Install native Ollama on macOS. Disable sleep while acting as the node.
-2. Bind `OLLAMA_HOST` to a **private** address only.
-3. Pull the upstream tag from the chosen profile.
-4. Create the alias from `config/mac/Modelfile.16k` or `Modelfile.32k`.
-5. Apply the environment contract in [architecture.md](architecture.md) §6.1.
-6. Confirm `/api/version`, `/api/ps`, and `/v1/models` from the dev host.
+### Dry-run (Linux CI / review the plan)
+
+```bash
+./scripts/bootstrap-mac.sh --dry-run
+./scripts/bootstrap-mac.sh --dry-run --profile m24-qwen38-16k --topology split
+./scripts/bootstrap-mac.sh --dry-run --profile m24-qwen38-16k --topology colocated --bind 127.0.0.1
+./scripts/health-check.sh --dry-run
+./scripts/health-check.sh --fixture-dir tests/unit/fixtures/health/healthy
+./scripts/soak-inference.sh --dry-run
+```
+
+### Live (Apple Silicon Mac)
+
+Disable sleep while the Mac is the inference node. Never bind `0.0.0.0`.
+
+```bash
+# split (default): private LAN or overlay hostname
+./scripts/bootstrap-mac.sh --profile m24-qwen38-16k --topology split --bind mac-inference.internal
+
+# colocated (~48 GB+ Mac): loopback only
+./scripts/bootstrap-mac.sh --profile m24-qwen38-16k --topology colocated --bind 127.0.0.1
+```
+
+Flags for `bootstrap-mac.sh`:
+
+| Flag | Meaning |
+| --- | --- |
+| `--dry-run` | Print the plan and exit 0. No Darwin, no install. |
+| `--profile` | Catalog id. Default `m24-qwen38-16k` (alias `qwen38-agent-16k`). |
+| `--topology` | `split` (default, private LAN/overlay) or `colocated` (`127.0.0.1`). |
+| `--bind` | Ollama bind host. Required for live `split`. Never a public interface. |
+| `--system` | Install `/Library/LaunchDaemons/local.two.ollama.plist`. Default is the user LaunchAgent `~/Library/LaunchAgents/local.two.ollama.plist`. |
+
+`bootstrap-mac.sh` pulls the profile `upstream_model` and the comparison tag
+`qwen3.8:27b` (architecture §18), creates the alias from the matching
+Modelfile, installs the LaunchAgent, and preloads with indefinite keep-alive.
+
+Health from the development host:
+
+```bash
+export MAC_QWEN_BASE_URL=http://mac-inference.internal:11434/v1
+./scripts/health-check.sh --base-url "$MAC_QWEN_BASE_URL"
+# Exit 0 Healthy; 1 Cold/Busy (retryable); 2 Degraded/Unavailable
+```
+
+Copy `config/runtime/models.lock.example` to `config/runtime/models.lock`
+after soak tests. Do not invent digests. Pin native Ollama by recording
+`ollama --version` in that lock file (Homebrew: `brew pin ollama`).
 
 The development host must reach `MAC_QWEN_BASE_URL`. Use LAN DNS or a
 Tailscale name. Do not publish port 11434 on a public interface.

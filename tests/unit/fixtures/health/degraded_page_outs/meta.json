@@ -1,0 +1,5 @@
+{
+  "expected_alias": "qwen38-agent-16k",
+  "page_outs_rising": true,
+  "memory_pressure": "critical"
+}

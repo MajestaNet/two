@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B01 |
 | Phase | 1 — Inference appliance |
-| Status | planned |
+| Status | done |
 | Depends on | none |
 | Blocks | B02 (live Mac tests), B08 (health poller) |
 | Architecture | §6.1, §12.1, §12.3, §18, §20 Phase 1, §21 items 1–2, 9 |
@@ -18,12 +18,15 @@ development host can call. Unit CI must stay offline.
 
 ## Current tree
 
-- `scripts/bootstrap-mac.sh` and `scripts/health-check.sh` exit 2.
-- Templates exist: `config/mac/Modelfile.16k`, `Modelfile.32k`,
+- `scripts/bootstrap-mac.sh`, `scripts/health-check.sh`, and
+  `scripts/soak-inference.sh` implement dry-run (CI) and live Darwin paths.
+- Templates: `config/mac/Modelfile.16k`, `Modelfile.32k`,
   `config/mac/ollama.launchd.plist.template`.
 - Catalog: `config/inference/profiles.yaml` (default `m24-qwen38-16k`).
-- Lock example: `config/runtime/models.lock.example`.
-- `two profiles` already lists profiles. No lock-file parser yet.
+- Lock schema: `src/two/runtime/lock.py` parses
+  `config/runtime/models.lock.example`.
+- `two profiles` lists profiles. Python runtime helpers live in
+  `src/two/runtime/`.
 
 ## Out of scope
 
@@ -107,13 +110,13 @@ development host can call. Unit CI must stay offline.
 
 ## Acceptance criteria
 
-- [ ] Dry-run bootstrap and health-check do not exit 2.
-- [ ] Launchd template and env contract match architecture §6.1.
-- [ ] Colocated topology binds Ollama to `127.0.0.1`; split does not
+- [x] Dry-run bootstrap and health-check do not exit 2.
+- [x] Launchd template and env contract match architecture §6.1.
+- [x] Colocated topology binds Ollama to `127.0.0.1`; split does not
       hard-code loopback.
-- [ ] Lock schema exists and is tested.
-- [ ] `docs/setup.md` status table is current.
-- [ ] No public bind, no weights in git, no live Mac required for CI.
+- [x] Lock schema exists and is tested.
+- [x] `docs/setup.md` status table is current.
+- [x] No public bind, no weights in git, no live Mac required for CI.
 
 ## Definition of done
 
