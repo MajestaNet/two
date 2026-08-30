@@ -16,5 +16,6 @@ services:
       TWO_INFERENCE_PROFILE: ${TWO_INFERENCE_PROFILE:-m24-qwen38-16k}
     volumes:
       - ../../config:/app/config:ro
-    # No ports: CLI only until the control API exists.
+    # No published ports. The API binds loopback or a Unix socket inside
+    # the container; do not add `ports: ["8741:8741"]` on a public host.
     profiles: []
