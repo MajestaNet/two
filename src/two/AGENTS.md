@@ -46,6 +46,9 @@ Python package for the Majesta Two control plane.
   `ActionLedger.recover` (no duplicate replay) and `Scheduler.start`
   (expired leases only). Human-paused tasks stay paused. Inject health
   and worktree probes in tests.
+- `evals/` runs the architecture §18 corpus against `evals/` data.
+  Offline by default. No Mac, Slack, production clones, or soak
+  auto-pass. Duplicate side effects must stay zero.
 - Use Pydantic v2 models with `extra="forbid"` for external payloads.
 - `mypy --strict` applies to this tree. Add explicit return types.
 - New `.py` files need the Apache 2.0 header and SPDX identifier.

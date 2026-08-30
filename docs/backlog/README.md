@@ -46,7 +46,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B12](B12-dev-host-services.md) | Development-host services and Compose | 5 | B07, B08, B09, B10 | done |
 | [B13](B13-cli-and-interaction.md) | CLI client and interaction-contract tests | 6 | B07 | planned |
 | [B14](B14-slack-adapter.md) | Slack MVP adapter | 6 | B07, B11 | planned |
-| [B15](B15-evaluation-corpus.md) | Evaluation corpus and promotion gates | 5 / 18 | B03 (fixtures); B10–B12 (promotion) | planned |
+| [B15](B15-evaluation-corpus.md) | Evaluation corpus and promotion gates | 5 / 18 | B03 (fixtures); B10–B12 (promotion) | done |
 | [B16](B16-paid-model-routes.md) | Optional paid-model routes | 7 | B10 | planned |
 
 Optional thin web UI is a subsection of B13, not a second product.

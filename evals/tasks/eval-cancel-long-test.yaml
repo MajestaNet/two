@@ -1,0 +1,11 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-cancel-long-test
+architecture_case: cancel-during-long-test
+mode: offline
+objective: Cancel a long-running fake child and retain the worktree
+acceptance_criteria:
+  - lifecycle becomes cancelled
+  - worktree and kept.txt remain
+  - cancelled is terminal
+notes: Uses B09 fake long-command child plus two.approvals.cancel_task.
