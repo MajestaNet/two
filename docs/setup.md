@@ -11,14 +11,16 @@ in [architecture.md](architecture.md). Viability notes are in
 | --- | --- |
 | Clone and run unit CI | Works |
 | List inference profiles | Works (`devflow profiles`) |
-| Serve Qwen on the Mac | Not implemented (Phase 1 scripts exit 2) |
-| DeepSeek Harness + DevFlow worker | Not implemented (Phase 2–5) |
-| Messaging adapter (Slack MVP) | Optional; not implemented |
-| CLI/web from another network | Overlay (Tailscale); not implemented |
-| Control-plane Compose | Topology file only; no harness in the image |
+| Serve Qwen on the Mac | Not implemented ([B01](backlog/B01-mac-inference-appliance.md)) |
+| DeepSeek Harness + DevFlow worker | Not implemented ([B02](backlog/B02-harness-provider-contracts.md)–[B10](backlog/B10-workflow-controller.md)) |
+| Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
+| CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
+| Control-plane Compose | Topology file only; no harness in the image ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`devflow topology`) |
 
-Last updated: 30 August 2026 (backend-first channels).
+Last updated: 30 August 2026 (implementation backlog B01–B16).
+
+Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
 ## Choose a topology
 

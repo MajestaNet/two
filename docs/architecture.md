@@ -1036,6 +1036,11 @@ qwen-local-dev-agent/
 
 ## 20. Implementation sequence
 
+Dedicated, agent-executable slices of this sequence are tracked in
+[`docs/backlog/`](backlog/README.md) (B01–B16). The phase list below
+remains the authority for order and intent; backlog files must not
+invent a second architecture.
+
 ### Phase 1 — Inference appliance
 
 - Install/pin native Ollama.

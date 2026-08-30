@@ -23,6 +23,7 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 - [Interaction contract](docs/interaction-contract.md)
 - [Task manifest](docs/task-manifest.md)
 - [Public-repo hygiene](docs/public-repo.md)
+- [Implementation backlog](docs/backlog/README.md) — one executable item per file, with agent prompts
 
 24 GB unified memory is the **default inference profile**, not a hard limit. Run `uv run devflow profiles`. Two machines is the **default topology**; a larger Mac may colocate harness and Ollama as separate processes (`uv run devflow topology`).
 

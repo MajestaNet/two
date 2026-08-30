@@ -3,6 +3,9 @@
 - `architecture.md` is the canonical product specification.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
+- `backlog/` holds dedicated implementation items (B01–B16). Status
+  tables there are the tracker. Each item file ends with an agentic
+  prompt. Do not copy the spec into those files; point at sections.
 - Thin siblings (`operations.md`, `unattended-operations.md`,
   `interaction-contract.md`, `task-manifest.md`, `channels.md`,
   `remote-access.md`, `viability.md`) point at sections or operator
