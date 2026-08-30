@@ -27,14 +27,20 @@ Python package for the Majesta Two control plane.
   the MVP adapter only.
 - `validation/` loads `config/repositories/*.yaml` and
   `config/policies/default.yaml`, then runs gates in the task worktree.
-  It never writes task lifecycle. `reporting/` formats gate fragments only.
+  It never writes task lifecycle.
+- `reporting/` formats gate fragments and Stage 8 final reports. It does
+  not set lifecycle.
 - `context/` persists structured task memory as JSON under
   `TWO_DATA_DIR/tasks/<id>/memory.json` and builds bounded retrieval
   packets (git, `rg`, optional LSP). No embeddings, SQLite, or DSH/Ollama
   calls. Budget policy lives in `config/policies/context.yaml`.
-- `controller` does not call the model. `worker/` supervises ACP children,
-  the action ledger, and session resume. It must not import Slack or set
-  lifecycle `complete`. Local Qwen worker count is one.
+- `controller/` owns workflow stages, repair/no-progress budgets, fresh
+  review via `two.context.build_review_handoff` and `two.worker.plan_session`,
+  and terminal status. Inject a worker and validation in tests. It does
+  not call the model, import Slack, or import an Ollama client.
+- `worker/` supervises ACP children, the action ledger, and session resume.
+  It must not import Slack or set lifecycle `complete`. Local Qwen worker
+  count is one.
 - Use Pydantic v2 models with `extra="forbid"` for external payloads.
 - `mypy --strict` applies to this tree. Add explicit return types.
 - New `.py` files need the Apache 2.0 header and SPDX identifier.

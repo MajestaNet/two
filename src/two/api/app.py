@@ -60,6 +60,7 @@ from two.approvals import (
     resume_task,
 )
 from two.manifest import TaskManifest
+from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
 from two.store import (
     ApprovalNotFoundError,
     DuplicateApprovalError,
@@ -77,6 +78,7 @@ _TODO_EVENT_TYPES = frozenset({"todos", "task.todos"})
 _BLOCKER_EVENT_TYPES = frozenset({"blocker", "task.blocker"})
 _DIFF_EVENT_TYPES = frozenset({"diff", "task.diff"})
 _VALIDATION_EVENT_TYPES = frozenset({"validation", "task.validation"})
+_REPORT_EVENT_TYPES = frozenset({REPORT_EVENT_TYPE, "workflow.report"})
 
 
 class _StoreBox:
@@ -394,6 +396,22 @@ async def _get_report(request: Request, task_id: str) -> TaskReport:
     box = _box(request)
     async with box.lock:
         projection = _require_projection(box.store, task_id)
+        events = box.store.list_events(task_id)
+    report_event = _latest_matching(events, _REPORT_EVENT_TYPES)
+    if report_event is None:
+        return TaskReport(
+            task_id=projection.id,
+            lifecycle=projection.lifecycle,
+            stage=projection.stage,
+            objective=projection.objective,
+            acceptance_criteria=projection.acceptance_criteria,
+            branch=projection.branch,
+            worktree_path=projection.worktree_path,
+            diff_summary=projection.diff_summary,
+            validation_summary=projection.validation_summary,
+            assembled=False,
+        )
+    assembled = report_from_payload(dict(report_event.payload))
     return TaskReport(
         task_id=projection.id,
         lifecycle=projection.lifecycle,
@@ -404,7 +422,8 @@ async def _get_report(request: Request, task_id: str) -> TaskReport:
         worktree_path=projection.worktree_path,
         diff_summary=projection.diff_summary,
         validation_summary=projection.validation_summary,
-        assembled=False,
+        assembled=True,
+        notes=format_final_report(assembled),
     )
 
 

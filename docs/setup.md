@@ -24,9 +24,10 @@ in [architecture.md](architecture.md). Viability notes are in
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket) ([B07](backlog/B07-control-api.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; unused by CLI) ([B08](backlog/B08-scheduler.md)) |
 | ACP worker + action ledger | Works (`two.worker`; fake child in default pytest) ([B09](backlog/B09-acp-worker.md)) |
+| Workflow controller + reports | Works with fakes (`two.controller`; `uv run pytest tests/unit/test_controller.py`) ([B10](backlog/B10-workflow-controller.md)) |
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 
-Last updated: 30 August 2026 (Phase 5: B06–B09 and B11 stacked).
+Last updated: 30 August 2026 (Phase 5: B10 workflow controller on the B06–B09 + B11 stack).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -104,6 +105,12 @@ and `POST /v1/tasks/{id}/pause|resume|cancel`. Resume is allowed from
 `paused` or `awaiting_input` and keeps the same task id. Cancelled is
 terminal. Silence is never approval. The principal is an `actor` string
 (default `local`); Slack allowlists are B14.
+
+The workflow controller (`two.controller`) can drive a fake unattended
+fixture offline: `uv run pytest tests/unit/test_controller.py`. Tests inject
+a fake worker and B04 validation so they never spawn ACP or call a live Mac.
+Completion is the controller plus validation gates, never a model
+self-report.
 
 ## 2. Pick an inference profile
 
