@@ -27,6 +27,7 @@ An adapter is a small process that:
 **MVP adapter: Slack**, because Socket Mode needs no inbound port and
 threads bind to a task. Templates live in `config/channels/` and
 `src/devflow/channels/slack/`. You do not have to deploy them.
+Implementation: [B14](backlog/B14-slack-adapter.md).
 
 Other messengers (Matrix, Discord, …) should implement the same
 gateway. Do not add vendor logic to `controller` or `worker`.

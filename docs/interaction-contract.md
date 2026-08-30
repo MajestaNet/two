@@ -8,4 +8,5 @@ same authoritative task state from the control API. Clients never query the
 model for status. Slack is the MVP adapter only; see [channels.md](channels.md).
 
 Later phases should test these behaviors independently of widgets, slash
-commands, or ACP call shapes.
+commands, or ACP call shapes. That work is backlog
+[B13](backlog/B13-cli-and-interaction.md).

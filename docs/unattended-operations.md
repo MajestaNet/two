@@ -11,3 +11,6 @@ Index:
 
 DevFlow—not DeepSeek Harness—owns task lifetime. Closing a CLI, browser, or
 messaging-adapter disconnect must not cancel a controller-owned task.
+
+Packaging and recovery implementation: backlog
+[B12](backlog/B12-dev-host-services.md).
