@@ -67,7 +67,8 @@ listed in `config/repositories/two.yaml`.
 
 - Treat worktree isolation as the design (`two.workspace`). Run
   validation in the worktree (`two.validation`), never the canonical
-  checkout.
+  checkout. Retrieval and task memory live in `two.context` (git, `rg`,
+  optional LSP; no embeddings).
 - Add or update deterministic tests for code you change.
 - Update this file in the same PR as command or layout changes.
 - Update `docs/setup.md` (and its status table) when install, topology,
