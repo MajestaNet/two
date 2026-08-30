@@ -19,10 +19,10 @@ the bind is not loopback. The API does not call the model.
 
 ## Current tree
 
-- `src/devflow/api/` is a stub.
+- `src/two/api/` is a stub.
 - `config/access/remote.yaml`: `127.0.0.1:8741`,
   `allow_public_bind: false`.
-- `.env.example`: `DEVFLOW_API_BIND`, `DEVFLOW_API_PORT`, optional
+- `.env.example`: `TWO_API_BIND`, `TWO_API_PORT`, optional
   socket.
 - Compose file has no published ports.
 
@@ -102,7 +102,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B07 — Channel-neutral control API**.
+You are implementing **Majesta Two backlog item B07 — Channel-neutral control API**.
 
 Read first:
 
@@ -110,7 +110,7 @@ Read first:
 2. `docs/architecture.md` sections 6.3.H, 8.3, 12.2
 3. `docs/channels.md`, `docs/remote-access.md`, `docs/adrs/0005-remote-access-and-compose.md`, `docs/adrs/0007-backend-first-channels.md`
 4. `docs/backlog/README.md` and `docs/backlog/B07-control-api.md`
-5. `src/devflow/api/`, `config/access/remote.yaml`
+5. `src/two/api/`, `config/access/remote.yaml`
 6. Confirm B06 store APIs exist. If not, stop.
 
 Implement **only B07**. Do not implement Slack, ACP, or the workflow state machine beyond persisting queued tasks and pause/cancel flags in the store.
@@ -129,7 +129,7 @@ Concrete work:
 1. HTTP/Unix control API with the routes in this item. Persist via the store. 201 only after commit.
 2. Health endpoint for the API process.
 3. Bind policy + tests.
-4. Optional `devflow api` CLI subcommand that only starts the server — no workflow logic.
+4. Optional `two api` CLI subcommand that only starts the server — no workflow logic.
 5. Update `docs/setup.md` if ports/commands change. Mark B07 `done` when criteria pass.
 
 Commit: `feat: add loopback control API for tasks`.

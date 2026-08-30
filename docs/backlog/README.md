@@ -107,14 +107,14 @@ without a Mac can still land B01 as dry-run scripts plus unit tests.
 These apply even if an agentic prompt is pasted without this README:
 
 - `docs/architecture.md` wins. Do not invent a second design.
-- Python 3.12, `uv`, ruff, `mypy --strict` on `src/devflow`, pytest.
+- Python 3.12, `uv`, ruff, `mypy --strict` on `src/two`, pytest.
   `make ci` is the gate.
 - Public types stay in `types.py` / `manifest.py` with no I/O. SQLite
   only in `store/`. CLI and `channels.*` stay thin.
 - New source files need the Apache 2.0 header and
   `SPDX-License-Identifier: Apache-2.0`.
 - Do not add a runtime dependency unless the item or an ADR allows it.
-- Do not bind Ollama or the DevFlow API to a public interface.
+- Do not bind Ollama or the Majesta Two API to a public interface.
 - Do not merge, push, release, or deploy from agent automation.
 - Do not reimplement the DeepSeek Harness agent loop.
 - Slack is the MVP adapter only; this repo is the backend.

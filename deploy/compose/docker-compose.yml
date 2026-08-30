@@ -5,15 +5,15 @@
 # Do not publish 11434 or 8741 on a public interface.
 # api / scheduler / worker / optional adapter services land in Phase 5.
 
-name: devflow
+name: two
 
 services:
-  devflow:
+  two:
     build:
       context: ../..
       dockerfile: deploy/compose/Dockerfile
     environment:
-      DEVFLOW_INFERENCE_PROFILE: ${DEVFLOW_INFERENCE_PROFILE:-m24-qwen38-16k}
+      TWO_INFERENCE_PROFILE: ${TWO_INFERENCE_PROFILE:-m24-qwen38-16k}
     volumes:
       - ../../config:/app/config:ro
     # No ports: CLI only until the control API exists.

@@ -1,6 +1,8 @@
 # Public-repository hygiene
 
-This repository is intended to be public under Apache License 2.0.
+This repository is **Majesta Two** (`MajestaNet/two`), intended to be public
+under Apache License 2.0. The Python package and CLI are `two`. The
+copyright holder is MajestaNet. See [ADR 0008](adrs/0008-majesta-two-identity.md).
 
 ## Must be in git
 

@@ -18,7 +18,7 @@ and LSP first. No vector database.
 
 ## Current tree
 
-- `src/devflow/context/` is a stub.
+- `src/two/context/` is a stub.
 - Architecture retrieval order and memory fields are specified.
 - 16K context budget table is in §7.2.
 
@@ -50,7 +50,7 @@ and LSP first. No vector database.
    open SQLite if B06 is not done — use the filesystem. B10 will
    attach it to the store.
 
-3. **Retrieval helpers** in `src/devflow/context/`
+3. **Retrieval helpers** in `src/two/context/`
    - Tracked-file inventory via `git ls-files`, excluding
      generated/vendor/build patterns (configurable).
    - `rg` for identifiers with line-numbered bounded excerpts
@@ -99,14 +99,14 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B05 — Context broker and structured task memory**.
+You are implementing **Majesta Two backlog item B05 — Context broker and structured task memory**.
 
 Read first:
 
 1. `AGENTS.md`
 2. `docs/architecture.md` sections 6.3.E, 7.2, 7.3, 8.2 Stage 3–4 and 7
 3. `docs/backlog/README.md` and `docs/backlog/B05-context-broker.md`
-4. `src/devflow/context/`
+4. `src/two/context/`
 5. B03 worktree APIs if present; if missing, stop.
 
 Implement **only B05**. Do not add a vector database. Do not drive DSH.

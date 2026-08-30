@@ -17,13 +17,13 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 
 ## What actually works
 
-- Clone, `uv sync --dev`, `make ci`, `devflow --help`, `devflow profiles`,
-  `devflow topology`
+- Clone, `uv sync --dev`, `make ci`, `two --help`, `two profiles`,
+  `two topology`
 - Apache 2.0, ignore rules, AGENTS.md, self-profile for later dogfood
 - Documented default inference profile (`m24-qwen38-16k`) plus larger-host
   profiles in `config/inference/profiles.yaml`
 - Backend-first channels: CLI/API required; Slack is the optional MVP adapter
-- Deployment topology: `split` default, `colocated` optional (`devflow topology`)
+- Deployment topology: `split` default, `colocated` optional (`two topology`)
 
 ## What does not work (by design, still a setup cliff)
 
@@ -49,7 +49,7 @@ Implementation work after this scaffold is tracked in
 3. **One larger Mac (`colocated`)** — drops the LAN hop, not DSH
    pinning or disable-sleep. Do not use this to “simplify” a 24 GB Mini.
 4. **Optional messenger (Slack MVP)** — easy *once an adapter exists*.
-   Outbound only. You do not port-forward DevFlow or Ollama. The backend
+   Outbound only. You do not port-forward Majesta Two or Ollama. The backend
    runs without any messenger.
 5. **Web/CLI from another network** — needs an overlay (Tailscale is the
    default recommendation). A public reverse proxy is the wrong default.

@@ -14,6 +14,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""DevFlow control-plane package."""
+"""Majesta Two control-plane package."""
 
 __version__ = "0.1.0"

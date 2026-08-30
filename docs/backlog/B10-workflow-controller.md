@@ -20,7 +20,7 @@ Independent validation (B04) is authoritative.
 
 ## Current tree
 
-- `src/devflow/controller/` is a stub.
+- `src/two/controller/` is a stub.
 - Enums for stages and lifecycle exist.
 - Manifest, policies, and (after prior items) store/API/worker exist.
 
@@ -110,7 +110,7 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B10 — Workflow controller, budgets, review, reports**.
+You are implementing **Majesta Two backlog item B10 — Workflow controller, budgets, review, reports**.
 
 Read first:
 
@@ -118,7 +118,7 @@ Read first:
 2. `docs/architecture.md` sections 6.3.A, 7.1, 8, 9, 21
 3. `docs/interaction-contract.md`, `docs/unattended-operations.md`
 4. `docs/backlog/README.md` and `docs/backlog/B10-workflow-controller.md`
-5. `src/devflow/controller/`, `src/devflow/reporting/`, `src/devflow/types.py`, `src/devflow/manifest.py`
+5. `src/two/controller/`, `src/two/reporting/`, `src/two/types.py`, `src/two/manifest.py`
 6. Confirm B04, B05, B07, B08, B09 exist. If not, stop.
 
 Implement **only B10**. Do not add Slack or paid providers. Do not call the model from the controller.

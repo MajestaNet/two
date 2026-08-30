@@ -18,7 +18,7 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from devflow.types import ExecutionProfile, Mode, OnHumanInputRequired
+from two.types import ExecutionProfile, Mode, OnHumanInputRequired
 
 
 class TaskManifest(BaseModel):

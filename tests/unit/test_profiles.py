@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from devflow.cli import main
-from devflow.profiles import load_catalog
-from devflow.types import InferenceProfileId
+from two.cli import main
+from two.profiles import load_catalog
+from two.types import InferenceProfileId
 
 
 def test_catalog_default_is_24gb_16k() -> None:
@@ -66,6 +66,6 @@ profiles:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setenv("DEVFLOW_INFERENCE_CATALOG", str(path))
+    monkeypatch.setenv("TWO_INFERENCE_CATALOG", str(path))
     catalog = load_catalog()
     assert catalog.default_profile().alias == "local-test"

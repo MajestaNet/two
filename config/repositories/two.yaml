@@ -1,11 +1,11 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
 #
-# Self-profile for this repository. DevFlow will execute these commands later.
+# Self-profile for this repository. Majesta Two will execute these commands later.
 # AGENTS.md remains human/agent guidance only.
 
-id: devflow
-display_name: DevFlow implementation repository
+id: two
+display_name: Majesta Two implementation repository
 language: python
 validation_profile: standard
 allowed_paths:

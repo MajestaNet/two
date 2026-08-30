@@ -17,8 +17,8 @@ rebase of shared branches, or deploy.
 
 ## Current tree
 
-- `src/devflow/workspace/` is a stub.
-- `DEVFLOW_WORKSPACE_ROOT` is documented in `.env.example`
+- `src/two/workspace/` is a stub.
+- `TWO_WORKSPACE_ROOT` is documented in `.env.example`
   (`./var/worktrees`).
 - `tests/integration/` is empty and reserved for worktree tests.
 - `.gitignore` already ignores `var/`, `worktrees/`, `evals/workspaces/`.
@@ -34,7 +34,7 @@ rebase of shared branches, or deploy.
 
 ## Implementation plan
 
-1. **API** in `src/devflow/workspace/` (no CLI policy, no SQLite):
+1. **API** in `src/two/workspace/` (no CLI policy, no SQLite):
    - `create(task_id, repo_path, base_ref) -> Workspace`
    - `Workspace` fields: `task_id`, `branch` (`agent/<task-id>`),
      `worktree` (`<workspace-root>/<repo-id>/<task-id>`), `base_commit`
@@ -94,14 +94,14 @@ this repository checked out.
 
 ---
 
-You are implementing **DevFlow backlog item B03 — Git worktree workspace manager**.
+You are implementing **Majesta Two backlog item B03 — Git worktree workspace manager**.
 
 Read first:
 
-1. `AGENTS.md` and `src/devflow/AGENTS.md`
+1. `AGENTS.md` and `src/two/AGENTS.md`
 2. `docs/architecture.md` section 6.3.D, 8.2 Stage 2, 15
 3. `docs/backlog/README.md` and `docs/backlog/B03-worktree-workspace.md`
-4. `src/devflow/workspace/__init__.py`, `.env.example`, `tests/AGENTS.md`
+4. `src/two/workspace/__init__.py`, `.env.example`, `tests/AGENTS.md`
 
 Implement **only B03**. Do not add validation, SQLite, ACP, or CLI task commands.
 
@@ -117,7 +117,7 @@ Standing orders:
 
 Concrete work:
 
-1. Implement `src/devflow/workspace/` with create/status/retain semantics.
+1. Implement `src/two/workspace/` with create/status/retain semantics.
 2. Branch `agent/<task-id>`, worktree `<workspace-root>/<repo-id>/<task-id>`.
 3. Reject duplicate worktrees, path traversal in task ids, and any remote-mutating git.
 4. Add `tests/integration/` proving the canonical checkout is untouched.
