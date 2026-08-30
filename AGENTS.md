@@ -47,6 +47,8 @@ listed in `config/repositories/two.yaml`.
   does not open it at import time.
   `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
   `two api` lazy-imports it so `two profiles` does not load the store.
+  `src/two/approvals/` is durable questions, approvals, and cooperative
+  pause/resume/cancel (first-writer-wins; silence is never approval).
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and

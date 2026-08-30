@@ -351,6 +351,63 @@ def test_questions_and_approvals_persist(store: Store) -> None:
     assert store.get_approval("ap-1") is not None
     assert [row.id for row in store.list_questions("task-123")] == ["q-1"]
     assert [row.id for row in store.list_approvals("task-123")] == ["ap-1"]
+    answered, first = store.resolve_question(
+        "q-1",
+        status="answered",
+        resolver="operator",
+        now=T0 + timedelta(seconds=1),
+    )
+    assert first is True
+    assert answered.status == "answered"
+    assert answered.resolver == "operator"
+    again, first_again = store.resolve_question(
+        "q-1",
+        status="answered",
+        resolver="other",
+        now=T0 + timedelta(seconds=2),
+    )
+    assert first_again is False
+    assert again.resolver == "operator"
+    approved, approval_first = store.resolve_approval(
+        "ap-1",
+        status="approved",
+        now=T0 + timedelta(seconds=3),
+    )
+    assert approval_first is True
+    assert approved.status == "approved"
+    assert approved.action_digest == "sha256:deadbeef"
+    rejected, approval_second = store.resolve_approval(
+        "ap-1",
+        status="rejected",
+        now=T0 + timedelta(seconds=4),
+    )
+    assert approval_second is False
+    assert rejected.status == "approved"
+    assert rejected.action_digest == "sha256:deadbeef"
+
+
+def test_expire_open_input_never_approves(store: Store) -> None:
+    store.insert_task(_manifest(), now=T0)
+    store.insert_question(
+        "q-1",
+        "task-123",
+        stage=WorkflowStage.PLAN,
+        options=["keep lock"],
+        now=T0,
+    )
+    store.insert_approval(
+        "ap-1",
+        "task-123",
+        action_class="dependency_lock_change",
+        action_digest="sha256:deadbeef",
+        paths=["uv.lock"],
+        now=T0,
+    )
+    questions, approvals = store.expire_open_input("task-123", resolver="timeout", now=T0)
+    assert questions[0].status == "expired"
+    assert approvals[0].status == "expired"
+    assert approvals[0].status != "approved"
+    assert approvals[0].action_digest == "sha256:deadbeef"
 
 
 def test_update_and_list_tasks(store: Store) -> None:

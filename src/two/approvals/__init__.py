@@ -16,6 +16,54 @@
 
 """Durable questions and approvals. Silence is never approval.
 
-Action digest is immutable. Not implemented in the foundation scaffold.
-See docs/architecture.md §8.4.
+Action digest is immutable. First valid authorized principal wins; later
+duplicates are acknowledged and ignored. See docs/architecture.md §8.4.
 """
+
+from two.approvals.digest import compute_action_digest
+from two.approvals.errors import (
+    ApprovalsError,
+    NotResumableError,
+    PrincipalRequiredError,
+    StaleDigestError,
+    TerminalLifecycleError,
+    UnsafeTimeoutDefaultError,
+)
+from two.approvals.service import (
+    DEFAULT_PRINCIPAL,
+    AnswerResult,
+    DecisionResult,
+    answer_question,
+    apply_input_timeout,
+    ask_question,
+    cancel_task,
+    decide_approval,
+    normalize_principal,
+    pause_task,
+    request_approval,
+    require_principal,
+    resume_task,
+)
+
+__all__ = [
+    "DEFAULT_PRINCIPAL",
+    "AnswerResult",
+    "ApprovalsError",
+    "DecisionResult",
+    "NotResumableError",
+    "PrincipalRequiredError",
+    "StaleDigestError",
+    "TerminalLifecycleError",
+    "UnsafeTimeoutDefaultError",
+    "answer_question",
+    "apply_input_timeout",
+    "ask_question",
+    "cancel_task",
+    "compute_action_digest",
+    "decide_approval",
+    "normalize_principal",
+    "pause_task",
+    "request_approval",
+    "require_principal",
+    "resume_task",
+]
