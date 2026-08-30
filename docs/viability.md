@@ -26,6 +26,7 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 - Deployment topology: `split` default, `colocated` optional (`two topology`)
 - Task git worktrees (`two.workspace`; unused by CLI)
 - Independent validation gates in the worktree (`two.validation`; unused by CLI)
+- Context broker and structured task memory (`two.context`; unused by CLI)
 - DeepSeek Harness pin `dsh-v0.1.2-alpha.1`, provider render, and offline
   OpenAI-compatible contract fixtures (`python -m two.providers --check`,
   `./scripts/smoke-test.sh --dry-run`)
