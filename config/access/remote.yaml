@@ -1,8 +1,7 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
 #
-# How clients reach DevFlow. See docs/remote-access.md and ADR 0005.
-# Placeholders only.
+# How clients reach the DevFlow backend. See docs/channels.md and ADR 0007.
 
 api:
   default_bind: "127.0.0.1"
@@ -10,10 +9,15 @@ api:
   allow_public_bind: false
   overlay_interface_example: tailscale0
 
-slack:
-  mode: socket
+channels:
+  required: false
+  mvp_adapter: slack
   inbound_http_callbacks: false
   require_allowlists: true
+
+# Slack MVP adapter only. Leave unused if you do not run a messenger.
+slack:
+  mode: socket
 
 ollama:
   publish_to_clients: false

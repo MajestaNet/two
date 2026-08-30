@@ -8,7 +8,7 @@ Accepted
 
 A two-machine setup is the largest operator cost. It is tempting to assume
 more RAM on the Mac and run Ollama, DeepSeek Harness, and DevFlow as one
-host. That would drop the LAN hop. It would not drop Slack, pinning,
+host. That would drop the LAN hop. It would not drop pinning,
 sleep, soak tests, or the need for an always-on box.
 
 Collapsing the *architecture* into “the Mac does everything” would also

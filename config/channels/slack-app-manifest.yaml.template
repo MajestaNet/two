@@ -1,7 +1,8 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
 #
-# Slack app manifest template. Socket Mode only — no public inbound endpoint.
+# Optional Slack MVP adapter manifest. Not required to run the backend.
+# Socket Mode only — no public inbound endpoint.
 # Replace display names. Do not commit workspace IDs, channel IDs, or tokens.
 
 display_information:

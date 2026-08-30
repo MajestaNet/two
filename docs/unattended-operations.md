@@ -10,4 +10,4 @@ Index:
 - Overnight promotion gates — §18
 
 DevFlow—not DeepSeek Harness—owns task lifetime. Closing a CLI, browser, or
-Slack connection must not cancel a controller-owned task.
+messaging-adapter disconnect must not cancel a controller-owned task.

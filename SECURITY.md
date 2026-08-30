@@ -17,7 +17,7 @@ We will acknowledge the report and work on a fix before any public disclosure.
 DevFlow and the Mac inference endpoint are private-network services.
 
 - Do not bind Ollama or the DevFlow API to a publicly routed interface.
-- Do not open inbound Slack HTTP callbacks; use Socket Mode only if Slack is enabled.
-- Do not commit `.env`, Slack tokens, cloud keys, or model weight files.
+- Do not open inbound messaging webhooks. The Slack MVP adapter uses Socket Mode only.
+- Do not commit `.env`, messenger tokens, cloud keys, or model weight files.
 
 See [docs/public-repo.md](docs/public-repo.md) and [docs/architecture.md](docs/architecture.md) section 15.
