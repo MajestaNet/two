@@ -27,7 +27,7 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 
 ## What does not work (by design, still a setup cliff)
 
-- Mac bootstrap scripts exit 2
+- Mac live bootstrap requires Darwin; `--dry-run` and health fixtures work offline
 - No pinned DeepSeek Harness release, no ACP worker
 - No SQLite controller, no worktrees, no messaging adapter process
 - Compose file describes the unattended topology; harness is not in the

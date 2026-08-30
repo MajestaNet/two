@@ -1,0 +1,6 @@
+{
+  "expected_alias": "qwen38-agent-16k",
+  "active_requests": 1,
+  "queue_depth": 1,
+  "max_queue": 8
+}

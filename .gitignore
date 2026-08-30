@@ -47,6 +47,9 @@ models/
 # Nested eval workspaces
 evals/workspaces/
 
+# Operator-filled runtime lock (keep models.lock.example tracked)
+config/runtime/models.lock
+
 # OS / IDE
 .DS_Store
 Thumbs.db
