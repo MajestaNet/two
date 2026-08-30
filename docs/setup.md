@@ -16,34 +16,40 @@ in [architecture.md](architecture.md). Viability notes are in
 | Slack from phone or any network | Designed; adapter not implemented |
 | Web/CLI from another network | Designed as Tailscale/overlay; not implemented |
 | Control-plane Compose | Topology file only; no harness in the image |
+| List deployment topologies | Works (`devflow topology`) |
 
-Last updated: 29 August 2026.
+Last updated: 30 August 2026.
 
 ## Choose a topology
 
+Keep inference and execution as **separate processes**. Whether they share
+a chassis is configuration (`devflow topology`).
+
+**Default — `split` (24 GB Mini, overnight isolation)**
+
 ```text
-Phone / laptop Slack  -->  Slack cloud  --Socket Mode (outbound)-->  Linux dev host
-                                                                      DevFlow + DSH
-                                                                         |
-                              private LAN or Tailscale overlay          |
-                                                                         v
-                                                              Mac: native Ollama
+Phone Slack --> Slack cloud --Socket Mode-->  Linux: DevFlow + DSH
+                                                  |
+                               LAN or Tailscale   |
+                                                  v
+                                         Mac: native Ollama only
 ```
 
-- **Inference host:** Apple Silicon Mac running *native* Ollama. Do not put
-  the model in Docker on the Mac.
-- **Development host:** Linux box or VM recommended for overnight work.
-  A laptop is fine for interactive use.
-- **Phones:** use Slack. Do not expose Ollama or the DevFlow API to the
-  public internet so a phone browser can reach them.
+**Optional — `colocated` (~48 GB+ Mac that does not sleep)**
 
-Two setup paths:
+```text
+Phone Slack --> Slack cloud --Socket Mode-->  same Mac
+                                              DevFlow + DSH  --127.0.0.1-->  native Ollama
+```
 
-1. **Interactive (no Docker)** — this repo with `uv` on the development
-   host. Use this to contribute and, later, to drive a local harness.
-2. **Unattended (Compose on Linux)** — DevFlow processes in
-   `deploy/compose`. Recommended when the development host is always on.
-   The Mac stays native. See [ADR 0005](adrs/0005-remote-access-and-compose.md).
+Colocation is **not** “merge the harness into Ollama.” Same HTTP boundary,
+loopback instead of a LAN name. Do not do this on 24 GB: the ~18 GB model
+plus builds will swap. Do not put Ollama in Docker on the Mac.
+
+- **Phones:** Slack Socket Mode. Do not publish Ollama or DevFlow.
+- **Interactive contribute:** `uv` on any machine (`make ci`).
+- **Unattended Linux:** Compose on the development host ([ADR 0005](adrs/0005-remote-access-and-compose.md)).
+- **Unattended one Mac:** `colocated` plus disable sleep ([ADR 0006](adrs/0006-logical-split-physical-colocation.md)).
 
 ## 1. Development host (contributor, works today)
 
@@ -56,6 +62,7 @@ uv sync --dev
 make ci
 uv run devflow --help
 uv run devflow profiles
+uv run devflow topology
 ```
 
 Copy `.env.example` to `.env` only on the machine that will run services.

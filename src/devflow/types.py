@@ -80,3 +80,10 @@ class InferenceProfileId(StrEnum):
     M48_QWEN38_64K = "m48-qwen38-64k"
     M64_QWEN38_PLUS = "m64-qwen38-plus"
     CUSTOM = "custom"
+
+
+class DeploymentTopologyId(StrEnum):
+    """Physical placement. Logical inference/execution split always holds."""
+
+    SPLIT = "split"
+    COLOCATED = "colocated"
