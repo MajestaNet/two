@@ -14,7 +14,36 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Final task reports. The controller, not the model, sets terminal status.
+"""Report fragments. The controller, not the model, sets terminal status.
 
-Not implemented in the foundation scaffold. See docs/architecture.md §8.2 Stage 8.
+Full Stage 8 reports wait for B10. This module only formats gate evidence.
 """
+
+from __future__ import annotations
+
+from two.validation.results import ValidationResult
+
+
+def format_validation_fragment(result: ValidationResult) -> str:
+    """Render commands, exit codes, and summaries. Does not claim completion."""
+    lines = [
+        "Validation gates",
+        f"task: {result.task_id}",
+        f"worktree: {result.worktree}",
+        f"gates_passed: {result.passed}",
+        f"artifact_dir: {result.artifact_dir}",
+        "",
+    ]
+    for gate in result.gates:
+        mark = "PASS" if gate.passed else "FAIL"
+        exit_part = "" if gate.exit_code is None else f" exit={gate.exit_code}"
+        lines.append(f"- {gate.name}: {mark}{exit_part} ({gate.duration_ms}ms)")
+        if gate.artifact is not None:
+            lines.append(f"  artifact: {gate.artifact}")
+        summary = gate.summary.strip()
+        if summary:
+            first = summary.splitlines()[0]
+            lines.append(f"  summary: {first}")
+    lines.append("")
+    lines.append("Task lifecycle is not set by this fragment.")
+    return "\n".join(lines)
