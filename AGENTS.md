@@ -11,7 +11,9 @@ worker, or messaging adapter yet.
 ## Stack
 
 Python 3.12, uv, ruff, mypy --strict on `src/two`, pytest, Pydantic v2.
-Do not add Poetry, pip-tools, or pre-commit unless an ADR says so.
+System `rg` (ripgrep) is used by the context broker; tests skip that path
+if it is missing. Do not add Poetry, pip-tools, or pre-commit unless an
+ADR says so.
 
 ## Commands
 
@@ -37,6 +39,8 @@ listed in `config/repositories/two.yaml`.
 - `src/two/` — Python only. Package implementations live here.
   `src/two/runtime/` holds the Mac lock file, Ollama env/bind policy,
   launchd rendering, and health classification.
+  `src/two/context/` is the context broker and structured task memory
+  (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
@@ -65,7 +69,8 @@ listed in `config/repositories/two.yaml`.
 
 - Treat worktree isolation as the design (`two.workspace`). Run
   validation in the worktree (`two.validation`), never the canonical
-  checkout.
+  checkout. Retrieval and task memory live in `two.context` (git, `rg`,
+  optional LSP; no embeddings).
 - Add or update deterministic tests for code you change.
 - Update this file in the same PR as command or layout changes.
 - Update `docs/setup.md` (and its status table) when install, topology,

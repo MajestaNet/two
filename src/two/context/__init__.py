@@ -16,6 +16,93 @@
 
 """Repository context broker and structured task memory.
 
-Retrieval order is git, rg, and LSP first. Not implemented yet.
-See docs/architecture.md §6.3.E.
+Retrieval order is git, ``rg``, and optional LSP. No embeddings and no
+vector database. Memory is JSON on the filesystem (not SQLite).
+See docs/architecture.md §6.3.E, §7.2–7.3, and §8.2 Stage 3–4 and 7.
 """
+
+from two.context.budget import (
+    CHARS_PER_TOKEN,
+    COMPACTION_THRESHOLD_RATIO,
+    DECLARED_CONTEXT_TOKENS,
+    MAX_EXCERPT_CHARS,
+    MAX_FILES_PER_SEARCH,
+    MAX_LINES_PER_HIT,
+    ContextBudgetPolicy,
+    ContextBudgets,
+    RetrievalLimits,
+    TokenBand,
+    default_context_budget,
+    estimate_tokens,
+    load_context_budget,
+    should_compact,
+)
+from two.context.errors import (
+    BudgetPolicyError,
+    ContextError,
+    MemoryPersistenceError,
+    RetrievalError,
+)
+from two.context.handoff import ReviewGateEvidence, ReviewHandoff, build_review_handoff
+from two.context.inventory import (
+    EXCLUDED_DIRECTORY_NAMES,
+    is_excluded_path,
+    list_external_profile_paths,
+    list_instruction_paths,
+    list_manifest_paths,
+    list_tracked_files,
+    read_bounded_excerpt,
+)
+from two.context.lsp import LspResult, query_lsp_symbols
+from two.context.memory import FileInspection, RepositoryFacts, TaskMemory, TestExecution
+from two.context.packet import ContextPacket, build_context_packet
+from two.context.persist import load_task_memory, memory_path, save_task_memory
+from two.context.retrieve import RetrievalSnapshot, collect_retrieval
+from two.context.search import CodeExcerpt, SearchResult, search_lexical
+
+__all__ = [
+    "CHARS_PER_TOKEN",
+    "COMPACTION_THRESHOLD_RATIO",
+    "DECLARED_CONTEXT_TOKENS",
+    "EXCLUDED_DIRECTORY_NAMES",
+    "MAX_EXCERPT_CHARS",
+    "MAX_FILES_PER_SEARCH",
+    "MAX_LINES_PER_HIT",
+    "BudgetPolicyError",
+    "CodeExcerpt",
+    "ContextBudgetPolicy",
+    "ContextBudgets",
+    "ContextError",
+    "ContextPacket",
+    "FileInspection",
+    "LspResult",
+    "MemoryPersistenceError",
+    "RepositoryFacts",
+    "RetrievalError",
+    "RetrievalLimits",
+    "RetrievalSnapshot",
+    "ReviewGateEvidence",
+    "ReviewHandoff",
+    "SearchResult",
+    "TaskMemory",
+    "TestExecution",
+    "TokenBand",
+    "build_context_packet",
+    "build_review_handoff",
+    "collect_retrieval",
+    "default_context_budget",
+    "estimate_tokens",
+    "is_excluded_path",
+    "list_external_profile_paths",
+    "list_instruction_paths",
+    "list_manifest_paths",
+    "list_tracked_files",
+    "load_context_budget",
+    "load_task_memory",
+    "memory_path",
+    "query_lsp_symbols",
+    "read_bounded_excerpt",
+    "save_task_memory",
+    "search_lexical",
+    "should_compact",
+]
