@@ -7,7 +7,7 @@ Index:
 
 - Lifecycle states, leases, and execution profiles — §6.3.G
 - Startup recovery and at-most-once action reconciliation — §12.5
-- Overnight promotion gates — §18
+- Overnight promotion gates — §18 and [evals/PROMOTION.md](../evals/PROMOTION.md)
 
 Majesta Two—not DeepSeek Harness—owns task lifetime. Closing a CLI, browser, or
 messaging-adapter disconnect must not cancel a controller-owned task.

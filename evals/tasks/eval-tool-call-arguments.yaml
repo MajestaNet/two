@@ -1,0 +1,11 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-tool-call-arguments
+architecture_case: tool-call-argument-generation
+mode: offline
+objective: Accept well-formed patch arguments and repair invalid tool JSON
+acceptance_criteria:
+  - well-formed patch arguments are accepted
+  - identical calls stop
+  - invalid JSON follows schema-repair, fresh-turn, escalate
+notes: Uses two.worker.ToolCallRepairPolicy. No live model.

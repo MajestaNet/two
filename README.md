@@ -37,6 +37,7 @@ Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). Full operator steps 
 ```bash
 uv sync --dev
 make ci
+make eval-offline
 uv run two --help
 uv run two profiles
 uv run two topology
