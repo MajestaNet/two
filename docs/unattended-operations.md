@@ -11,6 +11,7 @@ Index:
 
 Majesta Two—not DeepSeek Harness—owns task lifetime. Closing a CLI, browser, or
 messaging-adapter disconnect must not cancel a controller-owned task.
+Operator start path: [setup.md](setup.md).
 
 **Closing the CLI does not require stopping Compose.** `api`, `scheduler`, and
 `worker` keep running. `docker compose down` (or `systemctl --user stop
