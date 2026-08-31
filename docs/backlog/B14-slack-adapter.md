@@ -118,8 +118,8 @@ Standing orders:
 - Architecture wins. This repo is not a Slack product.
 - `make ci` green. No live Slack network in tests.
 - Adding the official Slack SDK is a new runtime dependency: write the
-  next free ADR (**0012** if 0010/0011 remain FastAPI/ACP) in the same
-  PR if you add it. Socket Mode only.
+  next free ADR (**0013** if 0012 remains the GitHub export
+  decision) in the same PR if you add it. Socket Mode only.
 - Tokens never reach DSH, Qwen, or target repos. Adapter calls the control API only.
 - Parse `/v1` with `two.projection`. Do not fork a Slack-specific task schema.
 - Do not import `workspace` git. Do not bind inbound webhooks.

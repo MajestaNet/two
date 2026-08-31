@@ -6,8 +6,8 @@
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
 | Status | Proposed architecture for implementation |
-| Version | 0.6 |
-| Date | 30 August 2026 |
+| Version | 0.7 |
+| Date | 31 August 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
@@ -68,7 +68,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 - Parallel Qwen inference or parallel Qwen-backed subagents.
 - Training, fine-tuning, or modifying Qwen weights.
 - Giving the Ollama/inference process access to git repositories, build tools, credentials, or deployment environments (the Mac may host those processes when `topology` is `colocated`, but they stay separate from Ollama).
-- Automatically merging, pushing, releasing, applying infrastructure, or deploying production changes.
+- Automatically merging, pushing, releasing, applying infrastructure, or deploying production changes. Post-MVP, an optional GitHub App may export the isolated task branch as a draft pull request after an explicit approval (ADR 0012, §12.7). That adapter still cannot merge, push shared branches, or deploy.
 - Exposing the inference API or DeepSeek Harness UI to the public internet.
 - Treating SSD or macOS swap as a substitute for unified memory.
 - Building a vector database before repository-search evaluations show that one is necessary.
@@ -317,6 +317,7 @@ Rules:
 - Retain failed and blocked worktrees for diagnosis.
 - Do not delete a successful worktree until its branch and report have been handed off.
 - Do not push, merge, rebase shared branches, or deploy in the MVP.
+- Eventual GitHub export is a separate adapter (ADR 0012, §12.7), not a workspace-manager method and not a local git forge.
 
 For large repositories, use a local bare mirror or canonical clone plus worktrees so task creation does not duplicate the complete repository.
 
@@ -646,7 +647,7 @@ The product experience should capture the useful workflow properties of modern A
 7. **Tests as first-class evidence.** Commands, exit codes, concise diagnostics, and artifact links are attached to the task. A green-looking chat response cannot override a failing gate.
 8. **Background execution.** Closing a client detaches from the task; it does not cancel it. Reopening from any channel reconstructs state from Majesta Two, not from client-local history.
 9. **Material interruptions only.** The agent asks when ambiguity changes the implementation materially, an approval boundary is reached, or safe progress is impossible. Questions include the decision, bounded options, a recommendation, and the effect of waiting.
-10. **Clean handoff.** Completion provides the branch, diff summary, acceptance-criteria result, tests, risks, and suggested next action. The user can continue the same conversation for a follow-up task while Majesta Two creates a new isolated worktree when required.
+10. **Clean handoff.** Completion provides the branch, diff summary, acceptance-criteria result, tests, risks, and suggested next action. The user can continue the same conversation for a follow-up task while Majesta Two creates a new isolated worktree when required. GitHub export of that branch is post-MVP (ADR 0012) and is never implied by `complete`.
 
 The exact widgets, message blocks, slash commands, ACP calls, and Harness plugin points are implementation details. These ten behaviors are architecture-level acceptance contracts and should be tested independently of the selected UI.
 
@@ -670,7 +671,7 @@ Questions and approvals are durable records, not ephemeral chat prompts:
 | `workspace-auto` | Default autonomous mode; unrestricted worktree edits and tests, no external side effects |
 | `unattended` | Durable queued `workspace-auto` execution using `standard` or `overnight` profiles, with strict budgets and asynchronous pause/escalation |
 
-Even in unattended mode, the MVP does not merge, push, deploy, publish packages, apply migrations, or alter external systems.
+Even in unattended mode, the MVP does not merge, push, deploy, publish packages, apply migrations, or alter external systems. Approved GitHub export of `agent/<task-id>` is post-MVP (ADR 0012) and is never implied by task completion.
 
 ## 10. DeepSeek Harness orchestration policy
 
@@ -801,6 +802,21 @@ Initial conversational behavior:
 
 The adapter requires an egress path to Slack and therefore is optional. A task continues normally during a Slack outage; only notifications and Slack-originated responses are delayed.
 
+### 12.7 Source-control export (GitHub App; post-MVP)
+
+Messaging adapters do not publish git. The MVP handoff remains the retained worktree, `agent/<task-id>`, and the Stage 8 report. A human may push that branch under their own identity.
+
+After MVP, an optional GitHub App on the development host may export that **already isolated** task ref as a draft pull request. This is a source-control adapter, not a messenger and not a second workspace manager:
+
+- Prefer a GitHub App because target repositories are already GitHub remotes. Do not add a local git forge (Forgejo/Gitea) to the default Compose stack.
+- Split local git object identity (`GIT_AUTHOR_*` / `GIT_COMMITTER_*` for the agent) from remote export. DSH must not impersonate the operator’s laptop `user.name`, and must not receive GitHub tokens.
+- Export is controller-owned and approval-gated. Silence is never export. Completing a task does not push.
+- The adapter may push only the approved task branch (or a documented bot namespace) and open a draft PR. It cannot merge, push the default or other shared branches, release, or deploy.
+- Tokens stay in environment variables on the development host, the same rule as Slack tokens. They never reach DeepSeek Harness, Qwen, or the target worktree.
+- Package this as `two.export`, not `two.channels` (channels must not run git) and not `two.workspace` (the workspace manager keeps its no-push surface).
+
+See ADR 0012, `docs/source-control-export.md`, and backlog B17. This section does not add a §21 MVP acceptance item.
+
 ## 13. Observability and evidence
 
 ### 13.1 Per model turn
@@ -874,6 +890,7 @@ Default policy:
 - Chat and messaging payloads are parsed into typed controller commands; raw message text is never interpolated into a shell command.
 - Slack workspace, channel, and user allowlists are enforced at the adapter and controller layers.
 - Slack tokens and channel credentials are not exposed to DeepSeek Harness, Qwen, build commands, or target repositories.
+- GitHub App tokens, when export is enabled, follow the same rule (ADR 0012). They are not ambient credentials for the agent loop.
 - Approval records are scoped to one task and one immutable action digest; broad conversational agreement is not executable authorization.
 - Channel-output policy redacts secrets and suppresses raw source, full trajectories, and verbose logs by default.
 
@@ -892,6 +909,7 @@ Default policy:
 | Task lifetime | Majesta Two state machine, events, leases, and checkpoints | Allows overnight execution and restart recovery independent of clients or Harness processes |
 | Developer experience | Task-scoped plan, progress, diff, evidence, and conversation contract | Preserves productive coding-agent workflows across replaceable clients |
 | Messaging | Channel-neutral backend; Slack is the MVP adapter only | Conversational control without publishing an inbound API or coupling the product to one vendor |
+| Source-control export | Optional GitHub App after approval (ADR 0012); not a local forge | Distinct agent principal on remotes that already live on GitHub; DSH never holds the token |
 | Repository isolation | Git worktree per task | Recoverability and concurrent task safety |
 | Long-term task memory | Structured external state | Survives compaction without replaying long reasoning traces |
 | Completion authority | Controller validation | Models cannot self-certify tests or acceptance criteria |
@@ -984,6 +1002,7 @@ two/
 │   ├── unattended-operations.md
 │   ├── interaction-contract.md
 │   ├── task-manifest.md
+│   ├── source-control-export.md
 │   └── adrs/
 ├── deploy/
 │   └── compose/
@@ -1021,6 +1040,8 @@ two/
 │       ├── approvals/
 │       ├── channels/
 │       │   └── slack/
+│       ├── export/
+│       │   └── github/
 │       └── reporting/
 ├── scripts/
 │   ├── bootstrap-mac.sh
@@ -1040,7 +1061,7 @@ two/
 ## 20. Implementation sequence
 
 Dedicated, agent-executable slices of this sequence are tracked in
-[`docs/backlog/`](backlog/README.md) (B01–B16). The phase list below
+[`docs/backlog/`](backlog/README.md) (B01–B17). The phase list below
 remains the authority for order and intent; backlog files must not
 invent a second architecture.
 
@@ -1089,6 +1110,13 @@ invent a second architecture.
 
 - Add provider abstraction, explicit `cloud_allowed` policy, budgets, redaction/evidence reporting, and fallback triggers.
 
+### Phase 8 — Optional source-control export
+
+- Inject a local agent git identity so worktree commits are not the operator’s ambient `user.name`.
+- Add an optional GitHub App adapter that, after a digest-scoped approval, pushes only `agent/<task-id>` and opens a draft pull request (ADR 0012).
+- Keep `two.workspace` without push/merge APIs. Do not merge, push shared branches, or deploy. Do not add a local git forge to the default host.
+- The backend must run without any GitHub App, as it runs without Slack.
+
 ## 21. MVP acceptance criteria
 
 The first repository implementation is complete when:
@@ -1127,3 +1155,4 @@ The first repository implementation is complete when:
 - [Slack Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode)
 - [Slack HTTP and Socket Mode comparison](https://docs.slack.dev/apis/events-api/comparing-http-socket-mode)
 - [Slack interaction acknowledgement and asynchronous responses](https://docs.slack.dev/interactivity/handling-user-interaction)
+- [GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)

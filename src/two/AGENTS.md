@@ -33,6 +33,9 @@ Python package for the Majesta Two control plane.
   callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Slack is
   the MVP adapter only.
+- Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
+  It is not implemented. Do not add `push` to `workspace/`. Do not put
+  GitHub tokens in `worker/` or `channels/`.
 - `validation/` loads `config/repositories/*.yaml` and
   `config/policies/default.yaml`, then runs gates in the task worktree.
   It never writes task lifecycle.

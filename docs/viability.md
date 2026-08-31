@@ -14,7 +14,9 @@ A **live coding task** still needs a Mac running native Ollama plus a
 DeepSeek Harness child that speaks the supervisor protocol. Default tests
 use a JSONL fixture child; a stock `dsh` binary does not yet complete ACP
 ([ADR 0011](adrs/0011-jsonl-acp-supervisor.md)). Slack and paid-model
-routes are optional and not implemented.
+routes are optional and not implemented. GitHub export of task branches
+is post-MVP ([ADR 0012](adrs/0012-github-export-adapter.md)) and is not
+implemented; handoff is the local worktree.
 
 Ease of setup is **good for contributors**, **usable for CLI operators**
 if they follow [setup.md](setup.md) (privacy and network first), and
@@ -48,6 +50,7 @@ if they follow [setup.md](setup.md) (privacy and network first), and
 - Live ACP still needs a pinned `dsh` binary that speaks JSON-RPC; default
   tests use a JSONL fixture child (ADR 0011)
 - Slack adapter is not implemented ([B14](backlog/B14-slack-adapter.md))
+- GitHub export adapter is not implemented ([B17](backlog/B17-github-export.md))
 - Optional loopback web UI was skipped in B13
 - GitHub Actions may be skipped if the org has no Actions minutes
 
@@ -83,5 +86,6 @@ Implementation work after this scaffold is tracked in
 
 See [ADR 0004](adrs/0004-inference-profiles.md),
 [ADR 0005](adrs/0005-remote-access-and-compose.md),
-[ADR 0006](adrs/0006-logical-split-physical-colocation.md), and
-[ADR 0007](adrs/0007-backend-first-channels.md).
+[ADR 0006](adrs/0006-logical-split-physical-colocation.md),
+[ADR 0007](adrs/0007-backend-first-channels.md), and
+[ADR 0012](adrs/0012-github-export-adapter.md).

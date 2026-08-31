@@ -10,6 +10,7 @@ the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
 The workflow controller owns stage policy, budgets, fresh review, and
 terminal status. Slack remains the optional adapter and is not implemented.
+GitHub export of task branches is post-MVP (ADR 0012) and is not implemented.
 
 ## Stack
 
@@ -85,6 +86,9 @@ listed in `config/repositories/two.yaml`.
   §12.5) and the `two scheduler` / `two worker` process loops.
   `src/two/evals/` runs the architecture §18 corpus (offline default;
   `TWO_LIVE_EVAL=1` for live Mac cases). Soaks are not auto-passed.
+  Future: `src/two/export/` is the GitHub App handoff adapter (ADR 0012,
+  B17). Not implemented. Do not put `push` in `workspace` or GitHub
+  tokens in `channels` / DSH.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
@@ -112,7 +116,8 @@ listed in `config/repositories/two.yaml`.
 - SQLite belongs in `store/` only.
 - `cli.py` and any `channels.*` adapter stay thin. They must not contain
   workflow policy or git worktree logic. Do not put vendor UX in
-  `controller`.
+  `controller`. Do not put GitHub push in `channels` or `workspace`
+  (ADR 0012).
 - New source files need the Apache 2.0 header and
   `SPDX-License-Identifier: Apache-2.0`.
 
@@ -135,6 +140,7 @@ listed in `config/repositories/two.yaml`.
 - New runtime dependency
 - Cloud provider or paid-model route
 - New messaging adapter or Slack scope changes
+- GitHub App, source-control export, or a local git forge (ADR 0012)
 - Task-manifest field changes
 - Changing the *default* inference profile or default topology
   (per-host `colocated` on a large Mac is fine)
@@ -142,7 +148,9 @@ listed in `config/repositories/two.yaml`.
 
 ### Never
 
-- Merge, push, release, or deploy from agent-authored automation
+- Merge, push to shared branches, release, or deploy from the agent
+  loop (DSH, worker, `two.workspace`). Approved GitHub export of
+  `agent/<task-id>` is ADR 0012 / B17 and is not implemented.
 - Bind inference or the Majesta Two API to a public interface
 - Commit `.env`, tokens, model weights, or real Mac addresses
 - Edit the canonical checkout of a *target* repository
@@ -159,8 +167,8 @@ implementation.
 ## Security
 
 Secrets live in environment variables only. The dummy key `ollama` is not a
-secret. Messenger tokens must never reach DeepSeek Harness, Qwen, or target
-repos.
+secret. Messenger tokens and GitHub App tokens must never reach DeepSeek
+Harness, Qwen, or target repos.
 
 ## PR
 

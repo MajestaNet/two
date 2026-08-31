@@ -29,9 +29,11 @@ because they are easy to get wrong; they do not replace the spec.
 | Workflow controller + reports | Works (`two.controller`; `two worker` drives stages after a lease) ([B10](backlog/B10-workflow-controller.md)) |
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
+| GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 31 August 2026 (operator walkthrough: config, privacy, and
-network callouts; CLI-first live path).
+Last updated: 31 August 2026 (GitHub export parked as ADR 0012 / B17;
+operator walkthrough: config, privacy, and network callouts; CLI-first
+live path).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -76,8 +78,8 @@ routes are [B16](backlog/B16-paid-model-routes.md) and default **off**).
 
 > **Privacy.** The Mac must not mount git repos, hold messenger tokens, or
 > run builds. The development host holds source, SQLite, worktrees, and
-> (optional) adapter tokens. Messenger tokens must never reach DeepSeek
-> Harness, Qwen, or a target worktree.
+> (optional) adapter tokens. Messenger tokens and GitHub App tokens must
+> never reach DeepSeek Harness, Qwen, or a target worktree.
 
 Allowed ways to reach the backend:
 
@@ -348,7 +350,10 @@ Validation commands come from `config/repositories/*.yaml`, not from
 > path, set `validation_profile` to the YAML `id` from step 1.
 
 > **Privacy.** Keep `cloud_allowed: false`. The agent must not merge, push,
-> or deploy (`config/policies/default.yaml` `forbidden_actions`).
+> or deploy (`config/policies/default.yaml` `forbidden_actions`). GitHub
+> export of `agent/<task-id>` is post-MVP ([ADR 0012](adrs/0012-github-export-adapter.md));
+> until then, inspect the worktree and push yourself if you want it on
+> GitHub. See [source-control-export.md](source-control-export.md).
 
 ### 9. Start the control plane
 
@@ -508,7 +513,8 @@ controller plus validation gates, never a model self-report.
 - Do not bind Ollama or the Majesta Two API to a publicly routed interface
 - Do not put model weights, messenger tokens, or real hostnames in git
 - Do not give the Mac git, build tools, or deployment credentials
-- Do not merge, push, or deploy from the agent
+- Do not merge, push, or deploy from the agent loop. GitHub export is
+  [ADR 0012](adrs/0012-github-export-adapter.md) and is not implemented
 - Do not set `cloud_allowed: true` “to make it work”
-- Do not send Slack tokens into the worker environment
+- Do not send Slack tokens or GitHub App tokens into the worker environment
 - Do not treat a model self-report as task completion
