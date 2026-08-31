@@ -2,7 +2,9 @@
 
 The reproducible task request is specified in [architecture.md](architecture.md)
 section 8.1. Field names in `two.manifest.TaskManifest` must stay aligned
-with that example.
+with that example. Operator copy: [config/examples/task.example.yaml](../config/examples/task.example.yaml)
+(placeholders only; do not commit a real checkout path). Keep
+`cloud_allowed: false` unless paid routes are enabled and intended.
 
 Machine-readable validation commands for a target repository live in
 `config/repositories/*.yaml` and are executed by `two.validation.run_validation`
