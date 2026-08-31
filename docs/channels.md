@@ -4,8 +4,9 @@ This repository is the **Majesta Two backend**. People talk to it through
 whatever client they want. A messenger is optional.
 
 The contract is [architecture.md](architecture.md) §6.3.H and §8.3: one
-task id, typed commands, stored projection. Clients never query the
-model for status.
+task id, typed commands, stored projection (`two.projection`,
+[B07](backlog/B07-control-api.md)). Clients never query the model for
+status.
 
 ## First-party (this repo)
 

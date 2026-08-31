@@ -43,9 +43,13 @@ adapter disabled. Slack is not the product.
    no real IDs in git).
 
 3. **Typed commands**  
-   Natural language is normalized to ask vs task; ambiguous → confirm.
-   Explicit: status, pause, resume, cancel, diff, tests, approve,
-   reject. Never interpolate Slack text into a shell.
+   MVP: only **explicit** controls (`status`, `pause`, `resume`,
+   `cancel`, `diff`, `tests`, `approve`, `reject`) plus structured
+   `task` / `ask` prefixes that map to `POST /v1/tasks` or
+   `review-only` manifests. Ambiguous free text must confirm, not
+   write. Do not build an open-ended NL classifier in the first PR.
+   Never interpolate Slack text into a shell. Call the control API
+   only; parse `two.projection`.
 
 4. **Thread binding**  
    One thread ↔ one task id. Follow-ups continue the task. Duplicate
@@ -113,8 +117,11 @@ Standing orders:
 
 - Architecture wins. This repo is not a Slack product.
 - `make ci` green. No live Slack network in tests.
-- Adding the official Slack SDK is a new runtime dependency: write a short ADR (0009 or next free) in the same PR if you add it. Socket Mode only.
+- Adding the official Slack SDK is a new runtime dependency: write the
+  next free ADR (**0012** if 0010/0011 remain FastAPI/ACP) in the same
+  PR if you add it. Socket Mode only.
 - Tokens never reach DSH, Qwen, or target repos. Adapter calls the control API only.
+- Parse `/v1` with `two.projection`. Do not fork a Slack-specific task schema.
 - Do not import `workspace` git. Do not bind inbound webhooks.
 - Channel-output policy enforced before any post.
 - Apache 2.0 headers. No real workspace IDs in git.
