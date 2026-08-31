@@ -29,7 +29,10 @@ from typing import Any, Literal
 
 from two.approvals.digest import compute_action_digest
 from two.approvals.errors import (
+    ApprovalNotOpenError,
+    DigestRequiredError,
     NotResumableError,
+    OpenInputError,
     PrincipalRequiredError,
     StaleDigestError,
     TerminalLifecycleError,
@@ -225,13 +228,21 @@ def decide_approval(
 
     Duplicate decides against the stored digest acknowledge and ignore
     (``ignored=True``). They do not change the first writer's decision.
+    The request must include the stored digest; omitting it cannot authorize.
     """
     _require_task(store, task_id)
     approval = store.get_approval(approval_id)
     if approval is None or approval.task_id != task_id:
         raise ApprovalNotFoundError(f"unknown approval: {approval_id}")
-    if action_digest is not None and action_digest != approval.action_digest:
-        raise StaleDigestError(expected=approval.action_digest, offered=action_digest)
+    offered = (action_digest or "").strip()
+    if not offered:
+        raise DigestRequiredError("action_digest is required to decide an approval")
+    if offered != approval.action_digest:
+        raise StaleDigestError(expected=approval.action_digest, offered=offered)
+    if approval.status == "expired":
+        raise ApprovalNotOpenError(f"approval {approval_id} is expired")
+    if approval.status not in {"open", "approved", "rejected"}:
+        raise ApprovalNotOpenError(f"approval {approval_id} is {approval.status}")
     actor = require_principal(principal)
     new_status = "approved" if decision == "approve" else "rejected"
     record, first = store.resolve_approval(approval_id, status=new_status, now=now)
@@ -243,7 +254,7 @@ def decide_approval(
     elif record.status == "rejected":
         effective = "reject"
     else:
-        effective = decision
+        raise ApprovalNotOpenError(f"approval {approval_id} is {record.status}")
     payload: dict[str, object] = {
         "approval_id": approval_id,
         "decision": effective if not first else decision,
@@ -365,6 +376,7 @@ def resume_task(
 
     Cancelled is terminal. Answers already stored as events are copied onto
     the resume event so a later worker can inject them; no new task is created.
+    Open questions or approvals must be resolved first.
     """
     task = _require_task(store, task_id)
     if task.lifecycle in _TERMINAL:
@@ -373,6 +385,10 @@ def resume_task(
         return task
     if task.lifecycle not in _RESUMABLE:
         raise NotResumableError(f"cannot resume task in lifecycle {task.lifecycle.value}")
+    open_questions = [item for item in store.list_questions(task_id) if item.status == "open"]
+    open_approvals = [item for item in store.list_approvals(task_id) if item.status == "open"]
+    if open_questions or open_approvals:
+        raise OpenInputError(f"cannot resume task {task_id} while questions or approvals are open")
     actor = normalize_principal(principal)
     answers = _answer_summaries(store, task_id)
     decisions = _decision_summaries(store, task_id)

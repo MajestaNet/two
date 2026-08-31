@@ -60,6 +60,14 @@ def verify_worktree(task: TaskRecord) -> WorktreeCheck:
         reason = "branch_mismatch"
     elif fingerprint is None:
         reason = "not_a_git_worktree"
+    elif task.base_commit:
+        resolved = _git_stdout(
+            path,
+            ["rev-parse", "--verify", "--end-of-options", f"{task.base_commit}^{{commit}}"],
+        )
+        if resolved is None:
+            reason = "base_commit_missing"
+            branch_ok = False
     return WorktreeCheck(
         task_id=task.id,
         ok=branch_ok,

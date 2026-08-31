@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from two.approvals import request_approval
@@ -62,6 +62,7 @@ from two.controller.models import (
     FindingSeverity,
     PhaseWorker,
     RepositoryLocator,
+    ReviewFinding,
     ValidationGate,
     WorkerInstruction,
     WorkerPhaseResult,
@@ -74,9 +75,11 @@ from two.store.store import Store
 from two.types import LifecycleState, Mode, OnHumanInputRequired, WorkflowStage
 from two.validation.paths import path_matches
 from two.validation.policy import DefaultPolicy, load_default_policy
-from two.validation.results import ValidationResult
+from two.validation.results import GateResult, ValidationResult
 from two.worker.models import SessionMode
 from two.worker.session import plan_session
+from two.workspace.errors import GitOperationError
+from two.workspace.git import run_git
 from two.workspace.identity import branch_for_task
 from two.workspace.manager import WorkspaceManager
 from two.workspace.models import Workspace, WorkspaceStatus
@@ -94,6 +97,7 @@ _PLAN_APPROVAL_SUFFIX = "plan"
 _INTAKE_APPROVAL_SUFFIX = "intake"
 
 LocateFn = Callable[[str], Path]
+OnStepFn = Callable[[str], None]
 
 
 class WorkflowController:
@@ -113,6 +117,7 @@ class WorkflowController:
         locate_repository: LocateFn | RepositoryLocator | None = None,
         policy: DefaultPolicy | None = None,
         data_dir: Path | str | None = None,
+        on_step: OnStepFn | None = None,
     ) -> None:
         self._store = store
         self._worker = worker
@@ -127,6 +132,7 @@ class WorkflowController:
         self._locate = _as_locator(locate_repository)
         self._policy = policy if policy is not None else load_default_policy()
         self._data_dir = Path(data_dir) if data_dir is not None else None
+        self._on_step = on_step
         self._state: dict[str, DriveState] = {}
 
     def bind_budgets(self, manifest: TaskManifest) -> BoundBudgets:
@@ -149,9 +155,13 @@ class WorkflowController:
             self._ensure_report(task, now)
             return self._require(task_id)
 
-        self._state.setdefault(task_id, DriveState())
+        self._restore_state(self._require(task_id))
         for _ in range(_MAX_STEPS):
             task = self._require(task_id)
+            if self._on_step is not None:
+                self._on_step(task_id)
+            if self._over_active_budget(task, now):
+                return self._finish_blocked(task, "active_time_budget", now)
             if task.lifecycle in _TERMINAL:
                 self._ensure_report(task, now)
                 return self._require(task_id)
@@ -645,6 +655,8 @@ class WorkflowController:
         if any(event.type == EVENT_REPORT for event in events):
             return
         state = self._state.get(task.id, DriveState())
+        if not state.final_commit:
+            state.final_commit = self._head_commit(task)
         report = assemble_report(
             task,
             state=state,
@@ -682,7 +694,7 @@ class WorkflowController:
         if task.lifecycle is not LifecycleState.AWAITING_INPUT:
             return task
         pending_approvals = [
-            item for item in self._store.list_approvals(task.id) if item.status == "pending"
+            item for item in self._store.list_approvals(task.id) if item.status == "open"
         ]
         pending_questions = [
             item for item in self._store.list_questions(task.id) if item.status == "open"
@@ -726,15 +738,96 @@ class WorkflowController:
     def _no_progress(self, state: DriveState, budgets: BoundBudgets) -> bool:
         limit = budgets.no_progress_limit
         fingerprints = state.fingerprints
-        if limit < 1 or len(fingerprints) < 2:
+        if limit < 1 or len(fingerprints) < limit:
             return False
-        consecutive = 0
-        for previous, current in zip(fingerprints, fingerprints[1:], strict=False):
-            if previous == current:
-                consecutive += 1
-            else:
-                consecutive = 0
-        return consecutive >= limit
+        trailing = fingerprints[-limit:]
+        return len(set(trailing)) == 1
+
+    def _over_active_budget(self, task: TaskRecord, now: datetime | None) -> bool:
+        budgets = bind_budgets(task.manifest, self._policy)
+        limit_ms = budgets.active_time_minutes * 60 * 1000
+        if limit_ms <= 0:
+            return False
+        elapsed = task.active_elapsed_ms
+        started = task.active_started_at
+        if started is not None:
+            stamp = now if now is not None else datetime.now(UTC)
+            elapsed += max(0, int((stamp - started).total_seconds() * 1000))
+        return elapsed >= limit_ms
+
+    def _restore_state(self, task: TaskRecord) -> DriveState:
+        existing = self._state.get(task.id)
+        if existing is not None and (
+            existing.model_turns
+            or existing.repair_cycles
+            or existing.fingerprints
+            or existing.last_validation is not None
+            or existing.last_plan
+        ):
+            return existing
+        state = DriveState()
+        for event in self._store.list_events(task.id):
+            if event.type == EVENT_WORKER:
+                state.model_turns += 1
+            elif event.type == EVENT_REPAIR:
+                cycle = event.payload.get("cycle")
+                if isinstance(cycle, int) and cycle > state.repair_cycles:
+                    state.repair_cycles = cycle
+            elif event.type == EVENT_VALIDATION:
+                evidence = event.payload.get("evidence")
+                if isinstance(evidence, str) and evidence:
+                    state.fingerprints.append(evidence)
+                state.validation_runs += 1
+                restored = _validation_from_payload(task, event.payload)
+                if restored is not None:
+                    state.last_validation = restored
+            elif event.type == EVENT_IMPLEMENT:
+                files = event.payload.get("files_changed")
+                if isinstance(files, list):
+                    state.files_changed = [str(item) for item in files]
+            elif event.type == EVENT_PLAN:
+                plan = event.payload.get("plan")
+                if isinstance(plan, str):
+                    state.last_plan = plan
+            elif event.type == EVENT_NO_PROGRESS:
+                state.block_after_review = True
+            elif event.type == EVENT_REVIEW:
+                raw = event.payload.get("findings")
+                blocking_raw = event.payload.get("blocking")
+                blocking = blocking_raw if isinstance(blocking_raw, int) else 0
+                if isinstance(raw, list):
+                    findings: list[ReviewFinding] = []
+                    for index, item in enumerate(raw):
+                        severity = (
+                            FindingSeverity.BLOCKING
+                            if index < blocking
+                            else FindingSeverity.WARNING
+                        )
+                        findings.append(ReviewFinding(message=str(item), severity=severity))
+                    state.findings = findings
+            elif event.type == EVENT_REPORT:
+                commit = event.payload.get("final_commit")
+                if isinstance(commit, str) and commit:
+                    state.final_commit = commit
+        self._state[task.id] = state
+        return state
+
+    def _head_commit(self, task: TaskRecord) -> str | None:
+        if not task.worktree_path:
+            return None
+        try:
+            workspace = self._workspace(task)
+            return self._workspaces.status(workspace).head
+        except ControllerError:
+            pass
+        try:
+            head = run_git(
+                Path(task.worktree_path),
+                ["rev-parse", "--verify", "--end-of-options", "HEAD"],
+            ).stdout.strip()
+        except GitOperationError:
+            return None
+        return head or None
 
     def _record_validation(
         self,
@@ -856,6 +949,38 @@ def _as_locator(locate: LocateFn | RepositoryLocator | None) -> LocateFn | None:
 
         return _from_callable
     raise ControllerError("locate_repository must be callable")
+
+
+def _validation_from_payload(
+    task: TaskRecord, payload: dict[str, object]
+) -> ValidationResult | None:
+    raw_gates = payload.get("gates")
+    passed_raw = payload.get("passed")
+    if not isinstance(passed_raw, bool):
+        return None
+    gates: list[GateResult] = []
+    if isinstance(raw_gates, list):
+        for item in raw_gates:
+            if not isinstance(item, dict):
+                continue
+            exit_raw = item.get("exit_code")
+            exit_code = exit_raw if isinstance(exit_raw, int) else None
+            gates.append(
+                GateResult(
+                    name=str(item.get("name", "")),
+                    passed=bool(item.get("passed")),
+                    exit_code=exit_code,
+                    summary=str(item.get("summary", "")),
+                )
+            )
+    worktree = Path(task.worktree_path) if task.worktree_path else Path(".")
+    return ValidationResult(
+        passed=passed_raw,
+        gates=gates,
+        artifact_dir=worktree / "validation",
+        worktree=worktree,
+        task_id=task.id,
+    )
 
 
 def _evidence_fingerprint(result: ValidationResult, *, result_extra: list[str]) -> str:

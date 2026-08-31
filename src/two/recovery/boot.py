@@ -26,10 +26,12 @@ import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 
+from two.controller.controller import WorkflowController
+from two.recovery.drive import AcpPhaseWorker, ProfileValidationGate
 from two.recovery.models import HarnessProbe, WorktreeVerifier
 from two.recovery.recover import recover_startup
 from two.runtime.poller import mac_health_probe_from_env
-from two.scheduler.config import DEFAULT_WORKER_ID, HEARTBEAT_INTERVAL_SECONDS
+from two.scheduler.config import DEFAULT_WORKER_ID, HEARTBEAT_INTERVAL_SECONDS, LEASE_TTL_SECONDS
 from two.scheduler.models import HealthProbe
 from two.scheduler.scheduler import Scheduler
 from two.store.models import TaskRecord
@@ -87,12 +89,29 @@ def run_worker(
     sleep: SleepFn | None = None,
     now: datetime | None = None,
     worker: AcpWorker | None = None,
+    controller: WorkflowController | None = None,
 ) -> int:
-    """Poll for a running task leased to ``worker_id`` and supervise ACP."""
+    """Poll for a running leased task and drive the workflow controller.
+
+    ACP is injected as a ``PhaseWorker``. The controller writes terminal
+    status. Worker results are not applied as ``complete``.
+    """
     opened = store is None
     owned = store if store is not None else open_store()
     nap = sleep if sleep is not None else time.sleep
-    supervisor = worker if worker is not None else AcpWorker(owned)
+    acp = worker if worker is not None else AcpWorker(owned)
+
+    def heartbeat(task_id: str) -> None:
+        owned.heartbeat_lease(task_id, worker_id, ttl_seconds=LEASE_TTL_SECONDS)
+
+    driver = controller
+    if driver is None:
+        driver = WorkflowController(
+            owned,
+            worker=AcpPhaseWorker(acp),
+            validate=ProfileValidationGate(),
+            on_step=heartbeat,
+        )
     try:
         while True:
             if should_stop is not None and should_stop():
@@ -100,7 +119,8 @@ def run_worker(
             task = _leased_running(owned, worker_id)
             if task is not None:
                 instant = now if now is not None else datetime.now(UTC)
-                supervisor.run(task.id, now=instant)
+                heartbeat(task.id)
+                driver.drive(task.id, now=instant)
             nap(poll_interval)
     finally:
         if opened:

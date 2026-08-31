@@ -33,6 +33,7 @@ from two.providers import DSH_PIN
 from two.scheduler.models import WorkerOutcome, WorkerResult
 from two.store.models import ActionStatus, TaskRecord
 from two.store.store import Store
+from two.validation.results import ValidationResult
 from two.worker.child import SupervisedChild, build_dsh_argv, default_child_env
 from two.worker.errors import ActionReplayError, ChildError, WorkerError
 from two.worker.events import (
@@ -92,12 +93,39 @@ class AcpWorker:
         self._data_dir = Path(data_dir) if data_dir is not None else None
         self._children: dict[str, SupervisedChild] = {}
         self._repair: dict[str, ToolCallRepairPolicy] = {}
+        self._run_prompt: str | None = None
+        self._force_fresh = False
+        self._diff_summary = ""
+        self._validation: ValidationResult | None = None
 
     def __call__(self, task_id: str, *, now: datetime) -> WorkerResult | None:
         """Scheduler worker callback. Never returns ``complete``."""
         return self.run(task_id, now=now)
 
-    def run(self, task_id: str, *, now: datetime | None = None) -> WorkerResult:
+    def run(
+        self,
+        task_id: str,
+        *,
+        now: datetime | None = None,
+        prompt: str | None = None,
+        force_fresh: bool = False,
+        diff_summary: str = "",
+        validation: ValidationResult | None = None,
+    ) -> WorkerResult:
+        """Launch or resume an ACP child for ``task_id`` and drain one session."""
+        self._run_prompt = prompt
+        self._force_fresh = force_fresh
+        self._diff_summary = diff_summary
+        self._validation = validation
+        try:
+            return self._run(task_id, now=now)
+        finally:
+            self._run_prompt = None
+            self._force_fresh = False
+            self._diff_summary = ""
+            self._validation = None
+
+    def _run(self, task_id: str, *, now: datetime | None) -> WorkerResult:
         """Launch or resume an ACP child for ``task_id`` and drain one session."""
         task = self._store.get_task(task_id)
         if task is None:
@@ -170,14 +198,32 @@ class AcpWorker:
             memory = load_task_memory(task.id, data_dir=self._data_dir)
         except MemoryPersistenceError:
             memory = None
-        return plan_session(
+        stored_session = None if self._force_fresh else task.dsh_session_id
+        validator = self._session_is_valid
+        if self._force_fresh:
+
+            def _never(_session_id: str) -> bool:
+                return False
+
+            validator = _never
+        plan = plan_session(
             task_id=task.id,
-            stored_session_id=task.dsh_session_id,
+            stored_session_id=stored_session,
             objective=task.objective,
             acceptance_criteria=task.manifest.acceptance_criteria,
             memory=memory,
-            session_is_valid=self._session_is_valid,
+            diff_summary=self._diff_summary,
+            validation=self._validation,
+            session_is_valid=validator,
         )
+        if self._run_prompt:
+            return SessionPlan(
+                mode=plan.mode,
+                task_id=plan.task_id,
+                session_id=plan.session_id,
+                prompt=self._run_prompt,
+            )
+        return plan
 
     def _record_session_plan(
         self,

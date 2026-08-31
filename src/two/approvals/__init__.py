@@ -22,8 +22,11 @@ duplicates are acknowledged and ignored. See docs/architecture.md §8.4.
 
 from two.approvals.digest import compute_action_digest
 from two.approvals.errors import (
+    ApprovalNotOpenError,
     ApprovalsError,
+    DigestRequiredError,
     NotResumableError,
+    OpenInputError,
     PrincipalRequiredError,
     StaleDigestError,
     TerminalLifecycleError,
@@ -48,9 +51,12 @@ from two.approvals.service import (
 __all__ = [
     "DEFAULT_PRINCIPAL",
     "AnswerResult",
+    "ApprovalNotOpenError",
     "ApprovalsError",
     "DecisionResult",
+    "DigestRequiredError",
     "NotResumableError",
+    "OpenInputError",
     "PrincipalRequiredError",
     "StaleDigestError",
     "TerminalLifecycleError",
