@@ -36,6 +36,11 @@ Implementation: [B14](backlog/B14-slack-adapter.md).
 Other messengers (Matrix, Discord, …) should implement the same
 gateway. Do not add vendor logic to `controller` or `worker`.
 
+GitHub pull-request export is **not** a channel. It is a post-MVP
+source-control adapter ([source-control-export.md](source-control-export.md),
+[ADR 0012](adrs/0012-github-export-adapter.md)). Channels still must not
+run git.
+
 ## Remote use
 
 - **Any cloud messenger** (Slack MVP): the adapter dials *out*. Do not

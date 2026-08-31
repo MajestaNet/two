@@ -3,7 +3,7 @@
 Dedicated, agent-executable implementation items. One file per item.
 
 - `README.md` is the index: order, dependencies, status.
-- `B01`–`B16` are the work. Do not merge two items in one PR unless the
+- `B01`–`B17` are the work. Do not merge two items in one PR unless the
   item file says they may land together.
 - Point at `docs/architecture.md` instead of copying it.
 - When an item is implemented, update its Status field and the index

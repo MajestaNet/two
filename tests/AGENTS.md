@@ -1,6 +1,6 @@
 # tests
 
-- `tests/unit/` must not call a live Mac, Slack, Ollama, or paid model.
+- `tests/unit/` must not call a live Mac, Slack, Ollama, GitHub, or paid model.
 - `tests/contract/` is reserved for pinned DeepSeek Harness / Ollama checks.
   Default pytest excludes `@pytest.mark.live_mac`, `@pytest.mark.live_dsh`,
   and `@pytest.mark.live_eval`.

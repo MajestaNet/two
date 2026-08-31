@@ -13,7 +13,9 @@ is model guidance and is not the sole source of gates.
 
 The isolated task branch is named `agent/<task-id>` from the manifest `id`
 (architecture [§6.3.D](architecture.md)). That name is not a separate
-manifest field.
+manifest field. Handoff is the local worktree until optional GitHub
+export ([ADR 0012](adrs/0012-github-export-adapter.md),
+[source-control-export.md](source-control-export.md)).
 
 See also `config/policies/default.yaml` for default budgets and forbidden
 actions. The live task view clients consume is
