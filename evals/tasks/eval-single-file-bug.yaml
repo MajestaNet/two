@@ -1,0 +1,17 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-single-file-bug
+architecture_case: single-file-bug-fix
+mode: offline
+fixture: adder
+objective: Fix the off-by-one in adder.add so add(1, 2) returns 3
+acceptance_criteria:
+  - tests/test_adder.py passes
+  - only src/adder.py is changed among production files
+allowed_paths:
+  - src/**
+  - tests/**
+oracle:
+  overlay: eval-single-file-bug
+expected: eval-single-file-bug
+notes: Oracle overlay, not a live model.

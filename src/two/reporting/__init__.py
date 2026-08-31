@@ -14,13 +14,25 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Report fragments. The controller, not the model, sets terminal status.
+"""Report fragments and Stage 8 final reports.
 
-Full Stage 8 reports wait for B10. This module only formats gate evidence.
+The controller, not the model, sets terminal status. This module formats
+gate evidence and assembled reports. It does not import Slack or Ollama.
 """
 
 from __future__ import annotations
 
+from two.reporting.report import (
+    REPORT_EVENT_TYPE,
+    AcceptanceDisposition,
+    CommandEvidence,
+    FinalReport,
+    ReviewerFinding,
+    UsageMetrics,
+    assemble_report,
+    format_final_report,
+    report_from_payload,
+)
 from two.validation.results import ValidationResult
 
 
@@ -47,3 +59,17 @@ def format_validation_fragment(result: ValidationResult) -> str:
     lines.append("")
     lines.append("Task lifecycle is not set by this fragment.")
     return "\n".join(lines)
+
+
+__all__ = [
+    "REPORT_EVENT_TYPE",
+    "AcceptanceDisposition",
+    "CommandEvidence",
+    "FinalReport",
+    "ReviewerFinding",
+    "UsageMetrics",
+    "assemble_report",
+    "format_final_report",
+    "format_validation_fragment",
+    "report_from_payload",
+]

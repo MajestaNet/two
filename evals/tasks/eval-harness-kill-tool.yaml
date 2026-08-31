@@ -1,0 +1,11 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-harness-kill-tool
+architecture_case: harness-kill-before-after-tool
+mode: offline
+objective: Kill the fake ACP child before and after a tool result without replay
+acceptance_criteria:
+  - kill before tool_result reconciles the action
+  - a completed tool is not re-invoked
+  - duplicate_side_effect_count is zero
+notes: Uses tests/unit/fixtures/acp/fake_acp_child.py (B09). No live DSH.

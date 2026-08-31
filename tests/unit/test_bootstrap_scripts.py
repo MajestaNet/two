@@ -15,6 +15,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BOOTSTRAP = REPO_ROOT / "scripts" / "bootstrap-mac.sh"
+DEV_HOST = REPO_ROOT / "scripts" / "bootstrap-dev-host.sh"
 HEALTH = REPO_ROOT / "scripts" / "health-check.sh"
 SOAK = REPO_ROOT / "scripts" / "soak-inference.sh"
 FIXTURES = REPO_ROOT / "tests" / "unit" / "fixtures" / "health"
@@ -109,3 +110,64 @@ def test_soak_dry_run_exits_zero() -> None:
     assert result.returncode == 0, result.stderr
     assert "page-out" in result.stdout.lower() or "page-outs" in result.stdout
     assert "qwen38-agent-16k" in result.stdout
+
+
+def test_bootstrap_dev_host_dry_run_exits_zero() -> None:
+    result = _run(DEV_HOST, "--dry-run", "--topology", "split")
+    assert result.returncode == 0, result.stderr
+    assert "TWO_DATA_DIR=" in result.stdout
+    assert "mode 0700" in result.stdout
+    assert "docker compose" in result.stdout
+    assert "api, scheduler, worker" in result.stdout
+    assert "No Ollama image" in result.stdout
+    assert "Closing a CLI does not require stopping Compose" in result.stdout
+    assert "0.0.0.0" not in result.stdout
+    assert "MAC_QWEN_BASE_URL=http://mac-inference.internal:11434/v1" in result.stdout
+    assert "MAC_QWEN_BASE_URL=http://127.0.0.1:11434/v1" not in result.stdout
+
+
+def test_bootstrap_dev_host_dry_run_colocated_uses_loopback() -> None:
+    result = _run(DEV_HOST, "--dry-run", "--topology", "colocated")
+    assert result.returncode == 0, result.stderr
+    assert "MAC_QWEN_BASE_URL=http://127.0.0.1:11434/v1" in result.stdout
+    assert "0.0.0.0" not in result.stdout
+
+
+def test_bootstrap_dev_host_refuses_public_ollama_url() -> None:
+    result = _run(
+        DEV_HOST,
+        "--dry-run",
+        "--topology",
+        "split",
+        "--ollama-url",
+        "http://0.0.0.0:11434/v1",
+    )
+    assert result.returncode == 1
+    assert "public" in (result.stderr + result.stdout)
+
+
+def test_bootstrap_dev_host_live_creates_dirs(tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    worktrees = tmp_path / "worktrees"
+    result = _run(
+        DEV_HOST,
+        "--topology",
+        "split",
+        "--data-dir",
+        str(data),
+        "--workspace-root",
+        str(worktrees),
+        "--ollama-url",
+        "http://mac-inference.internal:11434/v1",
+    )
+    assert result.returncode == 0, result.stderr
+    assert data.is_dir()
+    assert worktrees.is_dir()
+    assert (data.stat().st_mode & 0o777) == 0o700
+    assert (worktrees.stat().st_mode & 0o777) == 0o700
+    env_file = data / "env"
+    assert env_file.is_file()
+    assert (env_file.stat().st_mode & 0o777) == 0o600
+    body = env_file.read_text(encoding="utf-8")
+    assert "TWO_API_BIND=127.0.0.1" in body
+    assert "0.0.0.0" not in body

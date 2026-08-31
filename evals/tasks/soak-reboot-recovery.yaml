@@ -1,0 +1,10 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: soak-reboot-recovery
+architecture_case: soak-reboot-recovery
+mode: soak
+objective: Recover every retained worktree and non-terminal task after a host reboot
+acceptance_criteria:
+  - recover_startup reclaims expired leases only
+  - no duplicate tool replay
+notes: Operator checklist in evals/PROMOTION.md. Offline recovery is eval-controller-restart-lease.

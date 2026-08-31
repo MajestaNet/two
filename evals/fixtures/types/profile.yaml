@@ -1,0 +1,19 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: types
+display_name: Eval types
+language: python
+validation_profile: standard
+allowed_paths:
+  - src/**
+  - tests/**
+forbidden_paths:
+  - .env
+  - secrets/**
+commands:
+  typecheck: python3 -m py_compile src/calc.py
+  test: python3 tests/test_calc.py
+secret_scan: false
+network:
+  allow_package_downloads: false
+  allow_external_mutations: false
