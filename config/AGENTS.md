@@ -7,6 +7,8 @@ Configuration is data. Do not put Python here.
 - `repositories/two.yaml` is this repo's machine-readable validation
   profile. Keep it aligned with `Makefile` targets.
 - `repositories/example.yaml` is a fixture, not a live service.
+- `examples/task.example.yaml` is the operator copy of architecture §8.1.
+  Placeholders only; never a real checkout path.
 - `policies/default.yaml` encodes architecture budgets and forbidden actions.
 - `policies/context.yaml` encodes the 16K context-budget table and the
   72% compaction threshold (architecture §7.2).

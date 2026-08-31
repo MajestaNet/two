@@ -17,7 +17,7 @@ Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attri
 
 Start with the living [setup guide](docs/setup.md). The canonical specification is [docs/architecture.md](docs/architecture.md).
 
-- [Setup](docs/setup.md) — keep this current as the product grows
+- [Setup](docs/setup.md) — operator walkthrough; keep current as the product grows
 - [Channels](docs/channels.md) — backend API; optional adapters; Slack is the MVP
 - [Remote access](docs/remote-access.md) — overlay for CLI/web; outbound adapters only
 - [Viability review](docs/viability.md)
@@ -32,7 +32,7 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 
 ## Install and test
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). Full operator steps are in [docs/setup.md](docs/setup.md).
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). **Operator walkthrough** (config, privacy, network, CLI): [docs/setup.md](docs/setup.md). CLI on the development host is enough; Slack is optional.
 
 ```bash
 uv sync --dev

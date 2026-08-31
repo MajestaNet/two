@@ -1,0 +1,32 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Operator template for `two task submit`. Copy to a private path.
+# Do not commit a real repository filesystem path or hostname.
+# Field names match architecture §8.1 / two.manifest.TaskManifest.
+#
+# repository: filesystem path of the canonical git checkout (never edited).
+# If that path is not a profile id, set validation_profile to a file under
+# config/repositories/<id>.yaml (see example.yaml).
+# Keep cloud_allowed: false unless B16 is enabled and you intend off-box excerpts.
+
+id: task-123
+repository: /absolute/path/to/canonical-checkout
+base_ref: origin/main
+objective: Add optimistic locking to order updates
+acceptance_criteria:
+  - Concurrent updates cannot silently overwrite each other
+  - Existing API behavior remains backward compatible
+allowed_paths:
+  - src/**
+  - tests/**
+validation_profile: example-service
+mode: unattended
+execution_profile: overnight
+cloud_allowed: false
+time_budget_minutes: 480
+max_model_turns: 30
+max_repair_cycles: 6
+no_progress_limit: 2
+on_human_input_required: pause
+max_changed_lines: 600
