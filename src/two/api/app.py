@@ -25,26 +25,41 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from two import __version__
 from two.api.schemas import (
+    DEFAULT_EVENT_LIMIT,
+    DEFAULT_LIST_LIMIT,
+    MAX_DIFF_PATHS,
+    MAX_EVENT_LIMIT,
+    MAX_LIST_LIMIT,
     ApprovalDecideRequest,
     ApprovalDecideResponse,
     ApprovalRequest,
     ApprovalView,
     DiffSummary,
+    ErrorBody,
+    ErrorResponse,
+    EventListResponse,
+    EventView,
     HealthResponse,
     QuestionAnswerRequest,
     QuestionAnswerResponse,
     QuestionAskRequest,
     QuestionView,
     TaskBudgets,
+    TaskControlRequest,
+    TaskListResponse,
     TaskMessage,
     TaskMessageReceipt,
     TaskProjection,
     TaskReport,
+    TodoItem,
+    ValidationGateView,
     ValidationSummary,
 )
 from two.approvals import (
@@ -75,13 +90,14 @@ from two.store import (
     open_store,
 )
 from two.store.models import ApprovalRecord, EventRecord, QuestionRecord, TaskRecord
+from two.types import ErrorCode, EventType, LifecycleState
 
-_PLAN_EVENT_TYPES = frozenset({"plan", "task.plan"})
-_TODO_EVENT_TYPES = frozenset({"todos", "task.todos"})
-_BLOCKER_EVENT_TYPES = frozenset({"blocker", "task.blocker"})
-_DIFF_EVENT_TYPES = frozenset({"diff", "task.diff"})
-_VALIDATION_EVENT_TYPES = frozenset({"validation", "task.validation"})
-_REPORT_EVENT_TYPES = frozenset({REPORT_EVENT_TYPE, "workflow.report"})
+_PLAN_EVENT_TYPES = frozenset({EventType.TASK_PLAN.value, "plan"})
+_TODO_EVENT_TYPES = frozenset({EventType.TASK_TODOS.value, "todos"})
+_BLOCKER_EVENT_TYPES = frozenset({EventType.TASK_BLOCKER.value, "blocker"})
+_DIFF_EVENT_TYPES = frozenset({EventType.TASK_DIFF.value, "diff"})
+_VALIDATION_EVENT_TYPES = frozenset({EventType.TASK_VALIDATION.value, "validation"})
+_REPORT_EVENT_TYPES = frozenset({REPORT_EVENT_TYPE, EventType.WORKFLOW_REPORT.value})
 
 
 class _StoreBox:
@@ -123,6 +139,26 @@ def create_app(
     app.state.require_auth = require_auth
     app.state.auth_token = auth_token
 
+    @app.exception_handler(HTTPException)
+    async def _http_error(_request: Request, exc: HTTPException) -> JSONResponse:
+        message = _detail_message(exc.detail)
+        payload = ErrorResponse(
+            error=ErrorBody(code=_error_code(exc.status_code, message), message=message),
+            detail=exc.detail if isinstance(exc.detail, list) else message,
+        )
+        return JSONResponse(status_code=exc.status_code, content=payload.model_dump(mode="json"))
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+        payload = ErrorResponse(
+            error=ErrorBody(
+                code=ErrorCode.VALIDATION_ERROR,
+                message="request validation failed",
+            ),
+            detail=list(exc.errors()),
+        )
+        return JSONResponse(status_code=422, content=payload.model_dump(mode="json"))
+
     async def _require_token(request: Request) -> None:
         if not bool(request.app.state.require_auth):
             return
@@ -138,7 +174,9 @@ def create_app(
 
     router = APIRouter(dependencies=[Depends(_require_token)])
     router.add_api_route("/v1/tasks", _create_task, methods=["POST"], status_code=201)
+    router.add_api_route("/v1/tasks", _list_tasks, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}", _get_task, methods=["GET"])
+    router.add_api_route("/v1/tasks/{task_id}/events", _list_events, methods=["GET"])
     router.add_api_route(
         "/v1/tasks/{task_id}/messages",
         _post_message,
@@ -175,7 +213,11 @@ def create_app(
 
     @app.get("/health")
     async def health() -> HealthResponse:
-        return HealthResponse(status="ok", service="two-api")
+        try:
+            box.store.schema_version()
+        except Exception:
+            return HealthResponse(status="degraded", service="two-api", store="error")
+        return HealthResponse(status="ok", service="two-api", store="ok")
 
     return app
 
@@ -194,7 +236,7 @@ async def _create_task(request: Request, manifest: TaskManifest) -> JSONResponse
             record = box.store.insert_task(manifest)
             box.store.append_event(
                 record.id,
-                "task.created",
+                EventType.TASK_CREATED.value,
                 {"objective": record.objective, "lifecycle": record.lifecycle.value},
             )
         except DuplicateTaskError as exc:
@@ -207,10 +249,44 @@ async def _create_task(request: Request, manifest: TaskManifest) -> JSONResponse
     )
 
 
+async def _list_tasks(
+    request: Request,
+    lifecycle: LifecycleState | None = None,
+    limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
+) -> TaskListResponse:
+    box = _box(request)
+    async with box.lock:
+        records = box.store.list_tasks(lifecycle=lifecycle)[:limit]
+        tasks = [_project(box.store, record) for record in records]
+    return TaskListResponse(tasks=tasks, limit=limit)
+
+
 async def _get_task(request: Request, task_id: str) -> TaskProjection:
     box = _box(request)
     async with box.lock:
         return _require_projection(box.store, task_id)
+
+
+async def _list_events(
+    request: Request,
+    task_id: str,
+    after_seq: int = Query(default=0, ge=0),
+    limit: int = Query(default=DEFAULT_EVENT_LIMIT, ge=1, le=MAX_EVENT_LIMIT),
+) -> EventListResponse:
+    box = _box(request)
+    async with box.lock:
+        _require_task(box.store, task_id)
+        events = [
+            EventView(
+                seq=event.seq,
+                type=event.type,
+                payload=dict(event.payload),
+                created_at=event.created_at,
+            )
+            for event in box.store.list_events(task_id)
+            if event.seq > after_seq
+        ][:limit]
+    return EventListResponse(task_id=task_id, events=events, limit=limit)
 
 
 async def _post_message(
@@ -224,15 +300,27 @@ async def _post_message(
         payload: dict[str, object] = {"text": message.text}
         if message.source is not None:
             payload["source"] = message.source
-        event_id = box.store.append_event(task_id, "task.message", payload)
+        if message.principal is not None:
+            payload["principal"] = message.principal
+        event_id = box.store.append_event(task_id, EventType.TASK_MESSAGE.value, payload)
     return TaskMessageReceipt(task_id=task_id, event_id=event_id)
 
 
-async def _pause_task(request: Request, task_id: str) -> TaskProjection:
+def _principal(body: TaskControlRequest | None) -> str | None:
+    if body is None:
+        return None
+    return body.principal
+
+
+async def _pause_task(
+    request: Request,
+    task_id: str,
+    body: TaskControlRequest | None = None,
+) -> TaskProjection:
     box = _box(request)
     async with box.lock:
         try:
-            record = pause_task(box.store, task_id)
+            record = pause_task(box.store, task_id, principal=_principal(body))
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except TerminalLifecycleError as exc:
@@ -240,11 +328,15 @@ async def _pause_task(request: Request, task_id: str) -> TaskProjection:
         return _project(box.store, record)
 
 
-async def _resume_task(request: Request, task_id: str) -> TaskProjection:
+async def _resume_task(
+    request: Request,
+    task_id: str,
+    body: TaskControlRequest | None = None,
+) -> TaskProjection:
     box = _box(request)
     async with box.lock:
         try:
-            record = resume_task(box.store, task_id)
+            record = resume_task(box.store, task_id, principal=_principal(body))
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except (TerminalLifecycleError, NotResumableError, OpenInputError) as exc:
@@ -252,11 +344,15 @@ async def _resume_task(request: Request, task_id: str) -> TaskProjection:
         return _project(box.store, record)
 
 
-async def _cancel_task(request: Request, task_id: str) -> TaskProjection:
+async def _cancel_task(
+    request: Request,
+    task_id: str,
+    body: TaskControlRequest | None = None,
+) -> TaskProjection:
     box = _box(request)
     async with box.lock:
         try:
-            record = cancel_task(box.store, task_id)
+            record = cancel_task(box.store, task_id, principal=_principal(body))
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except TerminalLifecycleError as exc:
@@ -414,6 +510,7 @@ async def _get_report(request: Request, task_id: str) -> TaskReport:
             acceptance_criteria=projection.acceptance_criteria,
             branch=projection.branch,
             worktree_path=projection.worktree_path,
+            base_commit=projection.base_commit,
             diff_summary=projection.diff_summary,
             validation_summary=projection.validation_summary,
             assembled=False,
@@ -427,6 +524,7 @@ async def _get_report(request: Request, task_id: str) -> TaskReport:
         acceptance_criteria=projection.acceptance_criteria,
         branch=projection.branch,
         worktree_path=projection.worktree_path,
+        base_commit=projection.base_commit,
         diff_summary=projection.diff_summary,
         validation_summary=projection.validation_summary,
         assembled=True,
@@ -464,17 +562,20 @@ def _project(store: Store, record: TaskRecord) -> TaskProjection:
         acceptance_criteria=list(manifest.acceptance_criteria),
         mode=record.mode,
         execution_profile=record.execution_profile,
+        cloud_allowed=record.cloud_allowed,
         lifecycle=record.lifecycle,
         stage=record.stage,
         budgets=TaskBudgets(
+            execution_profile=record.execution_profile,
             time_budget_minutes=record.time_budget_minutes,
             max_model_turns=record.max_model_turns,
             max_repair_cycles=record.max_repair_cycles,
             no_progress_limit=record.no_progress_limit,
             max_changed_lines=manifest.max_changed_lines,
+            remaining_active_seconds=_remaining_active_seconds(record.time_budget_minutes),
         ),
         plan=plan,
-        todos=todos,
+        todos=_todos_from_items(todos),
         diff_summary=diff,
         validation_summary=validation,
         blockers=blockers,
@@ -482,6 +583,7 @@ def _project(store: Store, record: TaskRecord) -> TaskProjection:
         approvals=approvals,
         worktree_path=record.worktree_path,
         branch=record.branch,
+        base_commit=record.base_commit,
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
@@ -559,11 +661,15 @@ def _validation_from_events(events: list[EventRecord]) -> ValidationSummary:
     last_gate = last_gate_raw if isinstance(last_gate_raw, str) else None
     summary_raw = payload.get("summary")
     summary = summary_raw if isinstance(summary_raw, str) else None
+    gates = _gates_from_payload(payload)
+    if gates_run == 0 and gates:
+        gates_run = len(gates)
     return ValidationSummary(
         passed=passed,
         gates_run=gates_run,
         last_gate=last_gate,
         summary=summary,
+        gates=gates,
     )
 
 
@@ -572,10 +678,19 @@ def _diff_from_events(events: list[EventRecord]) -> DiffSummary:
     if event is None:
         return DiffSummary()
     payload = event.payload
+    paths_raw = payload.get("paths")
+    paths: list[str] = []
+    if isinstance(paths_raw, list):
+        for item in paths_raw:
+            if isinstance(item, str) and item:
+                paths.append(item)
+            if len(paths) >= MAX_DIFF_PATHS:
+                break
     return DiffSummary(
         files_changed=_optional_int(payload, "files_changed"),
         lines_added=_optional_int(payload, "lines_added"),
         lines_removed=_optional_int(payload, "lines_removed"),
+        paths=paths,
         placeholder=False,
     )
 
@@ -585,3 +700,76 @@ def _optional_int(payload: Mapping[str, object], key: str) -> int | None:
     if isinstance(raw, bool) or not isinstance(raw, int):
         return None
     return raw
+
+
+def _remaining_active_seconds(time_budget_minutes: int | None) -> int | None:
+    if time_budget_minutes is None:
+        return None
+    return max(0, time_budget_minutes * 60)
+
+
+def _todos_from_items(items: list[Any]) -> list[TodoItem]:
+    todos: list[TodoItem] = []
+    for index, item in enumerate(items):
+        if isinstance(item, TodoItem):
+            todos.append(item)
+            continue
+        if isinstance(item, Mapping):
+            try:
+                todos.append(TodoItem.model_validate(dict(item)))
+                continue
+            except ValidationError:
+                content = str(item.get("content", item))
+                todos.append(TodoItem(id=str(index), content=content))
+                continue
+        todos.append(TodoItem(id=str(index), content=str(item)))
+    return todos
+
+
+def _gates_from_payload(payload: Mapping[str, object]) -> list[ValidationGateView]:
+    raw = payload.get("gates")
+    if not isinstance(raw, list):
+        return []
+    gates: list[ValidationGateView] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            continue
+        try:
+            gates.append(ValidationGateView.model_validate(dict(item)))
+        except ValidationError:
+            name = item.get("name")
+            passed = item.get("passed")
+            if isinstance(name, str) and isinstance(passed, bool):
+                gates.append(ValidationGateView(name=name, passed=passed))
+    return gates
+
+
+def _detail_message(detail: object) -> str:
+    if isinstance(detail, str):
+        return detail
+    return str(detail)
+
+
+def _error_code(status: int, message: str) -> ErrorCode:
+    text = message.lower()
+    if status == 401:
+        return ErrorCode.UNAUTHORIZED
+    if status == 404:
+        if "task" in text:
+            return ErrorCode.TASK_NOT_FOUND
+        return ErrorCode.NOT_FOUND
+    if status == 409:
+        if "already exists" in text:
+            return ErrorCode.DUPLICATE_TASK
+        if "stale" in text:
+            return ErrorCode.STALE_DIGEST
+        if "open" in text:
+            return ErrorCode.OPEN_INPUT
+        if "resume" in text:
+            return ErrorCode.NOT_RESUMABLE
+        return ErrorCode.CONFLICT_LIFECYCLE
+    if status == 400:
+        return ErrorCode.DIGEST_REQUIRED
+    if status == 422:
+        return ErrorCode.VALIDATION_ERROR
+    return ErrorCode.INTERNAL

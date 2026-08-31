@@ -11,9 +11,10 @@ Backlog B07 needs a channel-neutral HTTP/Unix-socket API
 framework. `AGENTS.md` requires an ADR before a new runtime
 dependency. Django and Flask are out of scope.
 
-The request and projection bodies are Pydantic v2 models
-(`TaskManifest` already lives in `two.manifest`). Tests must use an
-in-process ASGI client, not a public bind.
+The request and projection bodies are Pydantic v2 models in
+`two.projection` (no FastAPI import). `TaskManifest` stays in
+`two.manifest`. Tests must use an in-process ASGI client, not a public
+bind.
 
 ## Decision
 
@@ -23,7 +24,8 @@ in-process ASGI client, not a public bind.
    FastAPI/Starlette `TestClient` without opening a TCP port.
 
 Do not add Django or Flask. Do not reimplement the DeepSeek Harness
-loop inside `two.api`. The API maps HTTP to `two.store` only.
+loop inside `two.api`. The API maps HTTP to `two.store` and
+`two.approvals`. It does not call the model.
 
 ## Consequences
 
@@ -34,3 +36,4 @@ loop inside `two.api`. The API maps HTTP to `two.store` only.
   subcommand.
 - Default bind remains loopback or a Unix socket
   (`config/access/remote.yaml`). Public binds stay forbidden.
+- `/v1` is additive. Breaking API changes require `/v2` and a new ADR.
