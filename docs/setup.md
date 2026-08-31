@@ -12,17 +12,23 @@ in [architecture.md](architecture.md). Viability notes are in
 | Clone and run unit CI | Works |
 | List inference profiles | Works (`two profiles`) |
 | Serve Qwen on the Mac | Scripts exist (`bootstrap-mac.sh`, `health-check.sh`, `soak-inference.sh`); live path requires a Mac ([B01](backlog/B01-mac-inference-appliance.md)) |
-| DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)). ACP worker later ([B09](backlog/B09-acp-worker.md)) |
+| DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
 | Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
 | CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
-| Control-plane Compose | Topology file only; no harness in the image ([B12](backlog/B12-dev-host-services.md)) |
+| Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Task worktrees | Works (`two.workspace`; unused by CLI) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation`; unused by CLI) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; unused by CLI) ([B05](backlog/B05-context-broker.md)) |
 | SQLite WAL store | Works (`two.store.open_store`; unused by CLI) (`TWO_DATA_DIR/two.sqlite`) ([B06](backlog/B06-sqlite-store.md)) |
+| Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket) ([B07](backlog/B07-control-api.md)) |
+| Durable scheduler (single slot) | Works (`two.scheduler`; unused by CLI) ([B08](backlog/B08-scheduler.md)) |
+| ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
+| Workflow controller + reports | Works (`two.controller`; `two worker` drives stages after a lease) ([B10](backlog/B10-workflow-controller.md)) |
+| Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
+| Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 
-Last updated: 30 August 2026 (Phase 5: B06 SQLite store).
+Last updated: 31 August 2026 (Phase 5 quality: controller wired into `two worker`).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -76,6 +82,7 @@ make ci
 uv run two --help
 uv run two profiles
 uv run two topology
+uv run two api
 ```
 
 Copy `.env.example` to `.env` only on the machine that will run services.
@@ -85,7 +92,34 @@ Task artifacts, including structured memory
 `TWO_DATA_DIR/tasks/<id>/memory.json` (default `./var/two`), share the
 B04 artifact tree. The SQLite WAL store is
 `TWO_DATA_DIR/two.sqlite` ([B06](backlog/B06-sqlite-store.md)); the CLI
-does not open it.
+does not open it at import time. Start the control API with
+`uv run two api` (default bind `127.0.0.1:8741`, [B07](backlog/B07-control-api.md)).
+Loopback and Unix sockets use local-trust authentication — do not expose
+that process. Non-loopback binds (private overlay) require `TWO_API_TOKEN`.
+Questions and approvals are durable rows on that API ([B11](backlog/B11-questions-approvals.md),
+architecture §8.4): `POST /v1/tasks/{id}/questions`,
+`POST /v1/tasks/{id}/questions/{question_id}/answer`,
+`POST /v1/tasks/{id}/approvals`,
+`POST /v1/tasks/{id}/approvals/{approval_id}/decide` (optional
+`action_digest`; mismatch is 409; duplicates return `ignored: true`),
+and `POST /v1/tasks/{id}/pause|resume|cancel`. Resume is allowed from
+`paused` or `awaiting_input` and keeps the same task id. Cancelled is
+terminal. Silence is never approval. The principal is an `actor` string
+(default `local`); Slack allowlists are B14.
+
+The workflow controller (`two.controller`) can drive a fake unattended
+fixture offline: `uv run pytest tests/unit/test_controller.py`. Tests inject
+a fake worker and B04 validation so they never spawn ACP or call a live Mac.
+Completion is the controller plus validation gates, never a model
+self-report.
+
+The evaluation corpus (`two.evals`, architecture §18) is Mac-free in
+CI: `make eval-offline` or `./scripts/run-evals.sh --offline`. Live Mac
+cases require `TWO_LIVE_EVAL=1`. Promotion soaks are operator checklists
+in [evals/PROMOTION.md](../evals/PROMOTION.md); CI never marks them passed.
+Compare `qwen3.8:27b-mlx` vs `qwen3.8:27b` Q4 at 16K/q8 KV using
+[evals/COMPARE.md](../evals/COMPARE.md) after soaks. Do not invent a
+winner digest.
 
 ## 2. Pick an inference profile
 
@@ -195,9 +229,10 @@ TWO_LIVE_MAC=1 MAC_QWEN_BASE_URL=http://mac-inference.internal:11434/v1 \
   ./scripts/smoke-test.sh
 ```
 
-Default pytest excludes `@pytest.mark.live_mac`. The ACP worker is still
-[B09](backlog/B09-acp-worker.md); this repo does not reimplement the DSH
-agent loop.
+Default pytest excludes `@pytest.mark.live_mac` and `@pytest.mark.live_dsh`.
+The ACP worker (`two.worker`) supervises a pinned DeepSeek Harness child and
+an at-most-once action ledger. Default tests use a fake child; this repo
+does not reimplement the DSH agent loop.
 
 ## 4. Optional messaging adapter
 
@@ -212,6 +247,9 @@ only.
 ## 5. CLI or web from another network
 
 Loopback (`127.0.0.1` / Unix socket) remains the default API bind.
+`uv run two api` starts the process. On loopback it prints a local-trust
+warning and does not require a token. If you bind a non-loopback overlay
+address, set `TWO_API_TOKEN` and send `Authorization: Bearer …`.
 
 To use the CLI or web UI away from the desk:
 
@@ -219,25 +257,65 @@ To use the CLI or web UI away from the desk:
    (Tailscale or WireGuard).
 2. Bind the API to the overlay address *or* keep loopback and use
    Tailscale Serve / SSH local forward.
-3. Require controller authentication once the API is reachable beyond
-   localhost.
+3. Require controller authentication (`TWO_API_TOKEN`,
+   `Authorization: Bearer`) once the API is reachable beyond localhost.
 4. Never port-forward Ollama or the Majesta Two API to `0.0.0.0` on a public IP.
 
 A public HTTPS hostname (for example a Cloudflare tunnel) is not the
 default. If you use one later, it must terminate authentication and must
 not front Ollama.
 
-## 6. Optional Compose (Linux development host)
+## 6. Compose (Linux development host)
+
+Compose is the default unattended packaging (ADR 0005). Ollama stays native
+on the Mac. systemd user units under `deploy/systemd/` are optional
+templates for a native (non-Compose) install.
 
 ```bash
+./scripts/bootstrap-dev-host.sh --dry-run
+./scripts/bootstrap-dev-host.sh --topology split --data-dir "$HOME/.local/share/two"
 cd deploy/compose
 docker compose run --rm two --help
 docker compose run --rm two profiles
+docker compose up -d api scheduler worker
 ```
 
-This image is the control-plane toolchain, not the model and not yet
-DeepSeek Harness. Do not run this Compose file on the Mac as a substitute
-for native Ollama.
+Services:
+
+| Service | Process | Notes |
+| --- | --- | --- |
+| `api` | `two api` | Binds `127.0.0.1:8741` via `network_mode: host`. `GET /health`. |
+| `scheduler` | `two scheduler` | Runs `two.recovery.recover_startup` then the tick loop. |
+| `worker` | `two worker` | One local-Qwen ACP supervisor. Explicit volume list in the Compose file. |
+| `two` | CLI helper | `docker compose run --rm two --help` (profile `cli`). |
+| `slack` | stub | `profiles: [slack]` until [B14](backlog/B14-slack-adapter.md). |
+
+Volumes (worker/harness mounts are explicit): repository `config/` (read-only),
+named volume `two-data` (`TWO_DATA_DIR`, SQLite and artifacts), named volume
+`two-worktrees` (`TWO_WORKSPACE_ROOT`). Optional host git mirrors can be
+bind-mounted at `/mnt/repos:ro`. A native worker uses the same env vars on
+the host instead of those volumes.
+
+Health from the Linux host:
+
+```bash
+./scripts/health-check.sh --dry-run
+MAC_QWEN_BASE_URL=http://mac-inference.internal:11434 ./scripts/health-check.sh
+curl -fsS http://127.0.0.1:8741/health
+```
+
+The scheduler Mac poller uses `MAC_QWEN_BASE_URL` when set (otherwise it
+stays Healthy/offline so unit tests never open a socket).
+
+**Closing a CLI does not require stopping Compose.** Tasks keep running under
+`api` / `scheduler` / `worker`. Stop the control plane with
+`docker compose down` (or `systemctl --user stop two.target` if you installed
+the templates).
+
+Do not run this Compose file on the Mac as a substitute for native Ollama.
+Do not publish 11434 or 8741 on a public interface. `topology: colocated`
+is a bind-address change (`127.0.0.1` Ollama) for a native Mac control plane,
+not a reason to Dockerize Ollama.
 
 A full VM is stronger isolation than Compose. Compose is the default
 unattended packaging because it is easier to reproduce. A VM remains

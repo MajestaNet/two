@@ -49,3 +49,11 @@ class DuplicateQuestionError(StoreError):
 
 class DuplicateApprovalError(StoreError):
     """An approval with this id already exists."""
+
+
+class QuestionNotFoundError(StoreError):
+    """The referenced question id is not in the store."""
+
+
+class ApprovalNotFoundError(StoreError):
+    """The referenced approval id is not in the store."""

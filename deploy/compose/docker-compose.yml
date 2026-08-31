@@ -1,20 +1,80 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
 #
-# Linux development-host packaging. The Mac inference node stays native.
-# Do not publish 11434 or 8741 on a public interface.
-# api / scheduler / worker / optional adapter services land in Phase 5.
+# Linux development-host packaging (ADR 0005). Ollama stays native on the Mac.
+# Do not add an Ollama image or model weights. Do not publish 11434 or 8741
+# on a public interface.
+#
+# Services (architecture §12.2):
+#   api        — two-api (loopback bind 127.0.0.1:8741 via host network)
+#   scheduler  — two-scheduler (startup recovery §12.5, then tick loop)
+#   worker     — two-worker (ACP supervisor; one local-Qwen slot)
+#   slack      — optional profile stub; B14 implements the adapter
+#   two        — CLI helper: `docker compose run --rm two --help`
+#
+# Explicit worker/harness mounts (ADR 0005):
+#   ../../config                 -> /app/config:ro          profiles, topology, access
+#   two-data                     -> /var/lib/two            TWO_DATA_DIR (SQLite, artifacts)
+#   two-worktrees                -> /var/lib/two/worktrees  TWO_WORKSPACE_ROOT
+#   optional host git mirrors    -> /mnt/repos:ro           uncomment TWO_GIT_MIRRORS
+# Native (non-Compose) worker uses TWO_DATA_DIR / TWO_WORKSPACE_ROOT on the host
+# instead of these volumes.
+#
+# network_mode: host keeps the API on 127.0.0.1 without publishing 0.0.0.0.
+# There is no `ports:` mapping. Closing a CLI does not stop these services.
 
 name: two
 
+x-two-common: &two-common
+  build:
+    context: ../..
+    dockerfile: deploy/compose/Dockerfile
+  environment:
+    TWO_INFERENCE_PROFILE: ${TWO_INFERENCE_PROFILE:-m24-qwen38-16k}
+    TWO_TOPOLOGY: ${TWO_TOPOLOGY:-split}
+    TWO_DATA_DIR: /var/lib/two
+    TWO_WORKSPACE_ROOT: /var/lib/two/worktrees
+    TWO_API_BIND: 127.0.0.1
+    TWO_API_PORT: "8741"
+    MAC_QWEN_BASE_URL: ${MAC_QWEN_BASE_URL:-}
+  volumes:
+    - ../../config:/app/config:ro
+    - two-data:/var/lib/two
+    - two-worktrees:/var/lib/two/worktrees
+    # Optional host git mirrors (uncomment and set TWO_GIT_MIRRORS):
+    # - ${TWO_GIT_MIRRORS}:/mnt/repos:ro
+  network_mode: host
+  restart: unless-stopped
+
 services:
   two:
-    build:
-      context: ../..
-      dockerfile: deploy/compose/Dockerfile
-    environment:
-      TWO_INFERENCE_PROFILE: ${TWO_INFERENCE_PROFILE:-m24-qwen38-16k}
-    volumes:
-      - ../../config:/app/config:ro
-    # No ports: CLI only until the control API exists.
-    profiles: []
+    <<: *two-common
+    restart: "no"
+    network_mode: bridge
+    profiles: ["cli"]
+
+  api:
+    <<: *two-common
+    command: ["api"]
+
+  scheduler:
+    <<: *two-common
+    command: ["scheduler"]
+    depends_on:
+      - api
+
+  worker:
+    <<: *two-common
+    command: ["worker"]
+    depends_on:
+      - scheduler
+
+  slack:
+    <<: *two-common
+    command: ["--help"]
+    profiles: ["slack"]
+    restart: "no"
+
+volumes:
+  two-data:
+  two-worktrees:

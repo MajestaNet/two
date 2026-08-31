@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -143,7 +143,24 @@ _V1_STATEMENTS = (
     "CREATE INDEX idx_actions_task ON actions (task_id, created_at)",
 )
 
-MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = ((1, _V1_STATEMENTS),)
+# Version 2: scheduler retry/budget clock (architecture §6.3.G, §12.4).
+# next_attempt_at gates retry_wait eligibility (now >= next_attempt_at).
+_V2_STATEMENTS = (
+    "ALTER TABLE tasks ADD COLUMN next_attempt_at TEXT",
+    "ALTER TABLE tasks ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE tasks ADD COLUMN active_elapsed_ms INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE tasks ADD COLUMN active_started_at TEXT",
+    "CREATE INDEX idx_tasks_lifecycle_next_attempt ON tasks (lifecycle, next_attempt_at)",
+)
+
+# Version 3: ACP session resume (architecture §10.1, §12.5).
+_V3_STATEMENTS = ("ALTER TABLE tasks ADD COLUMN dsh_session_id TEXT",)
+
+MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
+    (1, _V1_STATEMENTS),
+    (2, _V2_STATEMENTS),
+    (3, _V3_STATEMENTS),
+)
 
 
 def current_schema_version(connection: sqlite3.Connection) -> int:

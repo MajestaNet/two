@@ -22,7 +22,9 @@ returns. ``insert_task`` commits before return (architecture §6.4).
 
 The public API never UPDATE/DELETE ``events`` rows. Sequence numbers are
 monotonic per task. The store does not enforce the single local-model slot
-(that is B08); it only inserts, heartbeats, and reclaims expired leases.
+(that is B08); it only inserts, heartbeats, reclaims expired leases, and
+releases a lease when the scheduler drops the slot. Schema v2 adds
+``next_attempt_at``, ``retry_count``, and active-time clock columns.
 """
 
 from __future__ import annotations
@@ -40,11 +42,13 @@ from two.manifest import TaskManifest
 from two.store.engine import prepare_database
 from two.store.errors import (
     ActionNotFoundError,
+    ApprovalNotFoundError,
     DuplicateActionError,
     DuplicateApprovalError,
     DuplicateQuestionError,
     DuplicateSourceEventError,
     DuplicateTaskError,
+    QuestionNotFoundError,
     StoreError,
     TaskNotFoundError,
 )
@@ -64,14 +68,19 @@ from two.types import ExecutionProfile, LifecycleState, Mode, WorkflowStage
 _TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
-def open_store(path: Path | str | None = None) -> Store:
+def open_store(
+    path: Path | str | None = None,
+    *,
+    check_same_thread: bool = True,
+) -> Store:
     """Open (or create) the WAL store at ``path`` or ``{TWO_DATA_DIR}/two.sqlite``.
 
     Creates parent directories, enables WAL / foreign keys / busy timeout, and
     applies versioned migrations. Intended as the factory for the later API
-    process; ``two.cli`` must not call this.
+    process; ``two.cli`` must not call this at import time. The ASGI API passes
+    ``check_same_thread=False`` because TestClient may hop threads.
     """
-    resolved, connection = prepare_database(path)
+    resolved, connection = prepare_database(path, check_same_thread=check_same_thread)
     return Store(connection, path=resolved)
 
 
@@ -102,6 +111,20 @@ class Store:
         version = current_schema_version(self._connection)
         if version == 0:
             return SCHEMA_VERSION
+        return version
+
+    def verify(self) -> int:
+        """Confirm WAL integrity and a migrated schema. Raises ``StoreError``.
+
+        Architecture §12.5 step 1 (open and verify SQLite). Does not mutate rows.
+        """
+        row = self._connection.execute("PRAGMA integrity_check").fetchone()
+        result = str(row[0]) if row is not None else ""
+        if result.lower() != "ok":
+            raise StoreError(f"sqlite integrity_check failed: {result}")
+        version = self.schema_version()
+        if version < 1:
+            raise StoreError(f"invalid schema version {version}")
         return version
 
     def insert_task(
@@ -204,12 +227,22 @@ class Store:
         set_worktree_path: bool = False,
         set_branch: bool = False,
         set_base_commit: bool = False,
+        next_attempt_at: datetime | None = None,
+        set_next_attempt_at: bool = False,
+        retry_count: int | None = None,
+        active_elapsed_ms: int | None = None,
+        active_started_at: datetime | None = None,
+        set_active_started_at: bool = False,
+        dsh_session_id: str | None = None,
+        set_dsh_session_id: bool = False,
         now: datetime | None = None,
     ) -> TaskRecord:
         """Update selected task fields and commit before returning.
 
         Nullable worktree fields are only written when the matching ``set_*``
         flag is true, so ``None`` can mean “clear” without clearing by accident.
+        The same applies to ``next_attempt_at``, ``active_started_at``, and
+        ``dsh_session_id``.
         """
         assignments: list[str] = []
         values: list[object] = []
@@ -228,6 +261,25 @@ class Store:
         if set_base_commit:
             assignments.append("base_commit = ?")
             values.append(base_commit)
+        if set_next_attempt_at:
+            assignments.append("next_attempt_at = ?")
+            values.append(_iso(next_attempt_at) if next_attempt_at is not None else None)
+        if retry_count is not None:
+            if retry_count < 0:
+                raise StoreError("retry_count must be non-negative")
+            assignments.append("retry_count = ?")
+            values.append(retry_count)
+        if active_elapsed_ms is not None:
+            if active_elapsed_ms < 0:
+                raise StoreError("active_elapsed_ms must be non-negative")
+            assignments.append("active_elapsed_ms = ?")
+            values.append(active_elapsed_ms)
+        if set_active_started_at:
+            assignments.append("active_started_at = ?")
+            values.append(_iso(active_started_at) if active_started_at is not None else None)
+        if set_dsh_session_id:
+            assignments.append("dsh_session_id = ?")
+            values.append(dsh_session_id)
         if not assignments:
             raise StoreError("update_task requires at least one field")
         assignments.append("updated_at = ?")
@@ -395,6 +447,26 @@ class Store:
                 )
         return ids
 
+    def release_lease(self, task_id: str, worker_id: str) -> bool:
+        """Delete a lease owned by ``worker_id``. Commits. Returns True if deleted.
+
+        Used when the scheduler releases the local-model slot (``awaiting_input``,
+        ``paused``, ``blocked``, ``retry_wait``, or a terminal state). Does not
+        delete another worker's lease.
+        """
+        _require_worker(worker_id)
+        with self._txn():
+            existing = self._lease_row(task_id)
+            if existing is None:
+                return False
+            if str(existing["worker_id"]) != worker_id:
+                return False
+            self._connection.execute(
+                "DELETE FROM leases WHERE task_id = ? AND worker_id = ?",
+                (task_id, worker_id),
+            )
+        return True
+
     def get_lease(self, task_id: str) -> LeaseRecord | None:
         """Return the lease for ``task_id``, or ``None``."""
         row = self._lease_row(task_id)
@@ -561,7 +633,7 @@ class Store:
         reason: str | None = None,
         now: datetime | None = None,
     ) -> QuestionRecord:
-        """Insert a question row and commit. Resolution is B11."""
+        """Insert a question row and commit. Use ``resolve_question`` to answer."""
         if not question_id:
             raise StoreError("question_id must be non-empty")
         stage_value = stage.value if isinstance(stage, WorkflowStage) else stage
@@ -608,6 +680,17 @@ class Store:
             return None
         return _question_from_row(row)
 
+    def list_questions(self, task_id: str) -> list[QuestionRecord]:
+        """Return questions for ``task_id`` oldest-first."""
+        rows = self._connection.execute(
+            """
+            SELECT * FROM questions WHERE task_id = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (task_id,),
+        ).fetchall()
+        return [_question_from_row(row) for row in rows]
+
     def insert_approval(
         self,
         approval_id: str,
@@ -619,7 +702,7 @@ class Store:
         status: str = "open",
         now: datetime | None = None,
     ) -> ApprovalRecord:
-        """Insert an approval row and commit. Decision policy is B11."""
+        """Insert an approval row and commit. ``action_digest`` is never updated."""
         if not approval_id or not action_class or not action_digest:
             raise StoreError("approval_id, action_class, and action_digest must be non-empty")
         stamp = _iso(_utc(now))
@@ -662,6 +745,155 @@ class Store:
         if row is None:
             return None
         return _approval_from_row(row)
+
+    def list_approvals(self, task_id: str) -> list[ApprovalRecord]:
+        """Return approvals for ``task_id`` oldest-first."""
+        rows = self._connection.execute(
+            """
+            SELECT * FROM approvals WHERE task_id = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (task_id,),
+        ).fetchall()
+        return [_approval_from_row(row) for row in rows]
+
+    def resolve_question(
+        self,
+        question_id: str,
+        *,
+        status: str,
+        resolver: str,
+        now: datetime | None = None,
+    ) -> tuple[QuestionRecord, bool]:
+        """First-writer-wins status change. Commits before return.
+
+        Returns ``(record, True)`` when this caller moved the row off
+        ``open``. Later callers receive the existing row and ``False``.
+        """
+        if status not in {"answered", "expired"}:
+            raise StoreError("question status must be answered or expired")
+        if not resolver:
+            raise StoreError("resolver must be non-empty")
+        stamp = _iso(_utc(now))
+        with self._txn():
+            existing = self._connection.execute(
+                "SELECT * FROM questions WHERE id = ?",
+                (question_id,),
+            ).fetchone()
+            if existing is None:
+                raise QuestionNotFoundError(f"unknown question: {question_id}")
+            cursor = self._connection.execute(
+                """
+                UPDATE questions
+                SET status = ?, resolved_at = ?, resolver = ?
+                WHERE id = ? AND status = 'open'
+                """,
+                (status, stamp, resolver, question_id),
+            )
+            first = cursor.rowcount == 1
+        record = self.get_question(question_id)
+        if record is None:
+            raise QuestionNotFoundError(f"unknown question: {question_id}")
+        return record, first
+
+    def resolve_approval(
+        self,
+        approval_id: str,
+        *,
+        status: str,
+        now: datetime | None = None,
+    ) -> tuple[ApprovalRecord, bool]:
+        """First-writer-wins status change. Commits before return.
+
+        ``action_digest`` is not in the SET list and cannot change.
+        Returns ``(record, True)`` when this caller moved the row off
+        ``open``. Later callers receive the existing row and ``False``.
+        """
+        if status not in {"approved", "rejected", "expired"}:
+            raise StoreError("approval status must be approved, rejected, or expired")
+        stamp = _iso(_utc(now))
+        with self._txn():
+            existing = self._connection.execute(
+                "SELECT * FROM approvals WHERE id = ?",
+                (approval_id,),
+            ).fetchone()
+            if existing is None:
+                raise ApprovalNotFoundError(f"unknown approval: {approval_id}")
+            cursor = self._connection.execute(
+                """
+                UPDATE approvals
+                SET status = ?, resolved_at = ?
+                WHERE id = ? AND status = 'open'
+                """,
+                (status, stamp, approval_id),
+            )
+            first = cursor.rowcount == 1
+        record = self.get_approval(approval_id)
+        if record is None:
+            raise ApprovalNotFoundError(f"unknown approval: {approval_id}")
+        return record, first
+
+    def expire_open_input(
+        self,
+        task_id: str,
+        *,
+        resolver: str = "timeout",
+        now: datetime | None = None,
+    ) -> tuple[list[QuestionRecord], list[ApprovalRecord]]:
+        """Expire open questions and approvals. Never sets ``approved``.
+
+        Commits before return. ``action_digest`` columns are not written.
+        """
+        if not resolver:
+            raise StoreError("resolver must be non-empty")
+        stamp = _iso(_utc(now))
+        with self._txn():
+            self._require_task(task_id)
+            question_rows = self._connection.execute(
+                """
+                SELECT * FROM questions
+                WHERE task_id = ? AND status = 'open'
+                ORDER BY created_at ASC, id ASC
+                """,
+                (task_id,),
+            ).fetchall()
+            approval_rows = self._connection.execute(
+                """
+                SELECT * FROM approvals
+                WHERE task_id = ? AND status = 'open'
+                ORDER BY created_at ASC, id ASC
+                """,
+                (task_id,),
+            ).fetchall()
+            self._connection.execute(
+                """
+                UPDATE questions
+                SET status = 'expired', resolved_at = ?, resolver = ?
+                WHERE task_id = ? AND status = 'open'
+                """,
+                (stamp, resolver, task_id),
+            )
+            self._connection.execute(
+                """
+                UPDATE approvals
+                SET status = 'expired', resolved_at = ?
+                WHERE task_id = ? AND status = 'open'
+                """,
+                (stamp, task_id),
+            )
+        question_ids = [_as_str(row["id"], "id") for row in question_rows]
+        approval_ids = [_as_str(row["id"], "id") for row in approval_rows]
+        questions_out: list[QuestionRecord] = []
+        for question_id in question_ids:
+            question = self.get_question(question_id)
+            if question is not None:
+                questions_out.append(question)
+        approvals_out: list[ApprovalRecord] = []
+        for approval_id in approval_ids:
+            approval = self.get_approval(approval_id)
+            if approval is not None:
+                approvals_out.append(approval)
+        return questions_out, approvals_out
 
     def _require_task(self, task_id: str) -> None:
         row = self._connection.execute(
@@ -783,6 +1015,21 @@ def _task_from_row(row: sqlite3.Row) -> TaskRecord:
         cloud_allowed=cloud_allowed,
         created_at=_parse_time(_as_str(row["created_at"], "created_at")),
         updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
+        next_attempt_at=(
+            _parse_time(_as_str(row["next_attempt_at"], "next_attempt_at"))
+            if row["next_attempt_at"] is not None
+            else None
+        ),
+        retry_count=_as_int(row["retry_count"], "retry_count"),
+        active_elapsed_ms=_as_int(row["active_elapsed_ms"], "active_elapsed_ms"),
+        active_started_at=(
+            _parse_time(_as_str(row["active_started_at"], "active_started_at"))
+            if row["active_started_at"] is not None
+            else None
+        ),
+        dsh_session_id=_optional_str(row["dsh_session_id"], "dsh_session_id")
+        if "dsh_session_id" in row.keys()
+        else None,
     )
 
 

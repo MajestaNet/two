@@ -1,0 +1,13 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-overnight-pause-resume
+architecture_case: overnight-pause-resume-other-channel
+mode: offline
+objective: Pause for a question and resume hours later from another channel principal
+acceptance_criteria:
+  - cli pause retains the worktree
+  - api answers and resumes the same task id
+  - a stale approval digest is rejected
+allowed_paths:
+  - src/**
+notes: Simulates another channel via principal=api. Slack itself is B14.

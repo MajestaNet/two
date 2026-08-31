@@ -1,0 +1,16 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-compile-type-repair
+architecture_case: compile-type-error-repair
+mode: offline
+fixture: types
+objective: Repair the syntax error in twice so py_compile and tests pass
+acceptance_criteria:
+  - python3 -m py_compile src/calc.py succeeds
+  - twice(3) returns 6
+allowed_paths:
+  - src/**
+  - tests/**
+oracle:
+  overlay: eval-compile-type-repair
+expected: eval-compile-type-repair
