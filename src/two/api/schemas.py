@@ -71,6 +71,8 @@ class QuestionView(BaseModel):
     options: list[Any] = Field(default_factory=list)
     recommendation: str | None = None
     reason: str | None = None
+    actor: str | None = None
+    created_at: datetime | None = None
 
 
 class ApprovalView(BaseModel):
@@ -83,6 +85,7 @@ class ApprovalView(BaseModel):
     action_digest: str
     paths: list[str] = Field(default_factory=list)
     status: str
+    created_at: datetime | None = None
 
 
 class TaskProjection(BaseModel):
@@ -185,7 +188,7 @@ class ApprovalDecideRequest(BaseModel):
     decision: Literal["approve", "reject"]
     actor: str | None = None
     comment: str | None = None
-    action_digest: str | None = None
+    action_digest: str = Field(min_length=1)
 
 
 class ApprovalDecideResponse(BaseModel):

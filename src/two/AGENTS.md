@@ -36,14 +36,16 @@ Python package for the Majesta Two control plane.
   calls. Budget policy lives in `config/policies/context.yaml`.
 - `controller/` owns workflow stages, repair/no-progress budgets, fresh
   review via `two.context.build_review_handoff` and `two.worker.plan_session`,
-  and terminal status. Inject a worker and validation in tests. It does
-  not call the model, import Slack, or import an Ollama client.
+  and terminal status. Inject a worker and validation in tests. Production
+  `two worker` drives this module (`two.recovery.drive`). It does not call
+  the model, import Slack, or import an Ollama client.
 - `worker/` supervises ACP children, the action ledger, and session resume.
-  It must not import Slack or set lifecycle `complete`. Local Qwen worker
-  count is one.
+  Default pytest uses a JSONL fixture child (ADR 0011). It must not import
+  Slack or set lifecycle `complete`. Local Qwen worker count is one.
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
-  and the `two scheduler` / `two worker` process loops. It hooks
-  `ActionLedger.recover` (no duplicate replay) and `Scheduler.start`
+  and the `two scheduler` / `two worker` process loops. `run_worker` drives
+  `WorkflowController` with `AcpPhaseWorker` and heartbeats the lease.
+  It hooks `ActionLedger.recover` (no duplicate replay) and `Scheduler.start`
   (expired leases only). Human-paused tasks stay paused. Inject health
   and worktree probes in tests.
 - `evals/` runs the architecture §18 corpus against `evals/` data.
