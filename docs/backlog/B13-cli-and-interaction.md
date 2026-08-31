@@ -19,7 +19,9 @@ loopback only.
 
 ## Current tree
 
-- `src/two/cli.py` has `version`, `profiles`, `topology` only.
+- `src/two/cli.py` has `version`, `profiles`, `topology`, `api`,
+  `scheduler`, and `worker`. It does **not** yet have task subcommands.
+- The GET/POST JSON contract is `two.projection` ([B07](B07-control-api.md)).
 - `docs/interaction-contract.md` points at §8.3.
 
 ## Out of scope
@@ -40,11 +42,12 @@ loopback only.
    - `two task reject ...`
    - `two task report ID`  
    Transport: Unix socket or `http://127.0.0.1:8741`. No Ollama URL
-   in the CLI.
+   in the CLI. Parse responses with `two.projection`.
 
 2. **Projection**  
-   Print lifecycle, stage, budgets, plan/todo, diff stats, last
-   validation, open questions. Do not query the model.
+   Print fields from `two.projection.TaskProjection`: lifecycle, stage,
+   budgets, plan/todo, diff stats, last validation, open questions.
+   Do not query the model.
 
 3. **Detach**  
    `submit` returns after ack (task queued/running). No foreground
@@ -104,13 +107,14 @@ Read first:
 3. `docs/interaction-contract.md`, `docs/channels.md`
 4. `docs/backlog/README.md` and `docs/backlog/B13-cli-and-interaction.md`
 5. `src/two/cli.py`
-6. Confirm B07 exists. If B10/B11 are missing, implement CLI against queued-task projection and mark incomplete contract tests clearly — do not fake workflow success.
+6. Confirm B07 exists (`two.projection`, routes in `docs/backlog/B07-control-api.md`). If B10/B11 are missing, implement CLI against queued-task projection and mark incomplete contract tests clearly — do not fake workflow success.
 
 Implement **only B13**. Slack is out of scope. Optional web only after CLI tests pass.
 
 Standing orders:
 
 - Architecture wins. CLI stays thin: HTTP/Unix to the API only.
+- Parse `/v1` bodies with `two.projection`. Do not invent a second schema.
 - `make ci` green. Do not call Ollama from the CLI.
 - No new dependency unless B07 already added the HTTP client stack; use that.
 - Apache 2.0 headers.

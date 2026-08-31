@@ -55,6 +55,8 @@ listed in `config/repositories/two.yaml`.
   does not open it at import time.
   `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
   `two api` lazy-imports it so `two profiles` does not load the store.
+  `src/two/projection.py` is the /v1 JSON contract (no FastAPI). CLI and
+  adapters import it instead of inventing a second schema.
   `src/two/approvals/` is durable questions, approvals, and cooperative
   pause/resume/cancel (first-writer-wins; silence is never approval).
   `src/two/scheduler/` owns the single local-model queue slot, lease
@@ -91,8 +93,8 @@ listed in `config/repositories/two.yaml`.
 
 ## Conventions
 
-- Keep the src layout. Public types stay in `types.py` and `manifest.py` with
-  no I/O.
+- Keep the src layout. Public types stay in `types.py`, `manifest.py`, and
+  `projection.py` with no I/O. `projection.py` is the /v1 client contract.
 - SQLite belongs in `store/` only.
 - `cli.py` and any `channels.*` adapter stay thin. They must not contain
   workflow policy or git worktree logic. Do not put vendor UX in
