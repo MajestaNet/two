@@ -1,0 +1,10 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: soak-slack-no-terminal
+architecture_case: soak-slack-no-terminal
+mode: soak
+objective: Slack-originated task start, inspect, answer, pause, resume, cancel, complete
+acceptance_criteria:
+  - no terminal access required
+  - adapter outage does not cancel the task
+notes: Blocked on B14. Operator checklist in evals/PROMOTION.md. CI must not mark this passed.

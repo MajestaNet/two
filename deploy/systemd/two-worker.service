@@ -1,0 +1,27 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Template. Compose remains the default unattended packaging (ADR 0005).
+# One local-Qwen ACP worker. Do not raise the replica count.
+
+[Unit]
+Description=Majesta Two ACP worker (two-worker)
+Documentation=https://github.com/MajestaNet/two
+After=network.target two-scheduler.service
+Wants=two-scheduler.service
+PartOf=two.target
+
+[Service]
+Type=simple
+Environment=TWO_DATA_DIR=%h/.local/share/two
+Environment=TWO_WORKSPACE_ROOT=%h/.local/share/two/worktrees
+EnvironmentFile=-%h/.config/two/env
+WorkingDirectory=%h/two
+ExecStart=/usr/bin/env uv run --no-dev two worker
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+[Install]
+WantedBy=two.target

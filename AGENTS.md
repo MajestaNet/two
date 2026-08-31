@@ -4,13 +4,17 @@
 
 Majesta Two is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays on
 a dedicated Mac inference host. This repository is not a Slack (or other
-messenger) product. Slack is the MVP optional adapter. The SQLite WAL store
-(`two.store`) persists tasks, events, and leases. ACP worker and messaging
-adapter are not implemented yet.
+messenger) product. Slack is the MVP optional adapter. The SQLite WAL store (`two.store`) persists tasks, events, and leases.
+The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
+the client contract. The scheduler owns the single local-model slot; the
+ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
+The workflow controller owns stage policy, budgets, fresh review, and
+terminal status. Slack remains the optional adapter and is not implemented.
 
 ## Stack
 
-Python 3.12, uv, ruff, mypy --strict on `src/two`, pytest, Pydantic v2.
+Python 3.12, uv, ruff, mypy --strict on `src/two`, pytest, Pydantic v2,
+FastAPI + uvicorn for the control API (ADR 0010).
 System `rg` (ripgrep) is used by the context broker; tests skip that path
 if it is missing. Do not add Poetry, pip-tools, or pre-commit unless an
 ADR says so.
@@ -24,11 +28,17 @@ make lint
 make typecheck
 make test
 make ci
+make eval-offline
 uv run two --help
 uv run two profiles
 uv run two topology
+uv run two api
+uv run two scheduler
+uv run two worker
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
+./scripts/bootstrap-dev-host.sh --dry-run
+./scripts/run-evals.sh --offline
 ```
 
 `make ci` is the required gate. Validation commands for this repo are also
@@ -38,21 +48,46 @@ listed in `config/repositories/two.yaml`.
 
 - `src/two/` — Python only. Package implementations live here.
   `src/two/runtime/` holds the Mac lock file, Ollama env/bind policy,
-  launchd rendering, and health classification.
+  launchd rendering, health classification, and the optional Mac HTTP poller.
   `src/two/context/` is the context broker and structured task memory
   (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
   `src/two/store/` is the SQLite WAL store (tasks, events, leases). CLI
-  does not open it.
+  does not open it at import time.
+  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
+  `two api` lazy-imports it so `two profiles` does not load the store.
+  `src/two/approvals/` is durable questions, approvals, and cooperative
+  pause/resume/cancel (first-writer-wins; silence is never approval).
+  `src/two/scheduler/` owns the single local-model queue slot, lease
+  heartbeat/reclaim, retry_wait backoff, and Mac health mapping.
+  `src/two/worker/` supervises a pinned ACP child, the action ledger, and
+  session resume. Default tests use a fake child (`@pytest.mark.live_dsh`
+  is opt-in).
+  `src/two/controller/` drives the durable workflow, binds budgets, starts a
+  fresh review session, and is the only writer of terminal status.
+  `src/two/reporting/` formats gate fragments and Stage 8 final reports.
+  `src/two/recovery/` is development-host startup recovery (architecture
+  §12.5) and the `two scheduler` / `two worker` process loops.
+  `src/two/evals/` runs the architecture §18 corpus (offline default;
+  `TWO_LIVE_EVAL=1` for live Mac cases). Soaks are not auto-passed.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
-  `soak-inference.sh` implement Phase 1 dry-run/live Mac helpers. Other
-  phase scripts remain stubs.
+  `soak-inference.sh` implement Phase 1 dry-run/live Mac helpers.
+  `bootstrap-dev-host.sh` creates `TWO_DATA_DIR` / worktrees (mode 0700)
+  and prints the Compose plan (`--dry-run` for CI).
 - `docs/` — architecture and ADRs. `docs/architecture.md` is canonical.
   `docs/setup.md` is the living operator guide. `docs/backlog/` is the
   implementation tracker (one item per file; agent prompts at the end).
-- `deploy/compose/` — Linux control-plane packaging. No Ollama image.
-- `evals/` — future evaluation corpus. No production repository clones.
+- `deploy/compose/` — Linux control-plane packaging (`api`, `scheduler`,
+  `worker`; optional `slack` profile stub). No Ollama image.
+- `deploy/systemd/` — optional user-unit templates. Compose is the default
+  unattended packaging.
+- `evals/` — evaluation corpus (architecture §18). Tasks, tiny synthetic
+  fixtures, expected overlays, and promotion checklists. No production
+  clones. Offline runner: `make eval-offline` / `python -m two.evals`.
+  Live cases need `TWO_LIVE_EVAL=1`. Soaks stay operator-owned
+  (`evals/PROMOTION.md`); CI must not mark them passed.
+  `src/two/evals/` is the runner.
 
 ## Conventions
 

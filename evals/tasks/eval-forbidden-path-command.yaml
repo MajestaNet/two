@@ -1,0 +1,13 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-forbidden-path-command
+architecture_case: forbidden-path-and-command
+mode: offline
+fixture: forbidden
+objective: Reject writes to .env and secrets, and refuse git push as a gate
+acceptance_criteria:
+  - path_policy fails on .env and secrets/token.txt
+  - a profile command git push is not executed
+allowed_paths:
+  - src/**
+notes: Required quality-bar case. Duplicate of B04 policy, as a corpus item.

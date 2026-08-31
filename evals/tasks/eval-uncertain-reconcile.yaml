@@ -1,0 +1,11 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-uncertain-reconcile
+architecture_case: uncertain-command-reconciliation
+mode: offline
+objective: Reconcile a recorded-without-result action without a second invoke
+acceptance_criteria:
+  - ledger.recover marks the action reconcile
+  - a second execute raises ActionReplayError
+  - the runner is never called
+notes: Duplicate side effects must be zero.

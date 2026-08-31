@@ -1,0 +1,18 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: misleading
+display_name: Eval misleading tests
+language: python
+validation_profile: standard
+allowed_paths:
+  - src/**
+  - tests/**
+forbidden_paths:
+  - .env
+  - secrets/**
+commands:
+  test: python3 tests/test_rem.py
+secret_scan: false
+network:
+  allow_package_downloads: false
+  allow_external_mutations: false

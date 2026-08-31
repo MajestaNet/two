@@ -58,6 +58,11 @@ class TaskRecord:
     cloud_allowed: bool
     created_at: datetime
     updated_at: datetime
+    next_attempt_at: datetime | None = None
+    retry_count: int = 0
+    active_elapsed_ms: int = 0
+    active_started_at: datetime | None = None
+    dsh_session_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,7 +89,7 @@ class EventRecord:
 
 @dataclass(frozen=True, slots=True)
 class QuestionRecord:
-    """Durable question. Resolution policy is B11, not the store."""
+    """Durable question. Status CAS lives in ``Store.resolve_question``."""
 
     id: str
     task_id: str
@@ -101,7 +106,7 @@ class QuestionRecord:
 
 @dataclass(frozen=True, slots=True)
 class ApprovalRecord:
-    """Durable approval. Digest is immutable once stored."""
+    """Durable approval. Digest is written at insert and never updated."""
 
     id: str
     task_id: str
