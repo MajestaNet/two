@@ -38,15 +38,15 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B04](B04-validation-engine.md) | Repository profiles and validation engine | 3 | B03 | done |
 | [B05](B05-context-broker.md) | Context broker and structured task memory | 4 | B03 | done |
 | [B06](B06-sqlite-store.md) | SQLite store, events, and leases | 5 | — | done |
-| [B07](B07-control-api.md) | Channel-neutral control API | 5 | B06 | planned |
-| [B08](B08-scheduler.md) | Scheduler, single slot, and Mac health | 5 | B06 | planned |
-| [B09](B09-acp-worker.md) | ACP worker, action ledger, reconciliation | 5 | B02, B03, B06, B08 | planned |
-| [B10](B10-workflow-controller.md) | Workflow controller, budgets, review, reports | 5 | B04, B05, B07, B08, B09 | planned |
-| [B11](B11-questions-approvals.md) | Questions, approvals, pause/resume/cancel | 5 | B06, B07 | planned |
-| [B12](B12-dev-host-services.md) | Development-host services and Compose | 5 | B07, B08, B09, B10 | planned |
+| [B07](B07-control-api.md) | Channel-neutral control API | 5 | B06 | done |
+| [B08](B08-scheduler.md) | Scheduler, single slot, and Mac health | 5 | B06 | done |
+| [B09](B09-acp-worker.md) | ACP worker, action ledger, reconciliation | 5 | B02, B03, B06, B08 | done |
+| [B10](B10-workflow-controller.md) | Workflow controller, budgets, review, reports | 5 | B04, B05, B07, B08, B09 | done |
+| [B11](B11-questions-approvals.md) | Questions, approvals, pause/resume/cancel | 5 | B06, B07 | done |
+| [B12](B12-dev-host-services.md) | Development-host services and Compose | 5 | B07, B08, B09, B10 | done |
 | [B13](B13-cli-and-interaction.md) | CLI client and interaction-contract tests | 6 | B07 | planned |
 | [B14](B14-slack-adapter.md) | Slack MVP adapter | 6 | B07, B11 | planned |
-| [B15](B15-evaluation-corpus.md) | Evaluation corpus and promotion gates | 5 / 18 | B03 (fixtures); B10–B12 (promotion) | planned |
+| [B15](B15-evaluation-corpus.md) | Evaluation corpus and promotion gates | 5 / 18 | B03 (fixtures); B10–B12 (promotion) | done |
 | [B16](B16-paid-model-routes.md) | Optional paid-model routes | 7 | B10 | planned |
 
 Optional thin web UI is a subsection of B13, not a second product.

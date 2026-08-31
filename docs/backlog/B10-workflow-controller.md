@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B10 |
 | Phase | 5 — Durable workflow (policy) |
-| Status | planned |
+| Status | done |
 | Depends on | B04, B05, B07, B08, B09 |
 | Blocks | B12, B15, B16 |
 | Architecture | §6.3.A, §7.1, §8, §9, §21 items 5–8, 11 |
@@ -20,9 +20,9 @@ Independent validation (B04) is authoritative.
 
 ## Current tree
 
-- `src/two/controller/` is a stub.
+- `src/two/controller/` drives stages, budgets, fresh review, and terminal status.
 - Enums for stages and lifecycle exist.
-- Manifest, policies, and (after prior items) store/API/worker exist.
+- Manifest, policies, store, API, worker, and approvals exist.
 
 ## Out of scope
 
@@ -90,11 +90,11 @@ Independent validation (B04) is authoritative.
 
 ## Acceptance criteria
 
-- [ ] All eight stages exist as `WorkflowStage` transitions with events.
-- [ ] Validation failure cannot yield `complete`.
-- [ ] Fresh review uses no implementation transcript.
-- [ ] Budgets and no-progress limits enforced.
-- [ ] Controller does not import Slack or Ollama clients.
+- [x] All eight stages exist as `WorkflowStage` transitions with events.
+- [x] Validation failure cannot yield `complete`.
+- [x] Fresh review uses no implementation transcript.
+- [x] Budgets and no-progress limits enforced.
+- [x] Controller does not import Slack or Ollama clients.
 
 ## Definition of done
 

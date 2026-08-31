@@ -1,0 +1,27 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Template. Compose remains the default unattended packaging (ADR 0005).
+# Runs recover_startup (architecture §12.5) then the scheduler tick loop.
+
+[Unit]
+Description=Majesta Two scheduler (two-scheduler)
+Documentation=https://github.com/MajestaNet/two
+After=network.target two-api.service
+Wants=two-api.service
+PartOf=two.target
+
+[Service]
+Type=simple
+Environment=TWO_DATA_DIR=%h/.local/share/two
+Environment=TWO_WORKSPACE_ROOT=%h/.local/share/two/worktrees
+EnvironmentFile=-%h/.config/two/env
+WorkingDirectory=%h/two
+ExecStart=/usr/bin/env uv run --no-dev two scheduler
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+[Install]
+WantedBy=two.target

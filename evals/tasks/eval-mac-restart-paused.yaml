@@ -1,0 +1,11 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-mac-restart-paused
+architecture_case: mac-restart-while-paused
+mode: live
+objective: Survive a Mac Ollama restart while a task is paused
+acceptance_criteria:
+  - paused lifecycle is unchanged
+  - worktree is retained
+  - resume uses the same task id after the Mac is Healthy
+notes: Documented live. Requires Darwin, native Ollama, TWO_LIVE_EVAL=1. See evals/PROMOTION.md.

@@ -1,0 +1,4 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+duplicate_side_effects: 0
+notes: recorded-without-result must reconcile; second execute must not invoke.
