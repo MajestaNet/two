@@ -1,8 +1,9 @@
 # Operations
 
 Operational startup, health, timeouts, and host services are specified in
-[architecture.md](architecture.md) section 12. Operator steps are in
-[setup.md](setup.md). Remote clients are in [remote-access.md](remote-access.md).
+[architecture.md](architecture.md) section 12. The numbered operator
+walkthrough (config, privacy, network, CLI) is in [setup.md](setup.md).
+Remote clients are in [remote-access.md](remote-access.md).
 
 Use this page as an index, not a second spec:
 

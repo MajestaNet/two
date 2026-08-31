@@ -3,6 +3,9 @@
 This repository is the **Majesta Two backend**. People talk to it through
 whatever client they want. A messenger is optional.
 
+Operator walkthrough: [setup.md](setup.md). CLI on the development host
+is enough; this page is the channel contract.
+
 The contract is [architecture.md](architecture.md) §6.3.H and §8.3: one
 task id, typed commands, stored projection (`two.projection`,
 [B07](backlog/B07-control-api.md)). Clients never query the model for

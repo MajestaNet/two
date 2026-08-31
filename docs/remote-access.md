@@ -16,7 +16,8 @@ The inference API (Ollama) is never a remote-user endpoint. Only Majesta Two
 on the development host — or the same Mac, if `topology` is `colocated` —
 calls it. Colocation still binds Ollama to `127.0.0.1`.
 
-You do not need a messenger. CLI on the host is enough.
+You do not need a messenger. CLI on the host is enough. Operator
+walkthrough (binds, tokens, `.env`): [setup.md](setup.md).
 
 ## Optional messenger from a phone
 
