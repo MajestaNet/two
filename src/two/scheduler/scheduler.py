@@ -457,11 +457,13 @@ class Scheduler:
         if result.outcome is WorkerOutcome.TRANSIENT_FAILURE:
             error_class = result.error_class or "connection"
             return self._enter_retry_wait(task, error_class, now, detail=result.detail)
+        if result.outcome is WorkerOutcome.COMPLETE:
+            # Terminal complete is controller-owned (B10 / architecture §6.3.A).
+            return task
         mapping = {
             WorkerOutcome.AWAITING_INPUT: LifecycleState.AWAITING_INPUT,
             WorkerOutcome.PAUSED: LifecycleState.PAUSED,
             WorkerOutcome.BLOCKED: LifecycleState.BLOCKED,
-            WorkerOutcome.COMPLETE: LifecycleState.COMPLETE,
             WorkerOutcome.FAILED: LifecycleState.FAILED,
             WorkerOutcome.CANCELLED: LifecycleState.CANCELLED,
         }

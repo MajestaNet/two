@@ -48,7 +48,10 @@ from two.api.schemas import (
     ValidationSummary,
 )
 from two.approvals import (
+    ApprovalNotOpenError,
+    DigestRequiredError,
     NotResumableError,
+    OpenInputError,
     StaleDigestError,
     TerminalLifecycleError,
     answer_question,
@@ -244,7 +247,7 @@ async def _resume_task(request: Request, task_id: str) -> TaskProjection:
             record = resume_task(box.store, task_id)
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except (TerminalLifecycleError, NotResumableError) as exc:
+        except (TerminalLifecycleError, NotResumableError, OpenInputError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return _project(box.store, record)
 
@@ -379,6 +382,10 @@ async def _decide_approval(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ApprovalNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except DigestRequiredError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ApprovalNotOpenError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except StaleDigestError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ApprovalDecideResponse(
@@ -488,6 +495,8 @@ def _question_view(record: QuestionRecord) -> QuestionView:
         options=list(record.options),
         recommendation=record.recommendation,
         reason=record.reason,
+        actor=record.actor,
+        created_at=record.created_at,
     )
 
 
@@ -498,6 +507,7 @@ def _approval_view(record: ApprovalRecord) -> ApprovalView:
         action_digest=record.action_digest,
         paths=list(record.paths),
         status=record.status,
+        created_at=record.created_at,
     )
 
 

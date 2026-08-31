@@ -160,7 +160,7 @@ def test_approval_decide_404_without_row(client: TestClient) -> None:
     client.post("/v1/tasks", json=MANIFEST)
     response = client.post(
         "/v1/tasks/task-123/approvals/ap-missing/decide",
-        json={"decision": "approve"},
+        json={"decision": "approve", "action_digest": "sha256:missing"},
     )
     assert response.status_code == 404
 
@@ -185,7 +185,7 @@ def test_approval_decide_persists_when_row_exists(client: TestClient, store: Sto
     assert projection["questions"][0]["id"] == "q-1"
     decided = client.post(
         "/v1/tasks/task-123/approvals/ap-1/decide",
-        json={"decision": "reject", "actor": "operator"},
+        json={"decision": "reject", "actor": "operator", "action_digest": "sha256:deadbeef"},
     )
     assert decided.status_code == 200
     body = decided.json()
@@ -246,6 +246,23 @@ def test_stale_digest_decide_is_409(client: TestClient, store: Store) -> None:
     )
     assert response.status_code == 409
     assert "stale" in response.json()["detail"]
+    assert store.get_approval("ap-1").status == "open"
+
+
+def test_missing_digest_decide_is_422(client: TestClient, store: Store) -> None:
+    client.post("/v1/tasks", json=MANIFEST)
+    store.insert_approval(
+        "ap-1",
+        "task-123",
+        action_class="dependency_lock_change",
+        action_digest="sha256:deadbeef",
+        paths=["uv.lock"],
+    )
+    response = client.post(
+        "/v1/tasks/task-123/approvals/ap-1/decide",
+        json={"decision": "approve", "actor": "operator"},
+    )
+    assert response.status_code == 422
     assert store.get_approval("ap-1").status == "open"
 
 

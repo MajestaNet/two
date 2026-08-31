@@ -126,7 +126,7 @@ class IntakeDecision:
 
 
 class PhaseWorker(Protocol):
-    """Injectable worker. Tests use a fake; production later wraps ACP (B09)."""
+    """Injectable worker. Tests use a fake; production wraps ACP (see ``two.recovery.drive``)."""
 
     def run_phase(
         self,
@@ -183,6 +183,7 @@ class DriveState:
     last_validation: ValidationResult | None = None
     last_handoff: ReviewHandoff | None = None
     last_plan: str = ""
+    final_commit: str | None = None
     block_after_review: bool = False
     findings: list[ReviewFinding] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)

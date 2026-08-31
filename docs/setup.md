@@ -23,12 +23,12 @@ in [architecture.md](architecture.md). Viability notes are in
 | SQLite WAL store | Works (`two.store.open_store`; unused by CLI) (`TWO_DATA_DIR/two.sqlite`) ([B06](backlog/B06-sqlite-store.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket) ([B07](backlog/B07-control-api.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; unused by CLI) ([B08](backlog/B08-scheduler.md)) |
-| ACP worker + action ledger | Works (`two.worker`; fake child in default pytest) ([B09](backlog/B09-acp-worker.md)) |
-| Workflow controller + reports | Works with fakes (`two.controller`; `uv run pytest tests/unit/test_controller.py`) ([B10](backlog/B10-workflow-controller.md)) |
+| ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
+| Workflow controller + reports | Works (`two.controller`; `two worker` drives stages after a lease) ([B10](backlog/B10-workflow-controller.md)) |
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 
-Last updated: 30 August 2026 (Phase 5 / 18: B15 evaluation corpus and promotion gates).
+Last updated: 31 August 2026 (Phase 5 quality: controller wired into `two worker`).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 

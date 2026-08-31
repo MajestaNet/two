@@ -28,7 +28,13 @@ from two.controller import (
     bind_budgets,
     effort_for,
 )
-from two.controller.events import EVENT_ISOLATE, EVENT_REPAIR, EVENT_REPORT, EVENT_VALIDATION
+from two.controller.events import (
+    EVENT_ISOLATE,
+    EVENT_NO_PROGRESS,
+    EVENT_REPAIR,
+    EVENT_REPORT,
+    EVENT_VALIDATION,
+)
 from two.manifest import TaskManifest
 from two.reporting import format_final_report, report_from_payload
 from two.store import Store, open_store
@@ -108,7 +114,7 @@ class FakeWorkspaceOps:
         return workspace
 
     def status(self, workspace: Workspace) -> WorkspaceStatus:
-        return WorkspaceStatus(clean=True, head=workspace.base_commit, diff_fingerprint="fp")
+        return WorkspaceStatus(clean=True, head="def456final", diff_fingerprint="fp")
 
 
 class ScriptedWorker:
@@ -162,9 +168,16 @@ class ScriptedWorker:
 
 
 class ScriptedValidation:
-    def __init__(self, tmp_path: Path, outcomes: list[bool] | None = None) -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        outcomes: list[bool] | None = None,
+        *,
+        identical_summary: str | None = None,
+    ) -> None:
         self.tmp_path = tmp_path
         self.outcomes = list(outcomes) if outcomes is not None else [True]
+        self.identical_summary = identical_summary
         self.calls = 0
 
     def run(
@@ -180,6 +193,10 @@ class ScriptedValidation:
             passed = self.outcomes.pop(0)
         else:
             passed = False
+        if self.identical_summary is not None:
+            summary = self.identical_summary
+        else:
+            summary = "ok" if passed else f"fail-{self.calls}"
         return ValidationResult(
             passed=passed,
             gates=[
@@ -187,7 +204,7 @@ class ScriptedValidation:
                     name="test",
                     passed=passed,
                     exit_code=0 if passed else 1,
-                    summary="ok" if passed else f"fail-{self.calls}",
+                    summary=summary,
                 )
             ],
             artifact_dir=self.tmp_path / "artifacts",
@@ -316,6 +333,8 @@ def test_fixture_bugfix_repair_then_complete(store: Store, tmp_path: Path) -> No
     report = report_from_payload(dict(report_events[-1].payload))
     assert report.lifecycle is LifecycleState.COMPLETE
     assert report.validation_passed is True
+    assert report.final_commit == "def456final"
+    assert report.final_commit != report.base_commit
     rendered = format_final_report(report)
     assert "controller, not the model" in rendered
 
@@ -404,7 +423,16 @@ def test_interactive_plan_waits_for_approval(store: Store, tmp_path: Path) -> No
     waiting = controller.drive("task-ask")
     assert waiting.lifecycle is LifecycleState.AWAITING_INPUT
     assert all(call.stage is not WorkflowStage.IMPLEMENT for call in worker.calls)
-    decide_approval(store, "task-ask", "task-ask-plan", decision="approve", principal="local")
+    approval = store.get_approval("task-ask-plan")
+    assert approval is not None
+    decide_approval(
+        store,
+        "task-ask",
+        "task-ask-plan",
+        decision="approve",
+        principal="local",
+        action_digest=approval.action_digest,
+    )
     done = controller.drive("task-ask")
     assert done.lifecycle is LifecycleState.COMPLETE
     assert any(call.stage is WorkflowStage.IMPLEMENT for call in worker.calls)
@@ -458,3 +486,49 @@ def test_controller_package_does_not_import_slack_or_ollama() -> None:
             assert name != "openai"
         assert "MAC_QWEN" not in source
         assert "/v1/chat/completions" not in source
+
+
+def test_no_progress_stops_after_two_identical_attempts(store: Store, tmp_path: Path) -> None:
+    validate = ScriptedValidation(
+        tmp_path,
+        outcomes=[False, False],
+        identical_summary="same failure",
+    )
+    controller, _, _, _ = _controller(store, tmp_path, validate=validate)
+    store.insert_task(_manifest(id="task-stuck", max_repair_cycles=6, no_progress_limit=2))
+    record = controller.drive("task-stuck")
+    assert record.lifecycle is LifecycleState.BLOCKED
+    events = store.list_events("task-stuck")
+    assert any(event.type == EVENT_NO_PROGRESS for event in events)
+    repairs = [event for event in events if event.type == EVENT_REPAIR]
+    assert len(repairs) == 1
+
+
+def test_drive_restores_validation_from_events(store: Store, tmp_path: Path) -> None:
+    _, _, _, workspaces = _controller(store, tmp_path)
+    store.insert_task(_manifest(id="task-restore"))
+    workspace = workspaces.create("task-restore", tmp_path / "canonical", "origin/main")
+    store.update_task(
+        "task-restore",
+        lifecycle=LifecycleState.RUNNING,
+        stage=WorkflowStage.REVIEW,
+        worktree_path=str(workspace.worktree),
+        branch=workspace.branch,
+        base_commit=workspace.base_commit,
+        set_worktree_path=True,
+        set_branch=True,
+        set_base_commit=True,
+    )
+    store.append_event(
+        "task-restore",
+        EVENT_VALIDATION,
+        {
+            "passed": True,
+            "evidence": "restored-fingerprint",
+            "gates": [{"name": "test", "passed": True, "exit_code": 0, "summary": "ok"}],
+        },
+    )
+    controller, worker, _, _ = _controller(store, tmp_path)
+    record = controller.drive("task-restore")
+    assert record.lifecycle is LifecycleState.COMPLETE
+    assert any(call.stage is WorkflowStage.REVIEW for call in worker.calls)

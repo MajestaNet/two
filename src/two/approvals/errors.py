@@ -46,3 +46,15 @@ class UnsafeTimeoutDefaultError(ApprovalsError):
 
 class PrincipalRequiredError(ApprovalsError):
     """A deciding principal id is required and must be non-empty after normalize."""
+
+
+class DigestRequiredError(ApprovalsError):
+    """Decide must include the stored action digest (architecture §8.4 / §15)."""
+
+
+class OpenInputError(ApprovalsError):
+    """Resume is refused while a question or approval is still open."""
+
+
+class ApprovalNotOpenError(ApprovalsError):
+    """Decide targeted an approval that is expired or otherwise not decidable."""
