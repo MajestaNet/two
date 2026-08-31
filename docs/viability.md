@@ -38,7 +38,8 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 ## What does not work (by design, still a setup cliff)
 
 - Mac live bootstrap requires Darwin; `--dry-run` and health fixtures work offline
-- Live ACP still needs a pinned `dsh` binary; default tests use a fake child
+- Live ACP still needs a pinned `dsh` binary; default tests use a JSONL
+  fixture child (ADR 0011), not DSH JSON-RPC
 - Slack adapter is not implemented ([B14](backlog/B14-slack-adapter.md))
 - Interactive CLI / first-party web is not implemented ([B13](backlog/B13-cli-and-interaction.md))
 - GitHub Actions may be skipped if the org has no Actions minutes

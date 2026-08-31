@@ -155,7 +155,7 @@ def assemble_report(
         branch=task.branch,
         worktree_path=task.worktree_path,
         base_commit=task.base_commit,
-        final_commit=task.base_commit,
+        final_commit=getattr(state, "final_commit", None),
         files_changed=files,
         commands=commands,
         reviewer_findings=findings,

@@ -18,17 +18,22 @@ from pathlib import Path
 
 import pytest
 
+from two.controller import WorkerInstruction, WorkerPhaseResult, WorkflowController
 from two.manifest import TaskManifest
 from two.recovery import EVENT_STARTUP_RECOVERY, LastActionClass, recover_startup
-from two.recovery.boot import run_scheduler
+from two.recovery.boot import run_scheduler, run_worker
 from two.recovery.models import WorktreeCheck
 from two.runtime.health import HealthState
 from two.runtime.poller import mac_health_probe_from_env, probe_mac_health
 from two.scheduler import Scheduler
 from two.store import ActionStatus, Store, open_store
 from two.store.models import TaskRecord
-from two.types import LifecycleState
+from two.types import LifecycleState, WorkflowStage
+from two.validation import load_default_policy
+from two.validation.results import GateResult, ValidationResult
 from two.worker import ActionLedger, ActionReplayError
+from two.workspace.identity import branch_for_task
+from two.workspace.models import Workspace, WorkspaceStatus
 
 T0 = datetime(2026, 8, 30, 12, 0, 0, tzinfo=UTC)
 
@@ -221,6 +226,112 @@ def test_run_scheduler_calls_recover_then_stops(store: Store) -> None:
     assert slept == []
     types = [event.type for event in store.list_events("task-a")]
     assert EVENT_STARTUP_RECOVERY in types
+
+
+class _DriveWorker:
+    def run_phase(
+        self,
+        task_id: str,
+        instruction: WorkerInstruction,
+        *,
+        now: object = None,
+    ) -> WorkerPhaseResult:
+        del task_id, now
+        if instruction.stage is WorkflowStage.PLAN:
+            return WorkerPhaseResult(
+                ok=True,
+                plan="Patch src/x.py",
+                files_named=("src/x.py",),
+                tests_named=("tests/test_x.py",),
+                assumptions=("fixture",),
+            )
+        if instruction.stage is WorkflowStage.IMPLEMENT:
+            return WorkerPhaseResult(
+                ok=True,
+                files_changed=("src/x.py",),
+                wrote_worktree=True,
+                summary="patched",
+            )
+        return WorkerPhaseResult(ok=True, summary="ok")
+
+
+class _DriveValidate:
+    def run(
+        self,
+        workspace: Workspace,
+        *,
+        manifest: object,
+        policy: object | None = None,
+    ) -> ValidationResult:
+        del manifest, policy
+        return ValidationResult(
+            passed=True,
+            gates=[GateResult(name="test", passed=True, exit_code=0, summary="ok")],
+            artifact_dir=workspace.worktree,
+            worktree=workspace.worktree,
+            task_id=workspace.task_id,
+        )
+
+
+class _DriveWorkspaces:
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def create(
+        self,
+        task_id: str,
+        repo_path: str | Path,
+        base_ref: str,
+        *,
+        repo_id: str | None = None,
+    ) -> Workspace:
+        del repo_path, base_ref
+        worktree = self.root / "wt" / task_id
+        worktree.mkdir(parents=True, exist_ok=True)
+        return Workspace(
+            task_id=task_id,
+            branch=branch_for_task(task_id),
+            worktree=worktree,
+            base_commit="abc",
+            repo_id=repo_id or "example-service",
+            canonical_repo=self.root / "canonical",
+        )
+
+    def status(self, workspace: Workspace) -> WorkspaceStatus:
+        return WorkspaceStatus(clean=True, head="finalhead", diff_fingerprint="fp")
+
+
+def test_run_worker_drives_controller_to_complete(store: Store, tmp_path: Path) -> None:
+    store.insert_task(_manifest(id="task-a"), lifecycle=LifecycleState.RUNNING, now=T0)
+    store.obtain_lease("task-a", "local-qwen-1", ttl_seconds=60, now=T0)
+    controller = WorkflowController(
+        store,
+        worker=_DriveWorker(),
+        validate=_DriveValidate(),
+        workspaces=_DriveWorkspaces(tmp_path),
+        locate_repository=lambda _repo: tmp_path / "canonical",
+        policy=load_default_policy(),
+        data_dir=tmp_path / "data",
+    )
+    ticks = {"n": 0}
+
+    def stop() -> bool:
+        ticks["n"] += 1
+        return ticks["n"] > 1
+
+    code = run_worker(
+        store=store,
+        controller=controller,
+        should_stop=stop,
+        sleep=lambda _s: None,
+        now=T0,
+        poll_interval=0.0,
+    )
+    assert code == 0
+    task = store.get_task("task-a")
+    assert task is not None
+    assert task.lifecycle is LifecycleState.COMPLETE
+    assert task.lifecycle is not LifecycleState.RUNNING
 
 
 def test_poller_refuses_public_origin_without_network() -> None:

@@ -50,7 +50,12 @@ def build_dsh_argv(
     binary: str = "dsh",
     session_id: str | None = None,
 ) -> list[str]:
-    """Pinned DeepSeek Harness ACP argv. Tests inject a fake child instead."""
+    """Pinned DeepSeek Harness ACP argv. Tests inject a fake child instead.
+
+    The default argv is a placeholder (ADR 0011). Real DSH ACP is JSON-RPC
+    over stdio; inject ``argv`` / ``argv_factory`` for the fixture dialect
+    or a future ACP client.
+    """
     argv = [
         binary,
         "acp",
@@ -141,6 +146,10 @@ class SupervisedChild:
             target=self._read_stdout, name="acp-child-stdout", daemon=True
         )
         self._reader.start()
+        self._err_reader = threading.Thread(
+            target=self._read_stderr, name="acp-child-stderr", daemon=True
+        )
+        self._err_reader.start()
 
     def send(self, message: Mapping[str, object]) -> None:
         """Write one JSONL command to the child stdin."""
@@ -322,3 +331,11 @@ class SupervisedChild:
             if kind == "session" and isinstance(session, str):
                 self.session_id = session
             self._messages.put(message)
+
+    def _read_stderr(self) -> None:
+        proc = self._proc
+        if proc is None or proc.stderr is None:
+            return
+        stream: IO[str] = proc.stderr
+        for _line in stream:
+            pass

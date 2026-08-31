@@ -21,7 +21,9 @@ import pytest
 
 from two.approvals import (
     DEFAULT_PRINCIPAL,
+    DigestRequiredError,
     NotResumableError,
+    OpenInputError,
     StaleDigestError,
     TerminalLifecycleError,
     UnsafeTimeoutDefaultError,
@@ -356,6 +358,50 @@ def test_resume_from_running_is_refused(store: Store) -> None:
     _seed_running(store)
     with pytest.raises(NotResumableError, match="running"):
         resume_task(store, "task-123")
+
+
+def test_resume_while_open_input_is_refused(store: Store) -> None:
+    _seed_running(store)
+    ask_question(
+        store,
+        "task-123",
+        question_id="q-open",
+        stage=WorkflowStage.PLAN,
+        options=["a", "b"],
+        reason="choose",
+        now=T0,
+    )
+    with pytest.raises(OpenInputError, match="open"):
+        resume_task(store, "task-123")
+    task = store.get_task("task-123")
+    assert task is not None
+    assert task.lifecycle is LifecycleState.AWAITING_INPUT
+
+
+def test_decide_requires_digest(store: Store) -> None:
+    _seed_running(store)
+    digest = compute_action_digest(action_class="dependency_lock_change", paths=["uv.lock"])
+    request_approval(
+        store,
+        "task-123",
+        approval_id="ap-1",
+        action_class="dependency_lock_change",
+        paths=["uv.lock"],
+        action_digest=digest,
+        now=T0,
+    )
+    with pytest.raises(DigestRequiredError):
+        decide_approval(
+            store,
+            "task-123",
+            "ap-1",
+            decision="approve",
+            principal="operator",
+            now=T0,
+        )
+    row = store.get_approval("ap-1")
+    assert row is not None
+    assert row.status == "open"
 
 
 def test_empty_principal_becomes_local(store: Store) -> None:
