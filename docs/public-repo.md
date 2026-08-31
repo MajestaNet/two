@@ -15,7 +15,7 @@ copyright holder is MajestaNet. See [ADR 0008](adrs/0008-majesta-two-identity.md
 
 ## Must never be published
 
-- `.env` and real tokens (Slack, cloud, SSH keys)
+- `.env` and real tokens (Slack, GitHub App, cloud, SSH keys)
 - Real private-network hostnames or Mac bind addresses
 - Model weight files (`*.gguf`, `*.mlx`, `models/`)
 - SQLite files, worktrees, and task artifacts (`var/`, `data/`, `*.db`)

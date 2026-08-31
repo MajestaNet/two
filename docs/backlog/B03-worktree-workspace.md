@@ -6,7 +6,7 @@
 | Phase | 3 — Safe repository execution |
 | Status | done |
 | Depends on | none |
-| Blocks | B04, B05, B09, B15 |
+| Blocks | B04, B05, B09, B15, B17 (export; do not add push here) |
 | Architecture | §6.3.D, §8.2 Stage 2, §15, §21 items 4 and 6 |
 
 ## Goal
@@ -32,6 +32,9 @@ rebase of shared branches, or deploy.
 - Controller lifecycle states.
 - Bare-mirror optimization can be a follow-up inside this module if
   time remains; a simple clone+worktree is enough for MVP tests.
+- GitHub push / draft PR export ([B17](B17-github-export.md),
+  [ADR 0012](../adrs/0012-github-export-adapter.md)). Do not add `push`
+  to this module.
 
 ## Implementation plan
 
