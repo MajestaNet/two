@@ -39,6 +39,10 @@ Exit:   0 healthy; 1 cold/busy (retryable); 2 degraded/unavailable
   --stdin           Classify a JSON object from stdin
   --expected-alias  Production alias (default: qwen38-agent-16k)
 
+Run this from the Linux development host against the Mac (or 127.0.0.1 when
+colocated). Do not probe a public bind. two-api process health is
+GET http://127.0.0.1:8741/health; this script classifies Mac inference.
+
 No live network is required for --dry-run or --fixture-dir.
 EOF
 }

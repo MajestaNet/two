@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B11 |
 | Phase | 5 — Durable workflow (human boundaries) |
-| Status | planned |
+| Status | done |
 | Depends on | B06, B07 |
 | Blocks | B14 |
 | Architecture | §8.3 items 8–9, §8.4, §15, §21 items 13–16 |
@@ -19,9 +19,10 @@ writes the records and API).
 
 ## Current tree
 
-- `src/two/approvals/` is a stub.
-- Store tables for questions/approvals specified in B06.
-- API stubs for decide/pause in B07.
+- `src/two/approvals/` implements ask/answer/decide, timeout policy, and
+  cooperative pause/resume/cancel. Store helpers `resolve_question`,
+  `resolve_approval`, and `expire_open_input` commit first-writer-wins
+  status changes. B07 decide/pause/resume/cancel routes call this module.
 
 ## Out of scope
 
@@ -68,10 +69,10 @@ writes the records and API).
 
 ## Acceptance criteria
 
-- [ ] Silence ≠ approval.
-- [ ] Digest mismatch rejected.
-- [ ] `awaiting_input` is persisted so B08 can release the slot.
-- [ ] CLI/API can resolve questions without Slack.
+- [x] Silence ≠ approval.
+- [x] Digest mismatch rejected.
+- [x] `awaiting_input` is persisted so B08 can release the slot.
+- [x] CLI/API can resolve questions without Slack.
 
 ## Definition of done
 

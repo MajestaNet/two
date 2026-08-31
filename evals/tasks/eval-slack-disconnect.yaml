@@ -1,0 +1,11 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-slack-disconnect
+architecture_case: slack-disconnect-duplicate
+mode: skip
+skip_reason: B14 Slack adapter is not in this tree
+objective: Slack disconnect, reconnect, and duplicate-event delivery
+acceptance_criteria:
+  - duplicate Slack events do not duplicate side effects
+  - adapter outage does not cancel a running task
+notes: Skip marker until B14. Do not fake a green channel test.
