@@ -65,3 +65,15 @@ def test_example_repository_profile_exists() -> None:
     assert profile.is_file()
     data = yaml.safe_load(profile.read_text(encoding="utf-8"))
     assert data["id"] == "example-service"
+
+
+def test_operator_task_example_parses_as_manifest() -> None:
+    path = Path("config/examples/task.example.yaml")
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert isinstance(payload, dict)
+    manifest = TaskManifest.model_validate(payload)
+    assert manifest.id == "task-123"
+    assert manifest.cloud_allowed is False
+    assert manifest.validation_profile == "example-service"
+    assert manifest.repository.startswith("/")
+    assert "canonical-checkout" in manifest.repository

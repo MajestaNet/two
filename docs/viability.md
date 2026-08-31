@@ -6,27 +6,34 @@ in [setup.md](setup.md).
 
 ## Verdict
 
-The foundation is a **viable public-repo starting point** for agentic
-implementation. It is **not** a runnable development agent yet. Someone
-with a Mac and a Linux box cannot complete a coding task with this
-checkout. They can clone, run `make ci`, read the architecture, and
-choose a hardware and access profile.
+The control plane, CLI, and offline gates are in place. An operator with
+a Linux development host can clone, run `make ci`, start `two api` /
+`scheduler` / `worker`, and drive tasks with `two task …` on loopback.
 
-Ease of setup today is **good for contributors, poor for operators**.
-That is acceptable for this phase if [setup.md](setup.md) stays current.
+A **live coding task** still needs a Mac running native Ollama plus a
+DeepSeek Harness child that speaks the supervisor protocol. Default tests
+use a JSONL fixture child; a stock `dsh` binary does not yet complete ACP
+([ADR 0011](adrs/0011-jsonl-acp-supervisor.md)). Slack and paid-model
+routes are optional and not implemented.
+
+Ease of setup is **good for contributors**, **usable for CLI operators**
+if they follow [setup.md](setup.md) (privacy and network first), and
+**still a cliff** for a first unattended model run (Mac bind + DSH pin).
 
 ## What actually works
 
 - Clone, `uv sync --dev`, `make ci`, `two --help`, `two profiles`,
   `two topology`, `two api`, `two scheduler`, `two worker`
+- First-party CLI: `two task submit|show|message|pause|resume|cancel|
+  approve|reject|answer|report` against the loopback API ([B13](backlog/B13-cli-and-interaction.md))
 - Apache 2.0, ignore rules, AGENTS.md, self-profile for later dogfood
 - Documented default inference profile (`m24-qwen38-16k`) plus larger-host
   profiles in `config/inference/profiles.yaml`
 - Backend-first channels: CLI/API required; Slack is the optional MVP adapter
 - Deployment topology: `split` default, `colocated` optional (`two topology`)
-- Task git worktrees (`two.workspace`; unused by CLI)
-- Independent validation gates in the worktree (`two.validation`; unused by CLI)
-- Context broker and structured task memory (`two.context`; unused by CLI)
+- Task git worktrees (`two.workspace`)
+- Independent validation gates in the worktree (`two.validation`)
+- Context broker and structured task memory (`two.context`)
 - SQLite WAL store, control API, scheduler, ACP worker, workflow controller,
   approvals, and startup recovery (`two.recovery.recover_startup`)
 - Compose services `api`, `scheduler`, `worker` (no Ollama image; host
@@ -38,10 +45,10 @@ That is acceptable for this phase if [setup.md](setup.md) stays current.
 ## What does not work (by design, still a setup cliff)
 
 - Mac live bootstrap requires Darwin; `--dry-run` and health fixtures work offline
-- Live ACP still needs a pinned `dsh` binary; default tests use a JSONL
-  fixture child (ADR 0011), not DSH JSON-RPC
+- Live ACP still needs a pinned `dsh` binary that speaks JSON-RPC; default
+  tests use a JSONL fixture child (ADR 0011)
 - Slack adapter is not implemented ([B14](backlog/B14-slack-adapter.md))
-- Interactive CLI / first-party web is not implemented ([B13](backlog/B13-cli-and-interaction.md))
+- Optional loopback web UI was skipped in B13
 - GitHub Actions may be skipped if the org has no Actions minutes
 
 Biggest viability risk: DeepSeek Harness remains a developer preview
@@ -57,16 +64,19 @@ Implementation work after this scaffold is tracked in
 ## Ease-of-setup score (operator)
 
 1. **Contributor laptop** — easy. Python 3.12 + uv.
-2. **Two-machine private network (`split`)** — the hard part if you use
+2. **CLI on the development host** — the intended first client. Start
+   `two api` (loopback), then `two task submit`. No Slack. See setup.md.
+3. **Two-machine private network (`split`)** — the hard part if you use
    the 24 GB appliance layout. Stable hostname, no Mac sleep, firewall.
-3. **One larger Mac (`colocated`)** — drops the LAN hop, not DSH
+4. **One larger Mac (`colocated`)** — drops the LAN hop, not DSH
    pinning or disable-sleep. Do not use this to “simplify” a 24 GB Mini.
-4. **Optional messenger (Slack MVP)** — easy *once an adapter exists*.
+5. **Optional messenger (Slack MVP)** — easy *once an adapter exists*.
    Outbound only. You do not port-forward Majesta Two or Ollama. The backend
    runs without any messenger.
-5. **Web/CLI from another network** — needs an overlay (Tailscale is the
-   default recommendation). A public reverse proxy is the wrong default.
-6. **Docker from day one** — useful for the *control plane* on Linux,
+6. **Web/CLI from another network** — needs an overlay (Tailscale is the
+   default recommendation) or SSH local-forward. A public reverse proxy is
+   the wrong default.
+7. **Docker from day one** — useful for the *control plane* on Linux,
    not for Ollama on the Mac, and not required to contribute.
 
 ## Decisions this review locked
