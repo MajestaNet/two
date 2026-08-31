@@ -1,0 +1,11 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: eval-compaction-session-resume
+architecture_case: compaction-and-session-resume
+mode: offline
+objective: Compact at 72 percent of 16K and resume or hand off the same task id
+acceptance_criteria:
+  - should_compact is true at 72 percent of 16384 tokens
+  - a valid session id resumes
+  - an invalid session starts fresh with the same task id
+notes: Uses two.context.should_compact and two.worker.plan_session.

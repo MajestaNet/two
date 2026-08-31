@@ -1,0 +1,16 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: navigate
+display_name: Eval navigate
+language: python
+validation_profile: standard
+allowed_paths:
+  - src/**
+forbidden_paths:
+  - .env
+  - secrets/**
+commands: {}
+secret_scan: false
+network:
+  allow_package_downloads: false
+  allow_external_mutations: false

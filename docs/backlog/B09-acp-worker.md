@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B09 |
 | Phase | 5 — Durable workflow (execution) |
-| Status | planned |
+| Status | done |
 | Depends on | B02, B03, B06, B08 |
 | Blocks | B10, B12 |
 | Architecture | §6.3.G, §10, §12.4–12.5, §14, §21 items 3, 6, 12 |
@@ -18,9 +18,10 @@ task lifetime; DSH does not.
 
 ## Current tree
 
-- `src/two/worker/` is a stub.
-- B02 pins DSH and provider config; B06 has `actions` rows; B08
-  grants the single slot.
+- `src/two/worker/` supervises a fake or pinned ACP child, records the
+  action ledger before tool execution, and reconciles unknown outcomes.
+- Schema v3 adds `tasks.dsh_session_id` for session resume.
+- Default pytest uses `tests/unit/fixtures/acp/fake_acp_child.py`.
 
 ## Out of scope
 
@@ -77,11 +78,11 @@ task lifetime; DSH does not.
 
 ## Acceptance criteria
 
-- [ ] Worker count 1 for local Qwen.
-- [ ] At-most-once automatic replay proven in tests.
-- [ ] Worktree never auto-discarded on cancel/crash.
-- [ ] Task identity preserved across child restart.
-- [ ] Worker does not import Slack or set `complete`.
+- [x] Worker count 1 for local Qwen.
+- [x] At-most-once automatic replay proven in tests.
+- [x] Worktree never auto-discarded on cancel/crash.
+- [x] Task identity preserved across child restart.
+- [x] Worker does not import Slack or set `complete`.
 
 ## Definition of done
 

@@ -1,0 +1,6 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+changed_paths: []
+validation_passed: false
+duplicate_side_effects: 0
+notes: Path policy must fail; git push must not execute.

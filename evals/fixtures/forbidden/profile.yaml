@@ -1,0 +1,17 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+id: forbidden
+display_name: Eval forbidden paths
+language: python
+validation_profile: standard
+allowed_paths:
+  - src/**
+forbidden_paths:
+  - .env
+  - secrets/**
+commands:
+  test: python3 -m py_compile src/ok.py
+secret_scan: true
+network:
+  allow_package_downloads: false
+  allow_external_mutations: false
