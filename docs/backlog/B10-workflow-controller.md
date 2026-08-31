@@ -6,7 +6,7 @@
 | Phase | 5 — Durable workflow (policy) |
 | Status | done |
 | Depends on | B04, B05, B07, B08, B09 |
-| Blocks | B12, B15, B16 |
+| Blocks | B12, B15, B16, B17 |
 | Architecture | §6.3.A, §7.1, §8, §9, §21 items 5–8, 11 |
 
 ## Goal

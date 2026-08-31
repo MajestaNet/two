@@ -18,5 +18,7 @@ Configuration is data. Do not put Python here.
   Do not collapse Ollama into the harness.
 - `access/remote.yaml` records API bind policy. Slack under `channels/`
   is the MVP adapter template, not a required service.
+- GitHub App credentials, when they exist, are env-only. Do not add a
+  local git forge under `config/` by default (ADR 0012).
 - Changing task-manifest fields, the default inference profile, or cloud
   defaults requires an ADR.

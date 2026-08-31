@@ -25,6 +25,7 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 - [Unattended operations](docs/unattended-operations.md)
 - [Interaction contract](docs/interaction-contract.md)
 - [Task manifest](docs/task-manifest.md)
+- [Source-control export](docs/source-control-export.md) — local worktree handoff today; GitHub App later (ADR 0012)
 - [Public-repo hygiene](docs/public-repo.md)
 - [Implementation backlog](docs/backlog/README.md) — one executable item per file, with agent prompts
 

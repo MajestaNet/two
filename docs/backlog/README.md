@@ -2,8 +2,9 @@
 
 Executable slices of [architecture.md](../architecture.md) §20. The
 foundation scaffold (package layout, types, manifests, CLI help, config
-templates) is already in the tree. These items are the remaining work to
-reach MVP acceptance in architecture §21.
+templates) is already in the tree. B01–B16 are the remaining work to
+reach MVP acceptance in architecture §21. B17 is post-MVP (ADR 0012)
+and does not block §21.
 
 Each item is one markdown file. **Status is the tracker.** Update the
 item file and this table in the same PR that lands the work. Do not
@@ -48,15 +49,17 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B14](B14-slack-adapter.md) | Slack MVP adapter | 6 | B07, B11 | planned |
 | [B15](B15-evaluation-corpus.md) | Evaluation corpus and promotion gates | 5 / 18 | B03 (fixtures); B10–B12 (promotion) | done |
 | [B16](B16-paid-model-routes.md) | Optional paid-model routes | 7 | B10 | planned |
+| [B17](B17-github-export.md) | GitHub App source-control export | 8 | B03, B10, B11 | planned |
 
 Optional thin web UI is a subsection of B13, not a second product.
+B17 is parked: local worktree handoff remains the MVP.
 
 ## Recommended order
 
 Default (matches architecture §20):
 
 ```text
-B01 → B02 → B03 → B04 → B05 → B06 → B07 → B08 → B09 → B10 → B11 → B12 → B13 → B14 → B15 → B16
+B01 → B02 → B03 → B04 → B05 → B06 → B07 → B08 → B09 → B10 → B11 → B12 → B13 → B14 → B15 → B16 → B17
 ```
 
 Safe parallelization while the tree is still a scaffold:
@@ -79,6 +82,7 @@ flowchart LR
   B14[B14 Slack]
   B15[B15 Evals]
   B16[B16 Paid]
+  B17[B17 GitHub export]
   B01 --> B02
   B03 --> B04
   B03 --> B05
@@ -97,6 +101,9 @@ flowchart LR
   B11 --> B14
   B10 --> B15
   B10 --> B16
+  B03 --> B17
+  B10 --> B17
+  B11 --> B17
 ```
 
 B01, B03, and B06 have no code dependencies on each other. An agent
@@ -115,7 +122,10 @@ These apply even if an agentic prompt is pasted without this README:
   `SPDX-License-Identifier: Apache-2.0`.
 - Do not add a runtime dependency unless the item or an ADR allows it.
 - Do not bind Ollama or the Majesta Two API to a public interface.
-- Do not merge, push, release, or deploy from agent automation.
+- Do not merge, push, release, or deploy from the agent loop
+  (`workspace`, DSH, worker). Approved GitHub export is ADR 0012 /
+  B17 and is not implemented; do not add `push` to B03.
 - Do not reimplement the DeepSeek Harness agent loop.
 - Slack is the MVP adapter only; this repo is the backend.
-- Unit tests stay offline: no live Mac, Slack, Ollama, or paid model.
+- Unit tests stay offline: no live Mac, Slack, Ollama, GitHub, or
+  paid model.

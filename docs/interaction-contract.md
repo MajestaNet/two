@@ -12,4 +12,6 @@ never query the model for status. Slack is the MVP adapter only; see
 The CLI (`two task …`) is the first-party client. Offline coverage lives in
 `tests/unit/test_interaction_contract.py` ([B13](backlog/B13-cli-and-interaction.md)).
 Checkpoint restore remains internal to the workflow controller; there is no
-HTTP checkpoint endpoint for clients.
+HTTP checkpoint endpoint for clients. GitHub export of the task branch is
+not part of this contract; see
+[source-control-export.md](source-control-export.md).

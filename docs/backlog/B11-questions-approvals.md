@@ -6,7 +6,7 @@
 | Phase | 5 — Durable workflow (human boundaries) |
 | Status | done |
 | Depends on | B06, B07 |
-| Blocks | B14 |
+| Blocks | B14, B17 |
 | Architecture | §8.3 items 8–9, §8.4, §15, §21 items 13–16 |
 
 ## Goal
