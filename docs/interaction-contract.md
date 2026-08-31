@@ -9,6 +9,7 @@ same authoritative task state from the control API. The JSON shape is
 never query the model for status. Slack is the MVP adapter only; see
 [channels.md](channels.md).
 
-Later phases should test these behaviors independently of widgets, slash
-commands, or ACP call shapes. That work is backlog
-[B13](backlog/B13-cli-and-interaction.md).
+The CLI (`two task …`) is the first-party client. Offline coverage lives in
+`tests/unit/test_interaction_contract.py` ([B13](backlog/B13-cli-and-interaction.md)).
+Checkpoint restore remains internal to the workflow controller; there is no
+HTTP checkpoint endpoint for clients.
