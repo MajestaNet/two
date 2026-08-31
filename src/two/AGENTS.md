@@ -3,7 +3,8 @@
 Python package for the Majesta Two control plane.
 
 - Keep enums in `types.py` and the task request in `manifest.py`. No I/O in
-  those modules.
+  those modules. `projection.py` is the /v1 client contract (no I/O, no
+  FastAPI). CLI and `channels.*` import it.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `runtime/` parses `models.lock`, emits the Ollama env contract, renders
@@ -16,7 +17,8 @@ Python package for the Majesta Two control plane.
   `two.api.server`.
 - `api/` maps HTTP to `two.store` and `two.approvals`. It must not import
   `two.workspace` git operations, `two.channels.slack`, or an Ollama
-  client. Bind loopback or a Unix socket by default (ADR 0010).
+  client. Bind loopback or a Unix socket by default (ADR 0010). Request
+  and projection bodies live in `two.projection`.
 - `approvals/` owns question/approval resolution and pause/resume/cancel
   lifecycle policy. Silence is never approval. Digests are immutable.
   It does not import git, Slack, or the model.

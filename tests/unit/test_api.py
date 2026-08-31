@@ -72,7 +72,9 @@ def test_health_is_process_health(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     body = response.json()
-    assert body == {"status": "ok", "service": "two-api"}
+    assert body["status"] == "ok"
+    assert body["service"] == "two-api"
+    assert body["store"] == "ok"
     assert "ollama" not in body
     assert "qwen" not in str(body).lower()
 
@@ -82,7 +84,10 @@ def test_create_task_then_get_projection(client: TestClient, store: Store) -> No
     assert created.status_code == 201
     assert created.headers["location"] == "/v1/tasks/task-123"
     body = created.json()
+    assert body["schema_version"] == 1
     assert body["id"] == "task-123"
+    assert body["cloud_allowed"] is False
+    assert body["base_commit"] is None
     assert body["objective"] == MANIFEST["objective"]
     assert body["lifecycle"] == LifecycleState.QUEUED.value
     assert body["stage"] == WorkflowStage.INTAKE.value
@@ -106,7 +111,9 @@ def test_duplicate_create_is_409(client: TestClient) -> None:
     assert client.post("/v1/tasks", json=MANIFEST).status_code == 201
     duplicate = client.post("/v1/tasks", json=MANIFEST)
     assert duplicate.status_code == 409
-    assert "already exists" in duplicate.json()["detail"]
+    body = duplicate.json()
+    assert "already exists" in body["detail"]
+    assert body["error"]["code"] == "duplicate_task"
 
 
 def test_unknown_task_is_404(client: TestClient) -> None:
@@ -144,6 +151,34 @@ def test_post_message_persists_event(client: TestClient, store: Store) -> None:
     assert event is not None
     assert event.type == "task.message"
     assert event.payload["text"] == "prefer the lock on the row"
+
+
+def test_list_tasks_and_events(client: TestClient) -> None:
+    client.post("/v1/tasks", json=MANIFEST)
+    listed = client.get("/v1/tasks")
+    assert listed.status_code == 200
+    page = listed.json()
+    assert page["limit"] == 50
+    assert page["tasks"][0]["id"] == "task-123"
+    events = client.get("/v1/tasks/task-123/events")
+    assert events.status_code == 200
+    payload = events.json()
+    assert payload["task_id"] == "task-123"
+    types = [item["type"] for item in payload["events"]]
+    assert "task.created" in types
+
+
+def test_pause_accepts_optional_principal(client: TestClient, store: Store) -> None:
+    client.post("/v1/tasks", json=MANIFEST)
+    paused = client.post(
+        "/v1/tasks/task-123/pause",
+        json={"principal": "cli:operator", "reason": "step away"},
+    )
+    assert paused.status_code == 200
+    assert paused.json()["lifecycle"] == "paused"
+    event = store.list_events("task-123")[-1]
+    assert event.type == "task.paused"
+    assert event.payload["principal"] == "cli:operator"
 
 
 def test_report_placeholder(client: TestClient) -> None:
