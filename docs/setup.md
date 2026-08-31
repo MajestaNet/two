@@ -14,7 +14,8 @@ in [architecture.md](architecture.md). Viability notes are in
 | Serve Qwen on the Mac | Scripts exist (`bootstrap-mac.sh`, `health-check.sh`, `soak-inference.sh`); live path requires a Mac ([B01](backlog/B01-mac-inference-appliance.md)) |
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
 | Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
-| CLI/web from another network | Overlay (Tailscale); not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
+| CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task. Optional loopback web UI is later ([B13](backlog/B13-cli-and-interaction.md)) |
+| CLI/web from another network | Overlay (Tailscale); CLI uses `--url` / `--socket` / `--token` or `TWO_API_*`. Web UI not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Task worktrees | Works (`two.workspace`; unused by CLI) ([B03](backlog/B03-worktree-workspace.md)) |
@@ -28,7 +29,7 @@ in [architecture.md](architecture.md). Viability notes are in
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 
-Last updated: 31 August 2026 (B07 client contract freeze: `two.projection`, event catalog, `/v1` list/events).
+Last updated: 31 August 2026 (B13 CLI client: `two task submit/show/pause/report` against the loopback control API).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -83,6 +84,10 @@ uv run two --help
 uv run two profiles
 uv run two topology
 uv run two api
+uv run two task submit path/to/MANIFEST.yaml
+uv run two task show task-123
+uv run two task pause task-123
+uv run two task report task-123
 ```
 
 Copy `.env.example` to `.env` only on the machine that will run services.
@@ -94,6 +99,15 @@ B04 artifact tree. The SQLite WAL store is
 `TWO_DATA_DIR/two.sqlite` ([B06](backlog/B06-sqlite-store.md)); the CLI
 does not open it at import time. Start the control API with
 `uv run two api` (default bind `127.0.0.1:8741`, [B07](backlog/B07-control-api.md)).
+The CLI talks **only** to that API (`two task …`, [B13](backlog/B13-cli-and-interaction.md)):
+`--url` (default `http://127.0.0.1:8741`), `--socket`, `--token`, or
+`TWO_API_BIND` / `TWO_API_PORT` / `TWO_API_SOCKET` / `TWO_API_TOKEN`.
+`two task submit MANIFEST.yaml` returns after the API ack (task `queued`);
+it does not start a worker. Closing the CLI detaches and does not cancel
+the task. `two task show` prints the `two.projection.TaskProjection`
+(lifecycle, stage, budgets, plan/todos, diff stats and paths, validation
+gates, open questions/approvals, branch) — never the full patch and never
+by querying the model. `two profiles` / `two topology` still need no API.
 Loopback and Unix sockets use local-trust authentication — do not expose
 that process. Non-loopback binds (private overlay) require `TWO_API_TOKEN`.
 Questions and approvals are durable rows on that API ([B11](backlog/B11-questions-approvals.md),

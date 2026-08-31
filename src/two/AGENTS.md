@@ -15,6 +15,12 @@ Python package for the Majesta Two control plane.
 - `store/` is the SQLite WAL store (`open_store`). Do not open databases
   from `cli.py` at import time. The `two api` subcommand lazy-imports
   `two.api.server`.
+- `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
+  including AF_UNIX). CLI task subcommands lazy-import it. Parse bodies with
+  `two.projection`. Accept an injectable request callable for in-process
+  TestClient tests. Do not import the store, git, Slack, or Ollama.
+- `cli_task.py` formats projections and dispatches `two task …`. No workflow
+  policy.
 - `api/` maps HTTP to `two.store` and `two.approvals`. It must not import
   `two.workspace` git operations, `two.channels.slack`, or an Ollama
   client. Bind loopback or a Unix socket by default (ADR 0010). Request
