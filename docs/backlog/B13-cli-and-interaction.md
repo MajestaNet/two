@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B13 |
 | Phase | 6 — Conversational control |
-| Status | planned |
+| Status | done |
 | Depends on | B07 (B10/B11 for full behaviors) |
 | Blocks | B14 (shared projection), B15 channel-free evals |
 | Architecture | §8.3, §21 items 13, 15 |
@@ -19,10 +19,17 @@ loopback only.
 
 ## Current tree
 
-- `src/two/cli.py` has `version`, `profiles`, `topology`, `api`,
-  `scheduler`, and `worker`. It does **not** yet have task subcommands.
-- The GET/POST JSON contract is `two.projection` ([B07](B07-control-api.md)).
-- `docs/interaction-contract.md` points at §8.3.
+- `src/two/client.py` — stdlib HTTP/Unix `/v1` client (`urllib` /
+  `http.client`, including `AF_UNIX`). Parses bodies with `two.projection`.
+  Tests inject FastAPI `TestClient` as a transport.
+- `src/two/cli.py` + `src/two/cli_task.py` — `two task submit|show|message|
+  pause|resume|cancel|approve|reject|answer|report`. Lazy-imports the
+  client. Does not open the store.
+- Coverage: `tests/unit/test_interaction_contract.py`,
+  `tests/unit/test_client.py`, `tests/unit/test_cli.py`.
+- Optional loopback web UI was **skipped**. CLI + interaction-contract
+  tests fill this item. Remaining web work is a later follow-up on the
+  same `two.projection` JSON, loopback only, no second state store.
 
 ## Out of scope
 
@@ -30,6 +37,7 @@ loopback only.
 - Slack (B14).
 - Token-by-token model streaming in the CLI (progress is from store
   events).
+- Optional loopback HTML view (skipped; not faked).
 
 ## Implementation plan
 
@@ -40,25 +48,26 @@ loopback only.
    - `two task pause|resume|cancel ID`
    - `two task approve ID APPROVAL_ID --digest ...`
    - `two task reject ...`
-   - `two task report ID`  
+   - `two task answer ID QUESTION_ID --text ...`
+   - `two task report ID`
    Transport: Unix socket or `http://127.0.0.1:8741`. No Ollama URL
    in the CLI. Parse responses with `two.projection`.
 
-2. **Projection**  
+2. **Projection**
    Print fields from `two.projection.TaskProjection`: lifecycle, stage,
    budgets, plan/todo, diff stats, last validation, open questions.
    Do not query the model.
 
-3. **Detach**  
+3. **Detach**
    `submit` returns after ack (task queued/running). No foreground
    agent loop in the CLI.
 
-4. **Optional web**  
-   If time: a minimal loopback HTML view of `GET /v1/tasks/{id}`.
-   Same JSON. No second state store. Skip if CLI + tests fill the
-   item; note remaining work in the item file rather than a fake UI.
+4. **Optional web**
+   Skipped. CLI + tests fill the item. Remaining work: a minimal
+   loopback HTML view of `GET /v1/tasks/{id}`. Same JSON. No second
+   state store.
 
-5. **Interaction-contract tests** (`tests/unit` or `tests/integration`)
+5. **Interaction-contract tests** (`tests/unit/test_interaction_contract.py`)
    Map §8.3:
 
    | # | Behavior | How to test without a browser |
@@ -68,22 +77,22 @@ loopback only.
    | 3 | Modes | review-only rejected write already in B10; CLI passes mode through |
    | 4 | Visible progress | show output includes stage and budgets |
    | 5 | Diff-first | show includes diff summary field, not only chat |
-   | 6 | Checkpoints | if B10 exposes checkpoint restore, CLI has a command; else xfail with note |
+   | 6 | Checkpoints | xfail: B10 restore is internal only; no HTTP checkpoint endpoint |
    | 7 | Tests as evidence | failed gate visible in show |
-   | 8 | Background | after submit, process exit 0 while store still `running` |
+   | 8 | Background | after submit, process exit 0 while store still `queued` |
    | 9 | Material questions | open question listed; CLI answer posts to API |
    | 10 | Handoff | report command prints branch and risks |
 
-6. **Docs**  
+6. **Docs**
    `docs/setup.md` CLI examples. `docs/interaction-contract.md` stays
    thin but can link to the test module.
 
 ## Acceptance criteria
 
-- [ ] CLI contains no git/worktree/scheduler policy.
-- [ ] Detach-on-exit proven.
-- [ ] Same JSON fields as API projection.
-- [ ] Backend unused messenger still works.
+- [x] CLI contains no git/worktree/scheduler policy.
+- [x] Detach-on-exit proven.
+- [x] Same JSON fields as API projection.
+- [x] Backend unused messenger still works.
 
 ## Definition of done
 
@@ -98,35 +107,5 @@ this repository checked out.
 
 ---
 
-You are implementing **Majesta Two backlog item B13 — CLI client and interaction-contract tests**.
-
-Read first:
-
-1. `AGENTS.md`
-2. `docs/architecture.md` section 8.3
-3. `docs/interaction-contract.md`, `docs/channels.md`
-4. `docs/backlog/README.md` and `docs/backlog/B13-cli-and-interaction.md`
-5. `src/two/cli.py`
-6. Confirm B07 exists (`two.projection`, routes in `docs/backlog/B07-control-api.md`). If B10/B11 are missing, implement CLI against queued-task projection and mark incomplete contract tests clearly — do not fake workflow success.
-
-Implement **only B13**. Slack is out of scope. Optional web only after CLI tests pass.
-
-Standing orders:
-
-- Architecture wins. CLI stays thin: HTTP/Unix to the API only.
-- Parse `/v1` bodies with `two.projection`. Do not invent a second schema.
-- `make ci` green. Do not call Ollama from the CLI.
-- No new dependency unless B07 already added the HTTP client stack; use that.
-- Apache 2.0 headers.
-- Closing the CLI must not cancel tasks.
-
-Concrete work:
-
-1. Add task subcommands listed in this item, all API-backed.
-2. Interaction-contract tests for the ten behaviors, using fakes/store.
-3. Optional loopback web only if CLI is complete.
-4. Update `docs/setup.md` and AGENTS.md command list. Mark B13 `done` when criteria pass.
-
-Commit: `feat: add API-backed CLI and interaction-contract tests`.
-
-Done when: submit/show/pause/report work without importing workspace git, detach test passes, `make ci` is green.
+This item is **done**. Do not re-implement the CLI client. Optional
+loopback web was skipped; do not fake a UI. Slack remains B14.

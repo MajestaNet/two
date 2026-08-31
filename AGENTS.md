@@ -35,6 +35,17 @@ uv run two topology
 uv run two api
 uv run two scheduler
 uv run two worker
+uv run two task --help
+uv run two task submit MANIFEST.yaml
+uv run two task show ID
+uv run two task message ID --text ...
+uv run two task pause ID
+uv run two task resume ID
+uv run two task cancel ID
+uv run two task approve ID APPROVAL_ID --digest ...
+uv run two task reject ID APPROVAL_ID --digest ...
+uv run two task answer ID QUESTION_ID --text ...
+uv run two task report ID
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
 ./scripts/bootstrap-dev-host.sh --dry-run
@@ -57,6 +68,9 @@ listed in `config/repositories/two.yaml`.
   `two api` lazy-imports it so `two profiles` does not load the store.
   `src/two/projection.py` is the /v1 JSON contract (no FastAPI). CLI and
   adapters import it instead of inventing a second schema.
+  `src/two/client.py` is the stdlib HTTP/Unix control-API client (B13).
+  Task subcommands in `cli.py` / `cli_task.py` lazy-import it the same way
+  `two api` lazy-imports the server. Tests inject FastAPI TestClient.
   `src/two/approvals/` is durable questions, approvals, and cooperative
   pause/resume/cancel (first-writer-wins; silence is never approval).
   `src/two/scheduler/` owns the single local-model queue slot, lease
