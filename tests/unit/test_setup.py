@@ -51,8 +51,7 @@ def test_proposed_plan_is_six_commands() -> None:
     assert "0.0.0.0" not in text
     assert "mac-mini.internal:11434" in text
     assert "uv run two up" in text
-    assert "uv run two doctor" in text
-    assert "bootstrap-mac.sh" in text
+    assert "[available/" in text
 
 
 def test_current_plan_documents_todays_long_path() -> None:
@@ -99,12 +98,6 @@ def test_setup_plan_refuses_public_host(capsys: pytest.CaptureFixture[str]) -> N
     assert main(["setup", "--plan", "--ollama-host", "0.0.0.0"]) == 1
     err = capsys.readouterr().err
     assert "public" in err
-
-
-def test_setup_apply_not_implemented(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["setup", "--apply"]) == 2
-    err = capsys.readouterr().err
-    assert "B18" in err
 
 
 def test_setup_help_exits_zero() -> None:
