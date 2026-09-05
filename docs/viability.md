@@ -7,8 +7,9 @@ in [setup.md](setup.md).
 ## Verdict
 
 The control plane, CLI, and offline gates are in place. An operator with
-a Linux development host can clone, run `make ci`, start `two api` /
-`scheduler` / `worker`, and drive tasks with `two task …` on loopback.
+a development host (Mac laptop on the same LAN, or Linux) can clone, run
+`make ci`, start `two api` / `scheduler` / `worker`, and drive tasks with
+`two task …` on loopback.
 
 A **live coding task** still needs a Mac running native Ollama plus a
 DeepSeek Harness child that speaks the supervisor protocol. Default tests
@@ -19,13 +20,15 @@ is post-MVP ([ADR 0012](adrs/0012-github-export-adapter.md)) and is not
 implemented; handoff is the local worktree.
 
 Ease of setup is **good for contributors**, **usable for CLI operators**
-if they follow [setup.md](setup.md) (privacy and network first), and
-**still a cliff** for a first unattended model run (Mac bind + DSH pin).
+if they follow [setup.md](setup.md) (privacy and network first; default
+two-Mac LAN recipe: `two setup --plan`, [ADR 0013](adrs/0013-streamline-default-lan-setup.md)),
+and **still a cliff** for a first unattended model run (Mac bind + DSH pin).
+`two setup --apply`, `two up`, and `two doctor` are not shipped yet ([B18](backlog/B18-streamlined-lan-setup.md)).
 
 ## What actually works
 
 - Clone, `uv sync --dev`, `make ci`, `two --help`, `two profiles`,
-  `two topology`, `two api`, `two scheduler`, `two worker`
+  `two topology`, `two setup --plan`, `two api`, `two scheduler`, `two worker`
 - First-party CLI: `two task submit|show|message|pause|resume|cancel|
   approve|reject|answer|report` against the loopback API ([B13](backlog/B13-cli-and-interaction.md))
 - Apache 2.0, ignore rules, AGENTS.md, self-profile for later dogfood
