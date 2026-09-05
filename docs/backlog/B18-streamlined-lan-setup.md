@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B18 |
 | Phase | 6 — Operator path (after B13 CLI) |
-| Status | in_progress |
+| Status | done |
 | Depends on | B01, B12, B13 |
 | Blocks | none (interactive convenience; not a §21 MVP gate) |
 | Architecture | §4, §6.1, §12.1, §12.2, ADR 0005, ADR 0006, [ADR 0013](../adrs/0013-streamline-default-lan-setup.md) |
@@ -22,7 +22,8 @@ profile.
 - [ADR 0013](../adrs/0013-streamline-default-lan-setup.md) — proposals P1–P12.
 - `src/two/setup.py` — default-LAN assumptions and plan models (no I/O).
 - `uv run two setup --plan` / `--current` — slice 1 printer.
-- `uv run two setup --apply` exits 2 until slice 2.
+- `uv run two setup --apply` writes `$TWO_DATA_DIR/env` (slice 2).
+- `uv run two doctor` / `uv run two up` / `uv run two down` (slices 3–4).
 - Existing scripts: `bootstrap-mac.sh`, `bootstrap-dev-host.sh`,
   `health-check.sh`. Compose remains Linux unattended packaging.
 
@@ -75,7 +76,7 @@ PRs unless a reviewer asks to combine them.
 - Proposed command count is 6; current list is longer.
 - Plan text never contains `0.0.0.0`.
 - `--ollama-host 0.0.0.0` exits 1.
-- `--apply` exits 2 until slice 2.
+- `--apply` without `--ollama-url` / `--ollama-host` exits 2.
 - `two setup --help` exits 0.
 - Slice 2+: env file mode 0600; dirs 0700; auto-bind dry-run has no
   public bind string.
@@ -84,9 +85,9 @@ PRs unless a reviewer asks to combine them.
 
 - [x] ADR 0013 accepted with P1–P12 and the six-command target path.
 - [x] `uv run two setup --plan` prints the default LAN recipe (slice 1).
-- [ ] Slice 2 apply + Mac pairing card.
-- [ ] Slice 3 `two doctor` + env auto-load.
-- [ ] Slice 4 `two up`.
+- [x] Slice 2 apply + Mac pairing card.
+- [x] Slice 3 `two doctor` + env auto-load.
+- [x] Slice 4 `two up`.
 - [x] `docs/setup.md` leads with the two-Mac LAN path.
 - [x] `make ci` green without a live Mac.
 

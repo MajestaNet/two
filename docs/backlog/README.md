@@ -51,7 +51,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B15](B15-evaluation-corpus.md) | Evaluation corpus and promotion gates | 5 / 18 | B03 (fixtures); B10–B12 (promotion) | done |
 | [B16](B16-paid-model-routes.md) | Optional paid-model routes | 7 | B10 | planned |
 | [B17](B17-github-export.md) | GitHub App source-control export | 8 | B03, B10, B11 | planned |
-| [B18](B18-streamlined-lan-setup.md) | Streamlined two-Mac LAN setup | 6 | B01, B12, B13 | in_progress |
+| [B18](B18-streamlined-lan-setup.md) | Streamlined two-Mac LAN setup | 6 | B01, B12, B13 | done |
 
 Optional thin web UI is a subsection of B13, not a second product.
 B17 is parked: local worktree handoff remains the MVP.

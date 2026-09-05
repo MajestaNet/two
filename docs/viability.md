@@ -23,12 +23,16 @@ Ease of setup is **good for contributors**, **usable for CLI operators**
 if they follow [setup.md](setup.md) (privacy and network first; default
 two-Mac LAN recipe: `two setup --plan`, [ADR 0013](adrs/0013-streamline-default-lan-setup.md)),
 and **still a cliff** for a first unattended model run (Mac bind + DSH pin).
-`two setup --apply`, `two up`, and `two doctor` are not shipped yet ([B18](backlog/B18-streamlined-lan-setup.md)).
+`two setup --apply`, `two up`, and `two doctor` are shipped for the
+interactive two-Mac LAN path ([B18](backlog/B18-streamlined-lan-setup.md)).
+Soaks and a live DSH ACP child remain the remaining cliff for unattended
+model work.
 
 ## What actually works
 
 - Clone, `uv sync --dev`, `make ci`, `two --help`, `two profiles`,
-  `two topology`, `two setup --plan`, `two api`, `two scheduler`, `two worker`
+  `two topology`, `two setup --plan`, `two setup --ollama-url`, `two up --dry-run`,
+  `two doctor --offline`, `two api`, `two scheduler`, `two worker`
 - First-party CLI: `two task submit|show|message|pause|resume|cancel|
   approve|reject|answer|report` against the loopback API ([B13](backlog/B13-cli-and-interaction.md))
 - Apache 2.0, ignore rules, AGENTS.md, self-profile for later dogfood
