@@ -34,6 +34,10 @@ uv run two --help
 uv run two profiles
 uv run two topology
 uv run two setup --plan
+uv run two setup --ollama-url URL
+uv run two up
+uv run two down
+uv run two doctor
 uv run two api
 uv run two scheduler
 uv run two worker
@@ -61,7 +65,8 @@ listed in `config/repositories/two.yaml`.
 
 - `src/two/` — Python only. Package implementations live here.
   `src/two/setup.py` is the default two-Mac LAN setup plan (ADR 0013).
-  `two setup --plan` prints it. Apply / `two up` / `two doctor` are B18.
+  `two setup --plan` prints it. `two setup --ollama-url` writes env.
+  `two doctor` / `two up` / `two down` are the interactive operator path (B18).
   `src/two/runtime/` holds the Mac lock file, Ollama env/bind policy,
   launchd rendering, health classification, and the optional Mac HTTP poller.
   `src/two/context/` is the context broker and structured task memory

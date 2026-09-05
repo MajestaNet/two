@@ -36,6 +36,17 @@ SetupHost = Literal["inference-mac", "dev-laptop"]
 SetupStatus = Literal["available", "proposed"]
 
 
+def pairing_card(ollama_url: str) -> str:
+    """Copy-paste block printed by Mac bootstrap and ``two setup``."""
+
+    return (
+        "Pairing card (run on the development Mac laptop):\n"
+        f"  uv run two setup --ollama-url {ollama_url}\n"
+        "  uv run two up\n"
+        "  uv run two doctor\n"
+    )
+
+
 class PublicOllamaHostError(ValueError):
     """Ollama host is a public bind; setup must refuse it."""
 
@@ -121,7 +132,7 @@ def proposed_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
                 host="inference-mac",
                 command="./scripts/bootstrap-mac.sh",
                 why="Native Ollama, default 24 GB alias, private LAN bind, pairing card",
-                status="proposed",
+                status="available",
                 once=True,
             ),
             SetupStep(
@@ -135,21 +146,21 @@ def proposed_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
                 host="dev-laptop",
                 command=f"uv run two setup --ollama-url {url}",
                 why="Write private env and data dirs (0700/0600); do not start processes",
-                status="proposed",
+                status="available",
                 once=True,
             ),
             SetupStep(
                 host="dev-laptop",
                 command="uv run two up",
                 why="Start api, scheduler, and worker as one supervisor",
-                status="proposed",
+                status="available",
                 once=False,
             ),
             SetupStep(
                 host="dev-laptop",
                 command="uv run two doctor",
                 why="Check env, loopback API, and Mac Ollama health in one command",
-                status="proposed",
+                status="available",
                 once=False,
             ),
             SetupStep(
@@ -367,7 +378,8 @@ def format_plan(plan: SetupPlan) -> str:
         [
             "",
             "Never bind Ollama or the Majesta Two API to a public interface.",
-            "two setup --apply, two up, and two doctor land in later B18 slices.",
+            "two setup --ollama-url writes env; two up starts the control plane; "
+            "two doctor checks health.",
         ]
     )
     return "\n".join(lines)
