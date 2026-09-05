@@ -29,7 +29,8 @@ Idempotent Mac inference bootstrap (architecture §6.1 / §12.1).
   --dry-run     Print the plan and exit 0 (CI path; no Darwin, no Ollama)
   --profile     Inference catalog id (default: m24-qwen38-16k)
   --topology    split (private LAN/overlay) or colocated (127.0.0.1)
-  --bind        Ollama bind host; required for live split. Never 0.0.0.0
+  --bind        Ollama bind host; optional on Darwin split (auto .local / RFC1918).
+                Never 0.0.0.0. Required on live split if auto-bind fails.
   --system      Install LaunchDaemon under /Library (default: user LaunchAgent)
 
 Default alias for the 24 GB profile: qwen38-agent-16k
@@ -125,8 +126,12 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 if [[ "$TOPOLOGY" == "split" && -z "$BIND" ]]; then
-  echo "bootstrap-mac.sh: split topology requires --bind or MAC_INFERENCE_BIND_ADDRESS" >&2
-  exit 1
+  discovered="$(two_python -m two.runtime.lan_bind)" || exit 1
+  BIND="$discovered"
+  echo "bootstrap-mac.sh: auto-bind ${BIND}"
+  if ! refuse_public_bind "$BIND"; then
+    exit 1
+  fi
 fi
 
 env_args=(
@@ -224,3 +229,10 @@ curl -fsS --max-time 120 "${origin}/api/generate" \
   -d "{\"model\":\"${ALIAS}\",\"prompt\":\"\",\"keep_alive\":-1}" >/dev/null
 
 echo "bootstrap-mac.sh: ready alias=${ALIAS} bind=${BIND_ADDRESS}"
+cat <<EOF
+
+Pairing card (run on the development Mac laptop):
+  uv run two setup --ollama-url http://${BIND_ADDRESS}:11434/v1
+  uv run two up
+  uv run two doctor
+EOF

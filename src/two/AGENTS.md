@@ -8,9 +8,14 @@ Python package for the Majesta Two control plane.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `setup.py` is the default two-Mac LAN plan (ADR 0013). No I/O, no
-  network, no store. `two setup --plan` prints it. `--apply` is B18.
+  network, no store. `two setup --plan` prints it. Apply I/O lives in
+  `operator/`. CLI lazy-imports `two.operator` (not `two.runtime`).
 - `runtime/` parses `models.lock`, emits the Ollama env contract, renders
-  the launchd plist, and classifies Mac health from JSON. No network.
+  the launchd plist, and classifies Mac health from JSON. No network on
+  the default unit-test path. `runtime/poller.py` is the optional live
+  Mac HTTP probe. `runtime/lan_bind.py` discovers a private Darwin bind.
+- `operator/` is the interactive LAN path (ADR 0013): env apply, doctor,
+  and `two up` supervisor. No store at import time.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop.

@@ -47,6 +47,7 @@ def test_bootstrap_dry_run_exits_zero_and_mentions_default_alias() -> None:
     assert "0.0.0.0" not in result.stdout
     assert "qwen3.8:27b-mlx" in result.stdout
     assert "qwen3.8:27b" in result.stdout
+    assert "two setup --ollama-url" in result.stdout
 
 
 def test_bootstrap_dry_run_colocated_binds_loopback() -> None:
