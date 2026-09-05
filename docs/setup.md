@@ -32,8 +32,8 @@ because they are easy to get wrong; they do not replace the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 5 September 2026 (B18 slices 1–4: `two setup --ollama-url`,
-Mac pairing card, `two doctor`, `two up` / `two down`).
+Last updated: 5 September 2026 (B18 slices 1–4; Mac helpers use `uv run`
+and refuse system `python3` without PyYAML).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -85,7 +85,9 @@ profile. Linux Compose remains the unattended overnight packaging.
 
 **Target path after clone** (six commands):
 
-**Inference Mac (once):**
+**Inference Mac (once).** Install [uv](https://github.com/astral-sh/uv/)
+first (same as the laptop). `bootstrap-mac.sh` uses `uv run`, which
+installs PyYAML; macOS `python3` is not enough.
 
 ```bash
 ./scripts/bootstrap-mac.sh
@@ -207,6 +209,11 @@ git, and [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) for
 context-broker tests. GitHub Actions installs `rg` before `make ci`. Tests
 skip the live `rg` path when it is missing.
 
+The inference Mac also needs **uv** (or a project `.venv` that can
+`import yaml`). `bootstrap-mac.sh` reads YAML catalogs through
+`two.runtime`; it will not use system `python3`. Install uv, then run the
+script — `uv run` syncs PyYAML on first use.
+
 > **Network.** Confirm the Linux host can resolve the Mac on a **private**
 > name (LAN DNS or Tailscale). Do not use a public IP for Ollama.
 
@@ -313,7 +320,9 @@ Apple Silicon, native Ollama, and a private bind.
 ./scripts/soak-inference.sh --dry-run
 ```
 
-**Live on the Mac** — disable sleep. Never `--bind 0.0.0.0`.
+**Live on the Mac** — install uv, then disable sleep. Never `--bind 0.0.0.0`.
+If you see `No module named 'yaml'`, the script ran with system Python:
+install uv and retry (do not `PYTHONPATH=src python3 …`).
 
 ```bash
 # split: private LAN or overlay hostname (example is a placeholder)

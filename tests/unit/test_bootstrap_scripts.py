@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -18,6 +19,7 @@ BOOTSTRAP = REPO_ROOT / "scripts" / "bootstrap-mac.sh"
 DEV_HOST = REPO_ROOT / "scripts" / "bootstrap-dev-host.sh"
 HEALTH = REPO_ROOT / "scripts" / "health-check.sh"
 SOAK = REPO_ROOT / "scripts" / "soak-inference.sh"
+TWO_PYTHON = REPO_ROOT / "scripts" / "lib" / "two-python.sh"
 FIXTURES = REPO_ROOT / "tests" / "unit" / "fixtures" / "health"
 
 
@@ -48,6 +50,10 @@ def test_bootstrap_dry_run_exits_zero_and_mentions_default_alias() -> None:
     assert "qwen3.8:27b-mlx" in result.stdout
     assert "qwen3.8:27b" in result.stdout
     assert "two setup --ollama-url" in result.stdout
+    assert "uv run" in TWO_PYTHON.read_text()
+    assert 'python3 "$@"' not in BOOTSTRAP.read_text()
+    assert "lib/two-python.sh" in BOOTSTRAP.read_text()
+    assert "lib/two-python.sh" in HEALTH.read_text()
 
 
 def test_bootstrap_dry_run_colocated_binds_loopback() -> None:
@@ -172,3 +178,38 @@ def test_bootstrap_dev_host_live_creates_dirs(tmp_path: Path) -> None:
     body = env_file.read_text(encoding="utf-8")
     assert "TWO_API_BIND=127.0.0.1" in body
     assert "0.0.0.0" not in body
+
+
+def _two_python_isolated(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Source two-python.sh with no uv and no inherited venv."""
+
+    env = {**os.environ, "PATH": "/usr/bin:/bin", "ROOT": str(root)}
+    env.pop("VIRTUAL_ENV", None)
+    quoted = " ".join(f"'{a}'" for a in args)
+    return subprocess.run(
+        ["bash", "-c", f"source '{TWO_PYTHON}' && two_python {quoted}"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+
+def test_two_python_refuses_system_python_without_yaml(tmp_path: Path) -> None:
+    result = _two_python_isolated(tmp_path, "-c", "print(1)")
+    assert result.returncode == 2, result.stderr
+    combined = result.stderr + result.stdout
+    assert "PyYAML" in combined
+    assert "uv sync" in combined
+    assert "system python3" in combined.lower() or "system python3" in combined
+
+
+def test_two_python_ignores_venv_that_cannot_import_yaml(tmp_path: Path) -> None:
+    stub = tmp_path / ".venv" / "bin" / "python"
+    stub.parent.mkdir(parents=True)
+    stub.write_text("#!/bin/sh\necho 'No module named yaml' >&2\nexit 1\n")
+    stub.chmod(0o755)
+    result = _two_python_isolated(tmp_path, "-c", "print(1)")
+    assert result.returncode == 2, result.stderr
+    assert "uv sync" in result.stderr
