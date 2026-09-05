@@ -47,6 +47,9 @@ uv run two --help
 uv run two profiles
 uv run two topology
 uv run two setup --plan
+uv run two setup --ollama-url http://YOUR-PRIVATE-MAC-NAME:11434/v1
+uv run two up
+uv run two doctor
 uv run two api
 ```
 

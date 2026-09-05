@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 from two.runtime.env import (
+    BIND_PLACEHOLDER,
     COMPARISON_UPSTREAM_TAG,
     DEFAULT_PROFILE_ID,
     PublicBindError,
@@ -93,6 +94,11 @@ def format_plan(values: dict[str, str], *, rendered_plist: str) -> str:
         f"# or: curl -sS http://{bind}:11434/api/generate -d "
         f'\'{{"model":"{alias}","prompt":"","keep_alive":-1}}\'',
         "",
+        "# Pairing card (development Mac laptop):",
+        f"#   uv run two setup --ollama-url http://{_pairing_host(bind)}:11434/v1",
+        "#   uv run two up",
+        "#   uv run two doctor",
+        "",
         "# Rendered launchd EnvironmentVariables (fragment):",
         _plist_env_fragment(rendered_plist).rstrip(),
     ]
@@ -105,6 +111,12 @@ def format_plan(values: dict[str, str], *, rendered_plist: str) -> str:
             ]
         )
     return "\n".join(lines) + "\n"
+
+
+def _pairing_host(bind: str) -> str:
+    if bind == BIND_PLACEHOLDER:
+        return "YOUR-PRIVATE-MAC-NAME"
+    return bind
 
 
 def _plist_env_fragment(rendered_plist: str) -> str:
