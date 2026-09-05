@@ -35,18 +35,13 @@ Idempotent Mac inference bootstrap (architecture §6.1 / §12.1).
 
 Default alias for the 24 GB profile: qwen38-agent-16k
 User LaunchAgent: ~/Library/LaunchAgents/local.two.ollama.plist
+
+Needs uv (or a .venv that can import yaml). Never uses system python3.
 EOF
 }
 
-two_python() {
-  if [[ -x "$ROOT/.venv/bin/python" ]]; then
-    PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" "$ROOT/.venv/bin/python" "$@"
-  elif command -v uv >/dev/null 2>&1; then
-    (cd "$ROOT" && uv run python "$@")
-  else
-    PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" python3 "$@"
-  fi
-}
+# shellcheck source=lib/two-python.sh
+source "$ROOT/scripts/lib/two-python.sh"
 
 refuse_public_bind() {
   local host="$1"

@@ -43,12 +43,12 @@ for arg in "$@"; do
   esac
 done
 
+ROOT="$root"
+# shellcheck source=lib/two-python.sh
+source "$root/scripts/lib/two-python.sh"
+
 run_providers() {
-  if command -v uv >/dev/null 2>&1; then
-    uv run python -m two.providers "$@"
-  else
-    PYTHONPATH="$root/src" python3 -m two.providers "$@"
-  fi
+  two_python -m two.providers "$@"
 }
 
 run_providers --check

@@ -52,6 +52,7 @@ def test_proposed_plan_is_six_commands() -> None:
     assert "mac-mini.internal:11434" in text
     assert "uv run two up" in text
     assert "[available/" in text
+    assert "uv run" in plan.steps[0].why
 
 
 def test_current_plan_documents_todays_long_path() -> None:
