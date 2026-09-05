@@ -56,7 +56,7 @@ A naked `docker -p 8741:8741` on a public IP is forbidden.
 
 | Option | Use when | Do not use when |
 | --- | --- | --- |
-| Native `uv` on a laptop | Interactive development, contributing | You need overnight isolation |
+| Native `uv` on a laptop | Interactive development, contributing; default first-run is a Mac laptop on the same LAN as the inference Mac ([ADR 0013](adrs/0013-streamline-default-lan-setup.md)) | You need overnight isolation |
 | Compose on a Linux host | Always-on control plane | Running Ollama on the Mac |
 | Full Linux VM | You want a separate kernel from the laptop | You only needed a public URL |
 

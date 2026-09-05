@@ -49,6 +49,12 @@ def test_scheduler_and_worker_subcommand_help() -> None:
     assert exc_info.value.code == 0
 
 
+def test_setup_subcommand_help() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        main(["setup", "--help"])
+    assert exc_info.value.code == 0
+
+
 def test_task_subcommand_help() -> None:
     with pytest.raises(SystemExit) as exc_info:
         main(["task", "--help"])

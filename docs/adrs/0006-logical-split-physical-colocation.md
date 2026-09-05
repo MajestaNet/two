@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. Interactive first-run on a Mac laptop (same LAN, still
+`split`) is amended by [ADR 0013](0013-streamline-default-lan-setup.md).
+The logical split and `colocated` loopback rule are unchanged.
 
 ## Context
 
