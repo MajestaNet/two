@@ -87,8 +87,8 @@ PRs unless a reviewer asks to combine them.
 - [ ] Slice 2 apply + Mac pairing card.
 - [ ] Slice 3 `two doctor` + env auto-load.
 - [ ] Slice 4 `two up`.
-- [ ] `docs/setup.md` leads with the two-Mac LAN path.
-- [ ] `make ci` green without a live Mac.
+- [x] `docs/setup.md` leads with the two-Mac LAN path.
+- [x] `make ci` green without a live Mac.
 
 ## Definition of done
 
