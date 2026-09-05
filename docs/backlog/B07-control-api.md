@@ -147,5 +147,4 @@ B13 and B14 must consume `two.projection.TaskProjection` and the routes
 in this file. If a new field is required, add it optionally on `/v1` in
 `projection.py` with tests; do not fork a second schema. New event types
 must be `domain.verb` members of `two.types.EventType`. A new HTTP
-framework or public bind needs an ADR (next free number after 0012 is
-**0013**).
+framework or public bind needs an ADR (next free number is **0014**).

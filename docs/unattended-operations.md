@@ -13,7 +13,9 @@ Majesta Two—not DeepSeek Harness—owns task lifetime. Closing a CLI, browser,
 messaging-adapter disconnect must not cancel a controller-owned task.
 Unattended completion still does not push or open a GitHub pull request
 ([source-control-export.md](source-control-export.md)).
-Operator start path: [setup.md](setup.md).
+Operator start path: [setup.md](setup.md). Interactive first-run is two
+Macs on one LAN ([ADR 0013](adrs/0013-streamline-default-lan-setup.md));
+this page is the always-on Linux/Compose path.
 
 **Closing the CLI does not require stopping Compose.** `api`, `scheduler`, and
 `worker` keep running. `docker compose down` (or `systemctl --user stop

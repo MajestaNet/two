@@ -6,8 +6,11 @@ Inference stays on the Mac. Repositories, shells, tests, and git worktrees stay 
 
 This repository is the implementation of that architecture. Durable task
 state lives in SQLite (`two.store`). The control API (`two api`), scheduler
-(`two scheduler`), and ACP worker (`two worker`) run as Compose services on
-a Linux development host. Slack remains an optional adapter (not required).
+(`two scheduler`), and ACP worker (`two worker`) run on the development
+host. The interactive default is a Mac laptop on the same LAN as the
+inference Mac ([ADR 0013](docs/adrs/0013-streamline-default-lan-setup.md));
+Compose remains the unattended Linux packaging. Slack remains an optional
+adapter (not required).
 
 **Private by default.** Prompts and repository excerpts remain on the private network unless a task explicitly permits a cloud route. The inference API and Majesta Two API must not be exposed to the public internet.
 
@@ -17,7 +20,8 @@ Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attri
 
 Start with the living [setup guide](docs/setup.md). The canonical specification is [docs/architecture.md](docs/architecture.md).
 
-- [Setup](docs/setup.md) — operator walkthrough; keep current as the product grows
+- [Setup](docs/setup.md) — operator walkthrough; default two-Mac LAN path first
+- [ADR 0013](docs/adrs/0013-streamline-default-lan-setup.md) — streamline that path
 - [Channels](docs/channels.md) — backend API; optional adapters; Slack is the MVP
 - [Remote access](docs/remote-access.md) — overlay for CLI/web; outbound adapters only
 - [Viability review](docs/viability.md)
@@ -29,7 +33,7 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 - [Public-repo hygiene](docs/public-repo.md)
 - [Implementation backlog](docs/backlog/README.md) — one executable item per file, with agent prompts
 
-24 GB unified memory is the **default inference profile**, not a hard limit. Run `uv run two profiles`. Two machines is the **default topology**; a larger Mac may colocate harness and Ollama as separate processes (`uv run two topology`).
+24 GB unified memory is the **default inference profile**, not a hard limit. Run `uv run two profiles`. Two machines is the **default topology**; interactive first-run is a Mac laptop on the same LAN (`uv run two setup --plan`). A larger Mac may colocate harness and Ollama as separate processes (`uv run two topology`).
 
 ## Install and test
 
@@ -42,6 +46,7 @@ make eval-offline
 uv run two --help
 uv run two profiles
 uv run two topology
+uv run two setup --plan
 uv run two api
 ```
 

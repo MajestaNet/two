@@ -110,5 +110,6 @@ stay outside the model/tool loop; silence is never approval.
   it runs without Slack.
 - Coding agents must not reopen B03 to add `push`. They must not put
   GitHub tokens in the ACP child environment.
-- The next free ADR number after this file is **0013** (B14’s Slack
-  SDK note and B07’s “next after 0012” pointer are updated to match).
+- ADR **0013** is the default LAN setup operator path. The next free
+  ADR number is **0014** (B14’s Slack SDK note and B07’s “next after
+  0012” pointer are updated to match).
