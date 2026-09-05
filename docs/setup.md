@@ -19,7 +19,7 @@ because they are easy to get wrong; they do not replace the spec.
 | CLI/web from another network | Overlay (Tailscale); CLI uses `--url` / `--socket` / `--token` or `TWO_API_*`. Web UI not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
-| Default two-Mac LAN setup plan | Works (`two setup --plan` / `--current`). Apply, `two up`, and `two doctor` are later [B18](backlog/B18-streamlined-lan-setup.md) slices ([ADR 0013](adrs/0013-streamline-default-lan-setup.md)) |
+| Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
@@ -32,8 +32,8 @@ because they are easy to get wrong; they do not replace the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 5 September 2026 (ADR 0013 default two-Mac LAN path;
-`two setup --plan`; long walkthrough kept as the full reference).
+Last updated: 5 September 2026 (B18 slices 1–4: `two setup --ollama-url`,
+Mac pairing card, `two doctor`, `two up` / `two down`).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -83,35 +83,32 @@ profile. Linux Compose remains the unattended overnight packaging.
 | Separate Mac laptop | Majesta Two + DeepSeek Harness + worktrees + CLI | Fine for interactive use; poor overnight host |
 | Same private LAN | Laptop calls `http://<private-mac-name>:11434/v1` | No Tailscale required on this path |
 
-**Target path after clone** (six commands). Commands marked *proposed*
-print in `two setup --plan` but are not shipped yet (B18). Until then,
-use the [full reference](#step-by-step-get-it-running-full-reference)
-or the *available* commands below.
+**Target path after clone** (six commands):
 
 **Inference Mac (once):**
 
 ```bash
 ./scripts/bootstrap-mac.sh
-# proposed: omit --bind; script chooses a private .local / RFC1918 address
-# and prints a pairing card. Today you still pass --topology split --bind HOST.
+# split, default 24 GB profile. Omit --bind on Darwin: private .local or
+# RFC1918. Prints a pairing card. Never --bind 0.0.0.0.
 ```
 
 **Development Mac laptop:**
 
 ```bash
-uv sync --dev                                          # available
+uv sync --dev
 uv run two setup --ollama-url http://YOUR-PRIVATE-MAC-NAME:11434/v1
-                                                       # proposed (B18 slice 2)
-uv run two up                                          # proposed (B18 slice 4)
-uv run two doctor                                      # proposed (B18 slice 3)
+uv run two up
+uv run two doctor
 uv run two task submit config/examples/task.example.yaml
-                                                       # available (API must be up)
 ```
 
-Until `two up` exists, start the three native processes from step 9 of
-the full reference (`two api`, `two scheduler`, `two worker`) on the
-laptop. The Majesta Two API stays on `127.0.0.1:8741`. Never bind Ollama
-or the API to `0.0.0.0`.
+`two up` starts `two api`, `two scheduler`, and `two worker` together.
+Stop with Ctrl+C or `uv run two down`. Closing `two task` detaches; it
+does not stop the supervisor. The Majesta Two API stays on
+`127.0.0.1:8741`. Never bind Ollama or the API to a public interface.
+
+Print the recipe without writing files: `uv run two setup --plan`.
 
 The only machine-specific value on this path is the inference Mac’s
 **private** hostname or RFC1918 address. Do not put that name in git.
