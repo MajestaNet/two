@@ -100,9 +100,11 @@ listed in `config/repositories/two.yaml`.
 - `tests/` — unit, contract, integration. Unit tests must stay offline.
 - `config/` — templates and repository profiles. No secrets.
 - `scripts/` — `bootstrap-mac.sh`, `health-check.sh`, and
-  `soak-inference.sh` implement Phase 1 dry-run/live Mac helpers.
-  `bootstrap-dev-host.sh` creates `TWO_DATA_DIR` / worktrees (mode 0700)
-  and prints the Compose plan (`--dry-run` for CI).
+ `soak-inference.sh` implement Phase 1 dry-run/live Mac helpers.
+ `scripts/lib/two-python.sh` is the shared interpreter (`uv run` or a
+ venv that can import PyYAML; never system `python3`).
+ `bootstrap-dev-host.sh` creates `TWO_DATA_DIR` / worktrees (mode 0700)
+ and prints the Compose plan (`--dry-run` for CI).
 - `docs/` — architecture and ADRs. `docs/architecture.md` is canonical.
   `docs/setup.md` is the living operator guide. `docs/backlog/` is the
   implementation tracker (one item per file; agent prompts at the end).

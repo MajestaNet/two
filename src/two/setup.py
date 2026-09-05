@@ -131,7 +131,7 @@ def proposed_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
             SetupStep(
                 host="inference-mac",
                 command="./scripts/bootstrap-mac.sh",
-                why="Native Ollama, default 24 GB alias, private LAN bind, pairing card",
+                why="Native Ollama via uv run (PyYAML); default 24 GB alias; pairing card",
                 status="available",
                 once=True,
             ),
