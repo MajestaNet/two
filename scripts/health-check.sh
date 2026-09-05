@@ -47,15 +47,8 @@ No live network is required for --dry-run or --fixture-dir.
 EOF
 }
 
-two_python() {
-  if [[ -x "$ROOT/.venv/bin/python" ]]; then
-    PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" "$ROOT/.venv/bin/python" "$@"
-  elif command -v uv >/dev/null 2>&1; then
-    (cd "$ROOT" && uv run python "$@")
-  else
-    PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" python3 "$@"
-  fi
-}
+# shellcheck source=lib/two-python.sh
+source "$ROOT/scripts/lib/two-python.sh"
 
 normalize_origin() {
   local u="${1%/}"

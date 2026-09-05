@@ -28,7 +28,16 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError as exc:  # pragma: no cover - exercised by Mac bootstrap
+    if getattr(exc, "name", None) != "yaml":
+        raise
+    raise ModuleNotFoundError(
+        "No module named 'yaml'. Majesta Two needs PyYAML from the project "
+        "environment (not system python3). From the clone run: uv sync "
+        "then retry with uv run python or ./scripts/bootstrap-mac.sh"
+    ) from exc
 
 from two.profiles import InferenceProfile
 from two.profiles import load_catalog as load_inference_catalog
