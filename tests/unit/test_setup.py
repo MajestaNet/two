@@ -74,6 +74,8 @@ def test_refuse_public_ollama_host() -> None:
         refuse_public_ollama_host("http://0.0.0.0:11434/v1")
     with pytest.raises(PublicOllamaHostError):
         refuse_public_ollama_host("::")
+    with pytest.raises(PublicOllamaHostError):
+        refuse_public_ollama_host("http://[::]:11434/v1")
     assert refuse_public_ollama_host("mac-mini.local") == "mac-mini.local"
     assert refuse_public_ollama_host("http://mac-mini.local:11434/v1") == "mac-mini.local"
 
