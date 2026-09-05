@@ -12,9 +12,10 @@ topologies:
     ollama_bind: private-lan-or-overlay
     harness_host: development-host
     notes: >-
-      Default. Dedicated Apple Silicon inference appliance. Majesta Two and
-      DeepSeek Harness run on a Linux host or workstation. Use this on a
-      24 GB Mini and for overnight isolation.
+      Default. Dedicated Apple Silicon inference appliance. Interactive
+      first-run is a separate Mac laptop on the same private LAN (ADR 0013).
+      Linux Compose remains the unattended packaging (ADR 0005). Use this
+      on a 24 GB Mini.
 
   colocated:
     recommended_min_unified_memory_gb: 48

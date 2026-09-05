@@ -19,6 +19,7 @@ because they are easy to get wrong; they do not replace the spec.
 | CLI/web from another network | Overlay (Tailscale); CLI uses `--url` / `--socket` / `--token` or `TWO_API_*`. Web UI not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
+| Default two-Mac LAN setup plan | Works (`two setup --plan` / `--current`). Apply, `two up`, and `two doctor` are later [B18](backlog/B18-streamlined-lan-setup.md) slices ([ADR 0013](adrs/0013-streamline-default-lan-setup.md)) |
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
@@ -31,9 +32,8 @@ because they are easy to get wrong; they do not replace the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 31 August 2026 (GitHub export parked as ADR 0012 / B17;
-operator walkthrough: config, privacy, and network callouts; CLI-first
-live path).
+Last updated: 5 September 2026 (ADR 0013 default two-Mac LAN path;
+`two setup --plan`; long walkthrough kept as the full reference).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -49,11 +49,72 @@ Two tracks:
 | Track | Goal | Mac required? |
 | --- | --- | --- |
 | **Contributor** | Clone, `make ci`, read the spec | No |
-| **Operator** | Run `two api` / `scheduler` / `worker` and drive tasks with `two task …` | Yes for model work; no for CLI-against-API smoke |
+| **Operator (default LAN)** | Inference Mac + Mac laptop on the same private network | Yes for model work |
+| **Operator (reference)** | Overlay, Compose, soaks, Slack — [full walkthrough](#step-by-step-get-it-running-full-reference) | Yes for model work; no for CLI-against-API smoke |
 
-Follow **Privacy and network**, then **Config you must fill**, then the
-numbered steps. Reference tables (profiles, Mac flags, Compose) sit after
+The default interactive layout is **two Macs, `topology: split`, one LAN**.
+Print the recipe (no files written):
+
+```bash
+uv run two setup --plan
+uv run two setup --plan --ollama-host YOUR-PRIVATE-MAC-NAME
+uv run two setup --current   # today's longer command list
+```
+
+Proposals and designs: [ADR 0013](adrs/0013-streamline-default-lan-setup.md).
+Implementation tracker: [B18](backlog/B18-streamlined-lan-setup.md).
+
+Follow **Privacy and network**, then **Config you must fill**, then either
+the [default LAN path](#default-layout-two-macs-on-one-lan) or the numbered
+reference steps. Reference tables (profiles, Mac flags, Compose) sit after
 the walkthrough.
+
+---
+
+## Default layout: two Macs on one LAN
+
+This is the interactive operator default ([ADR 0013](adrs/0013-streamline-default-lan-setup.md)).
+It does not change the catalog topology (`split`) or the 24 GB inference
+profile. Linux Compose remains the unattended overnight packaging.
+
+| Machine | Role | Sleep? |
+| --- | --- | --- |
+| Apple Silicon Mac | Native Ollama only. No git, no builds, no harness. | Disable while it is the inference node |
+| Separate Mac laptop | Majesta Two + DeepSeek Harness + worktrees + CLI | Fine for interactive use; poor overnight host |
+| Same private LAN | Laptop calls `http://<private-mac-name>:11434/v1` | No Tailscale required on this path |
+
+**Target path after clone** (six commands). Commands marked *proposed*
+print in `two setup --plan` but are not shipped yet (B18). Until then,
+use the [full reference](#step-by-step-get-it-running-full-reference)
+or the *available* commands below.
+
+**Inference Mac (once):**
+
+```bash
+./scripts/bootstrap-mac.sh
+# proposed: omit --bind; script chooses a private .local / RFC1918 address
+# and prints a pairing card. Today you still pass --topology split --bind HOST.
+```
+
+**Development Mac laptop:**
+
+```bash
+uv sync --dev                                          # available
+uv run two setup --ollama-url http://YOUR-PRIVATE-MAC-NAME:11434/v1
+                                                       # proposed (B18 slice 2)
+uv run two up                                          # proposed (B18 slice 4)
+uv run two doctor                                      # proposed (B18 slice 3)
+uv run two task submit config/examples/task.example.yaml
+                                                       # available (API must be up)
+```
+
+Until `two up` exists, start the three native processes from step 9 of
+the full reference (`two api`, `two scheduler`, `two worker`) on the
+laptop. The Majesta Two API stays on `127.0.0.1:8741`. Never bind Ollama
+or the API to `0.0.0.0`.
+
+The only machine-specific value on this path is the inference Mac’s
+**private** hostname or RFC1918 address. Do not put that name in git.
 
 ---
 
@@ -125,12 +186,19 @@ catalogs. Do not put a real LAN hostname in those committed files.
 
 ---
 
-## Step-by-step: get it running (CLI on the development host)
+## Step-by-step: get it running (full reference)
+
+The [default two-Mac LAN path](#default-layout-two-macs-on-one-lan) is
+the interactive first-run. This section is the complete reference:
+contributor CI, catalog lookups, overlay CLI, Compose, soaks, and
+every flag. Compare the two lists with `uv run two setup --current`.
 
 ### 0. Machines and prerequisites
 
-**Default layout (`split`)** — 24 GB Apple Silicon Mac as the inference
-appliance + a Linux development host that stays powered on.
+**Default layout (`split`)** — dedicated Apple Silicon Mac as the
+inference appliance + a separate Mac laptop on the **same private LAN**
+running Majesta Two and DeepSeek Harness ([ADR 0013](adrs/0013-streamline-default-lan-setup.md)).
+A Linux workstation or VM is the unattended overnight host (Compose).
 
 **Optional (`colocated`)** — one ~48 GB+ Mac that does not sleep. Ollama
 and Majesta Two remain **separate processes**; Ollama binds `127.0.0.1`
