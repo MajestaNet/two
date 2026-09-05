@@ -49,6 +49,34 @@ def build_parser() -> argparse.ArgumentParser:
         "topology",
         help="List deployment topologies (split default; colocated optional)",
     )
+    setup_cmd = subparsers.add_parser(
+        "setup",
+        help=(
+            "Print the default two-Mac LAN setup plan (ADR 0013). "
+            "Does not write files or start processes"
+        ),
+    )
+    setup_cmd.add_argument(
+        "--plan",
+        action="store_true",
+        help="Print the proposed six-command path (default)",
+    )
+    setup_cmd.add_argument(
+        "--current",
+        action="store_true",
+        help="Print today's long operator command list for comparison",
+    )
+    setup_cmd.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write env and data dirs (not implemented; B18 slice 2)",
+    )
+    setup_cmd.add_argument(
+        "--ollama-host",
+        default=None,
+        metavar="HOST",
+        help="Private LAN hostname of the inference Mac (placeholder if omitted)",
+    )
     api_cmd = subparsers.add_parser(
         "api",
         help="Start the channel-neutral control API (loopback or Unix socket)",
@@ -88,6 +116,8 @@ def main(
     if args.command == "topology":
         print(format_topology(load_topology()))
         return 0
+    if args.command == "setup":
+        return _run_setup(args)
     if args.command == "api":
         from two.api.server import serve
 
@@ -109,6 +139,36 @@ def main(
         return 0
     parser.error(f"unknown command: {args.command}")
     return 2
+
+
+def _run_setup(args: argparse.Namespace) -> int:
+    """Print the ADR 0013 plan. Lazy-imports two.setup; no store."""
+
+    from two.setup import (
+        PublicOllamaHostError,
+        current_lan_plan,
+        format_plan,
+        proposed_lan_plan,
+    )
+
+    if args.apply:
+        print(
+            "two setup --apply is not implemented yet (B18 slice 2). "
+            "Print the recipe with: uv run two setup --plan",
+            file=sys.stderr,
+        )
+        return 2
+    host = args.ollama_host
+    try:
+        if args.current:
+            plan = current_lan_plan(host) if host else current_lan_plan()
+        else:
+            plan = proposed_lan_plan(host) if host else proposed_lan_plan()
+    except PublicOllamaHostError as exc:
+        print(f"two setup: {exc}", file=sys.stderr)
+        return 1
+    print(format_plan(plan))
+    return 0
 
 
 def _transport_parser() -> argparse.ArgumentParser:
