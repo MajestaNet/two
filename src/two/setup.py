@@ -98,10 +98,10 @@ def refuse_public_ollama_host(host: str) -> str:
     cleaned = cleaned.split("@")[-1]
     if cleaned.startswith("[") and "]" in cleaned:
         cleaned = cleaned[1 : cleaned.index("]")]
-    else:
+    elif cleaned.count(":") <= 1:
         cleaned = cleaned.split(":", 1)[0]
     lowered = cleaned.lower().rstrip(".")
-    if lowered in {"0.0.0.0", "::", "[::]", "*"}:
+    if not lowered or lowered in {"0.0.0.0", "::", "[::]", "*"}:
         raise PublicOllamaHostError(
             f"refusing public Ollama host {host!r}; use a private LAN or overlay name"
         )
@@ -366,7 +366,7 @@ def format_plan(plan: SetupPlan) -> str:
     lines.extend(
         [
             "",
-            "Never bind Ollama or the Majesta Two API to 0.0.0.0.",
+            "Never bind Ollama or the Majesta Two API to a public interface.",
             "two setup --apply, two up, and two doctor land in later B18 slices.",
         ]
     )
