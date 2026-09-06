@@ -106,8 +106,9 @@ listed in `config/repositories/two.yaml`.
  `bootstrap-dev-host.sh` creates `TWO_DATA_DIR` / worktrees (mode 0700)
  and prints the Compose plan (`--dry-run` for CI).
 - `docs/` — architecture and ADRs. `docs/architecture.md` is canonical.
-  `docs/setup.md` is the living operator guide. `docs/backlog/` is the
-  implementation tracker (one item per file; agent prompts at the end).
+  `docs/setup.md` is the living operator guide. `docs/local-16k.md` is
+  24 GB / 16K operator guidance. `docs/backlog/` is the implementation
+  tracker (one item per file; agent prompts at the end).
 - `deploy/compose/` — Linux control-plane packaging (`api`, `scheduler`,
   `worker`; optional `slack` profile stub). No Ollama image.
 - `deploy/systemd/` — optional user-unit templates. Compose is the default

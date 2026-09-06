@@ -19,6 +19,7 @@ Use this page as an index, not a second spec:
   [source-control-export.md](source-control-export.md)
 - Evaluation corpus and promotion soaks — [evals/PROMOTION.md](../evals/PROMOTION.md)
   (architecture §18). `make eval-offline` is Mac-free. Soaks are not CI-green.
+- 24 GB / 16K local task shape — [local-16k.md](local-16k.md)
 
 Runtime templates live under `config/mac/` and `config/dsh/`. Mac bootstrap,
 health-check, and soak helpers are `scripts/bootstrap-mac.sh`,

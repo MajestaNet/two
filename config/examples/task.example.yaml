@@ -4,6 +4,7 @@
 # Operator template for `two task submit`. Copy to a private path.
 # Do not commit a real repository filesystem path or hostname.
 # Field names match architecture §8.1 / two.manifest.TaskManifest.
+# 24 GB / 16K overnight task shape: docs/local-16k.md.
 #
 # repository: filesystem path of the canonical git checkout (never edited).
 # If that path is not a profile id, set validation_profile to a file under
