@@ -12,6 +12,9 @@ is parked as [B17](backlog/B17-github-export.md).
 Today’s handoff is local: retained worktree, branch `agent/<task-id>`,
 and the Stage 8 report (`two task report`). A human inspects that tree
 and pushes under their own identity if they want GitHub involved.
+Overnight review tasks should write findings into the worktree rather
+than filing GitHub issues ([local-16k.md](local-16k.md);
+`update_tickets` is a forbidden MVP action).
 
 ## Two layers (do not collapse)
 

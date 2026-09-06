@@ -27,13 +27,14 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 - [Viability review](docs/viability.md)
 - [Operations](docs/operations.md)
 - [Unattended operations](docs/unattended-operations.md)
+- [24 GB / 16K local operation](docs/local-16k.md) — default profile quality, manifests, overnight starter workflows
 - [Interaction contract](docs/interaction-contract.md)
 - [Task manifest](docs/task-manifest.md)
 - [Source-control export](docs/source-control-export.md) — local worktree handoff today; GitHub App later (ADR 0012)
 - [Public-repo hygiene](docs/public-repo.md)
 - [Implementation backlog](docs/backlog/README.md) — one executable item per file, with agent prompts
 
-24 GB unified memory is the **default inference profile**, not a hard limit. Run `uv run two profiles`. Two machines is the **default topology**; interactive first-run is a Mac laptop on the same LAN (`uv run two setup --plan`). A larger Mac may colocate harness and Ollama as separate processes (`uv run two topology`).
+24 GB unified memory is the **default inference profile**, not a hard limit. Run `uv run two profiles`. That 16K window does not hold a whole repository; see [local-16k.md](docs/local-16k.md). Two machines is the **default topology**; interactive first-run is a Mac laptop on the same LAN (`uv run two setup --plan`). A larger Mac may colocate harness and Ollama as separate processes (`uv run two topology`).
 
 ## Install and test
 
