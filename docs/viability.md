@@ -37,7 +37,8 @@ model work.
   approve|reject|answer|report` against the loopback API ([B13](backlog/B13-cli-and-interaction.md))
 - Apache 2.0, ignore rules, AGENTS.md, self-profile for later dogfood
 - Documented default inference profile (`m24-qwen38-16k`) plus larger-host
-  profiles in `config/inference/profiles.yaml`
+  profiles in `config/inference/profiles.yaml`. Operator task shape for
+  that 16K window: [local-16k.md](local-16k.md).
 - Backend-first channels: CLI/API required; Slack is the optional MVP adapter
 - Deployment topology: `split` default, `colocated` optional (`two topology`)
 - Task git worktrees (`two.workspace`)
