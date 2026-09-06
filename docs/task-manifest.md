@@ -17,6 +17,10 @@ manifest field. Handoff is the local worktree until optional GitHub
 export ([ADR 0012](adrs/0012-github-export-adapter.md),
 [source-control-export.md](source-control-export.md)).
 
+On the default 24 GB / 16K profile, keep `objective`,
+`acceptance_criteria`, and `allowed_paths` tight. Starter overnight
+workflows and quality limits: [local-16k.md](local-16k.md).
+
 See also `config/policies/default.yaml` for default budgets and forbidden
 actions. The live task view clients consume is
 `two.projection.TaskProjection` ([B07](backlog/B07-control-api.md)), not

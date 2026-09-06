@@ -3,8 +3,10 @@
 Living operator guide. **Update this file in the same PR** whenever install
 commands, profiles, ports, or host topology change. Architecture remains
 in [architecture.md](architecture.md). Viability notes are in
-[viability.md](viability.md). Privacy and bind rules are restated here
-because they are easy to get wrong; they do not replace the spec.
+[viability.md](viability.md). 24 GB / 16K local quality and overnight
+task shape: [local-16k.md](local-16k.md). Privacy and bind rules are
+restated here because they are easy to get wrong; they do not replace
+the spec.
 
 ## Status (keep current)
 
@@ -32,8 +34,8 @@ because they are easy to get wrong; they do not replace the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 5 September 2026 (B18 slices 1–4; Mac helpers use `uv run`
-and refuse system `python3` without PyYAML).
+Last updated: 6 September 2026 (pointer to [local-16k.md](local-16k.md)
+for 24 GB / 16K overnight task shape).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -67,7 +69,8 @@ Implementation tracker: [B18](backlog/B18-streamlined-lan-setup.md).
 Follow **Privacy and network**, then **Config you must fill**, then either
 the [default LAN path](#default-layout-two-macs-on-one-lan) or the numbered
 reference steps. Reference tables (profiles, Mac flags, Compose) sit after
-the walkthrough.
+the walkthrough. After the Mac is serving Qwen, queue bounded overnight
+work from [local-16k.md](local-16k.md) rather than a whole-repo prompt.
 
 ---
 
@@ -255,7 +258,10 @@ CLI -->  same Mac
 
 ### 3. Choose an inference profile
 
-24 GB / 16K is the **default reference**, not a ceiling.
+24 GB / 16K is the **default reference**, not a ceiling. That window
+does not hold a whole repository; queue bounded manifests and retrieve.
+Operator practice (quality expectations, five overnight starter
+workflows, morning handoff): [local-16k.md](local-16k.md).
 
 ```bash
 uv run two profiles
@@ -592,3 +598,5 @@ controller plus validation gates, never a model self-report.
 - Do not set `cloud_allowed: true` “to make it work”
 - Do not send Slack tokens or GitHub App tokens into the worker environment
 - Do not treat a model self-report as task completion
+- Do not queue a whole-repo overnight audit on 16K; see
+  [local-16k.md](local-16k.md)

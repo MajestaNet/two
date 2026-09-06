@@ -8,10 +8,12 @@
   prompt. Do not copy the spec into those files; point at sections.
 - Thin siblings (`operations.md`, `unattended-operations.md`,
   `interaction-contract.md`, `task-manifest.md`, `channels.md`,
-  `source-control-export.md`, `remote-access.md`, `viability.md`) point
-  at sections or operator decisions. Do not copy the spec into those
-  files. This repo is the backend; do not write Slack-as-the-product
-  docs. Default two-Mac LAN operator path: ADR 0013 / B18.
+  `source-control-export.md`, `remote-access.md`, `viability.md`,
+  `local-16k.md`) point at sections or operator decisions. Do not copy
+  the spec into those files. `local-16k.md` is 24 GB / 16K operator
+  guidance (quality, manifests, overnight starter workflows). This repo
+  is the backend; do not write Slack-as-the-product docs. Default
+  two-Mac LAN operator path: ADR 0013 / B18.
 - Behavior changes that disagree with the spec need a new ADR in `adrs/`.
 - The public product name is Majesta Two (ADR 0008). Do not revive
   working names such as DevFlow.
