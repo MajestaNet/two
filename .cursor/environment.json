@@ -1,0 +1,5 @@
+{
+  "name": "Majesta Two",
+  "user": "ubuntu",
+  "install": "(sudo apt-get update && sudo apt-get install -y ripgrep) || true && curl -LsSf https://astral.sh/uv/install.sh | sh && \"$HOME/.local/bin/uv\" sync --dev"
+}
