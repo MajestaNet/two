@@ -26,8 +26,9 @@ prompt.
 A typical turn leaves only about 5–7K tokens for retrieved code and
 diagnostics ([architecture.md](architecture.md) §7.2). Compaction starts
 near 72% of 16K and drops stale searches. Overnight findings survive
-only if they land in structured task memory or a file in the worktree,
-not in the chat transcript.
+only if they land in structured task memory, the work graph
+([ADR 0014](adrs/0014-persisted-work-graph.md)), or a file in the
+worktree, not in the chat transcript.
 
 Prefer another focused model turn over stuffing more source into one
 prompt. Time is cheap on the `overnight` profile (480 minutes, 30 model
@@ -57,7 +58,9 @@ and the **loop** does the work the window cannot:
 - Fresh review in a new session with the original criteria, the final
   diff, tests, and structured summary — no implementation conversation
   (Stage 7).
-- One named slice per task. Queue the next slice tomorrow.
+- One named slice per task, or one task whose **plan is a work graph**
+  of named slices ([work-graph.md](work-graph.md)). Queue a new task
+  when the graph would exceed overnight budgets.
 
 Quality drops when you ask for a whole-repo audit, a cross-cutting
 refactor, or “find all the issues” in one overnight run. Same-model
@@ -145,7 +148,8 @@ refactors, anything that needs GitHub or Slack side effects.
 1. `uv run two task show ID` and `uv run two task report ID`.
 2. Inspect the worktree diff. Chat summaries never replace the branch.
 3. File issues or continue only from accepted findings.
-4. Queue the next bounded slice. Do not widen the same task.
+4. Queue the next bounded slice, or inspect the work graph cursor if
+   B19 has persisted one. Do not silently widen overnight ceilings.
 
 Write findings **into the worktree** so compaction cannot destroy them.
 

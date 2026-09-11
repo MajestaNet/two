@@ -6,8 +6,8 @@
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
 | Status | Proposed architecture for implementation |
-| Version | 0.7 |
-| Date | 31 August 2026 |
+| Version | 0.8 |
+| Date | 11 September 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
@@ -249,6 +249,7 @@ Responsibilities:
 - select reasoning effort by workflow phase;
 - enforce time, turn, diff, path, and command budgets;
 - checkpoint structured state and reconcile interrupted tool actions;
+- persist and walk a work graph of nodes and typed edges so longer loops stay aligned (ADR 0014);
 - run independent validation outside the agent conversation;
 - decide whether to continue, retry, ask for help, or stop;
 - assemble the final task report;
@@ -340,7 +341,7 @@ The broker maintains a structured task memory outside the model transcript:
 
 - objective and acceptance criteria;
 - repository facts and commands;
-- plan and current step;
+- plan and current step (the durable plan is the work graph in §8.5; this field is a summary);
 - files inspected and why they matter;
 - files changed;
 - tests executed and results;
@@ -439,6 +440,7 @@ The MVP requires no server database.
 | State | Storage |
 | --- | --- |
 | Task queue, lifecycle, leases, and budgets | SQLite in WAL mode on development host |
+| Work graph (nodes, edges, cursor) | SQLite on development host (ADR 0014) |
 | Questions, approvals, and channel/thread bindings | SQLite on development host |
 | Harness trajectories | DeepSeek Harness session store/JSONL |
 | Append-only controller events and reports | Filesystem plus SQLite index |
@@ -641,7 +643,7 @@ The product experience should capture the useful workflow properties of modern A
 1. **One task, one durable conversation.** The task, plan, worktree, model sessions, questions, approvals, and evidence share one identifier across the CLI, optional web, and any messaging adapter.
 2. **Grounded repository awareness.** Model claims and proposed changes reference concrete paths, symbols, callers, tests, and diff hunks. Search and LSP evidence are available without flooding the conversation.
 3. **Clear working modes.** `review-only` answers and investigates; `interactive` proposes and asks at key boundaries; `workspace-auto` executes a bounded change; `unattended` adds durable scheduling and asynchronous escalation.
-4. **Visible plan and progress.** The UI can show acceptance criteria, current stage, current todo, active command, elapsed and remaining budgets, changed files, and latest validation state without querying the model.
+4. **Visible plan and progress.** The UI can show acceptance criteria, current stage, the work graph (nodes, edges, cursor), current todo, active command, elapsed and remaining budgets, changed files, and latest validation state without querying the model.
 5. **Diff-first review.** The authoritative output is the branch/worktree diff plus validation evidence. Chat summaries never replace inspectable code changes.
 6. **Checkpoints and undo.** Majesta Two records safe stage checkpoints and can restore a task to a prior checkpoint or abandon its complete worktree without touching the base checkout.
 7. **Tests as first-class evidence.** Commands, exit codes, concise diagnostics, and artifact links are attached to the task. A green-looking chat response cannot override a failing gate.
@@ -661,6 +663,19 @@ Questions and approvals are durable records, not ephemeral chat prompts:
 - The first valid authorized response resolves the record transactionally. Later or duplicate responses are acknowledged but ignored.
 - Approval timeout behavior is explicit: pause indefinitely, block after a deadline, or apply a pre-authorized safe default. Silence never implies approval.
 - Answers become structured task events and are supplied to the resumed Harness session with the current repository and validation state.
+
+### 8.5 Work graph for longer-running loops
+
+The eight-stage machine in §8.2 is **policy** (what kind of step is legal). The durable plan for a longer work item is a **persisted directed graph** of those kinds (ADR 0014):
+
+- Nodes are bounded slices (inspect, plan, implement, validate, repair, review, decision) with their own objective, acceptance criteria, and status.
+- Edges are typed connections (`depends_on`, `repairs`, `reviews`, `supersedes`, `blocks`) so humans and the next model turn can see *why* a slice is waiting.
+- DeepSeek Harness remains the inner model/tool loop. The controller walks **one** READY node at a time through the existing ACP worker. Validate nodes run host gates and do not call the model. Review nodes always start a fresh session.
+- After compaction or a child restart, the prompt is a graph *slice* (current node, completed predecessor summaries, dependents), not the implementation transcript and not the full graph JSON.
+- Overnight still means larger ceilings, not an unbounded inner loop. Longer work is more nodes inside the task budget. Node-count and per-node turn caps are in ADR 0014; task-level budgets in §6.3.G still win.
+- The linear Inspect → Plan → Implement → Validate → Review pipeline is the degenerate graph. A Plan-stage proposal may expand it. The controller commits the graph; the harness may only propose.
+
+Clients project the graph on the control API (`TaskProjection.graph`). Implementation: `two.graph` (contract) and backlog B19 (store + walker). Do not add a second orchestrator (LangGraph, Temporal, Prefect) and do not fan out local Qwen nodes.
 
 ## 9. Automation modes
 
@@ -911,7 +926,7 @@ Default policy:
 | Messaging | Channel-neutral backend; Slack is the MVP adapter only | Conversational control without publishing an inbound API or coupling the product to one vendor |
 | Source-control export | Optional GitHub App after approval (ADR 0012); not a local forge | Distinct agent principal on remotes that already live on GitHub; DSH never holds the token |
 | Repository isolation | Git worktree per task | Recoverability and concurrent task safety |
-| Long-term task memory | Structured external state | Survives compaction without replaying long reasoning traces |
+| Long-term task memory | Structured external state plus a persisted work graph (ADR 0014) | Survives compaction without replaying long reasoning traces; longer loops keep node/edge alignment |
 | Completion authority | Controller validation | Models cannot self-certify tests or acceptance criteria |
 | Large-repo retrieval | Git + `rg` + LSP first | Lower complexity than premature vector infrastructure |
 
@@ -1032,6 +1047,7 @@ two/
 │   └── two/
 │       ├── api/
 │       ├── controller/
+│       ├── graph/
 │       ├── scheduler/
 │       ├── worker/
 │       ├── workspace/
@@ -1062,7 +1078,7 @@ two/
 ## 20. Implementation sequence
 
 Dedicated, agent-executable slices of this sequence are tracked in
-[`docs/backlog/`](backlog/README.md) (B01–B17). The phase list below
+[`docs/backlog/`](backlog/README.md) (B01–B19). The phase list below
 remains the authority for order and intent; backlog files must not
 invent a second architecture.
 
@@ -1098,6 +1114,7 @@ invent a second architecture.
 
 - Drive DSH through ACP.
 - Add the control API, SQLite event/state model, leases, worker supervision, action ledger, reconciliation, queueing, budgets, repair cycles, fresh review, pause/resume, cancellation, and health awareness.
+- Persist a work graph of nodes and edges so overnight loops longer than one implement/repair cycle stay aligned (ADR 0014, B19). This does not replace the stage machine or enable parallel local Qwen.
 - Install controller services under the development host’s service manager and pass restart/recovery tests.
 - Run the evaluation corpus and promote the winning model runtime.
 
@@ -1153,6 +1170,7 @@ The first repository implementation is complete when:
 - [DeepSeek Harness process sandbox](https://deepseek-harness.github.io/deepseek-harness/en/reference/subsystems/sandbox)
 - [DeepSeek Harness ACP automation interface](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/acp/acp/README.md)
 - [DeepSeek Harness Ralph workflow](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/workflow/tool-ralph/README.md)
+- [Majesta Two work graph (ADR 0014)](adrs/0014-persisted-work-graph.md)
 - [Slack Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode)
 - [Slack HTTP and Socket Mode comparison](https://docs.slack.dev/apis/events-api/comparing-http-socket-mode)
 - [Slack interaction acknowledgement and asynchronous responses](https://docs.slack.dev/interactivity/handling-user-interaction)
