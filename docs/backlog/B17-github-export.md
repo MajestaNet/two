@@ -39,7 +39,7 @@ active coding task.
 - Merge, push to `main` / the default branch, release, or deploy.
 - Giving DSH, Qwen, or the target worktree a GitHub token.
 - A GitHub SDK until this item’s implementation PR writes the next
-  free ADR (**0014**).
+  free ADR (**0015**).
 
 ## Implementation plan
 
@@ -144,7 +144,7 @@ Standing orders:
 - Architecture wins. ADR 0012 is the decision. MVP no-push stays in
   the agent loop.
 - `make ci` green. No live GitHub network in tests.
-- New GitHub SDK = the next free ADR (**0014**) in the same PR.
+- New GitHub SDK = the next free ADR (**0015**) in the same PR.
 - Tokens never reach DSH, Qwen, or target repos.
 - Silence is never export. Digests are immutable (B11).
 - Apache 2.0 headers. No real installation IDs or private keys in git.

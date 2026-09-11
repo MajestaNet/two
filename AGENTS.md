@@ -89,6 +89,9 @@ listed in `config/repositories/two.yaml`.
   is opt-in).
   `src/two/controller/` drives the durable workflow, binds budgets, starts a
   fresh review session, and is the only writer of terminal status.
+  `src/two/graph/` is the no-I/O work-graph contract (ADR 0014): nodes,
+  typed edges, walker, and node-scoped harness handoff. SQLite persistence
+  and controller wiring are B19. Do not put a second agent runtime here.
   `src/two/reporting/` formats gate fragments and Stage 8 final reports.
   `src/two/recovery/` is development-host startup recovery (architecture
   §12.5) and the `two scheduler` / `two worker` process loops.

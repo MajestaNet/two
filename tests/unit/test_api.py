@@ -93,6 +93,7 @@ def test_create_task_then_get_projection(client: TestClient, store: Store) -> No
     assert body["stage"] == WorkflowStage.INTAKE.value
     assert body["plan"] is None
     assert body["todos"] == []
+    assert body["graph"] is None
     assert body["diff_summary"]["placeholder"] is True
     assert body["validation_summary"]["passed"] is None
     assert body["blockers"] == []
