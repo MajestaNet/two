@@ -4,7 +4,8 @@ Dedicated, agent-executable implementation items. One file per item.
 
 - `README.md` is the index: order, dependencies, status.
 - [B01](B01-mac-inference-appliance.md)–[B17](B17-github-export.md) are
-  the original MVP/post-MVP items. [B18](B18-streamlined-lan-setup.md)
+  the original numbered items; B14 is now the secure first-party mobile
+  client direction from ADR 0015. [B18](B18-streamlined-lan-setup.md)
   is operator-path convenience (ADR 0013). [B19](B19-persisted-work-graph.md)
   is the persisted work graph around DeepSeek Harness (ADR 0014). Do not
   merge two items in one PR unless the item file says they may land

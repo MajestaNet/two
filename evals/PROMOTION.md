@@ -29,7 +29,7 @@ Copy the offline runner's `metrics:` line, then fill live columns after soaks:
 | successful restart/resume rate | offline resume cases | reboot soak |
 | duplicate-side-effect count | **must be 0** | **must be 0** |
 | time to recover an expired lease | offline recover_startup | reboot soak |
-| question/approval correctness | offline B11 principals | Slack soak (B14) |
+| question/approval correctness | offline B11 principals | Mobile/API soak (B14) |
 
 ## 24-hour inference-appliance soak
 
@@ -67,21 +67,23 @@ Operator: ________  Date: ________
 Offline coverage of the same recovery contract is
 `eval-controller-restart-lease` (fakes, no Mac). That is not this soak.
 
-## Slack no-terminal path (B14)
+## First-party mobile no-terminal path (B14)
 
-Blocked until the Slack adapter exists. Do not tick this from CI.
+Blocked until the mobile client and required API slices exist. Do not tick
+this from CI.
 
-- [ ] Start, inspect, answer, pause, resume, cancel, complete from Slack
+- [ ] Start, inspect, answer, pause, resume, cancel, complete from the app
 - [ ] No terminal or browser attached
-- [ ] Adapter disconnect did not cancel the task
+- [ ] App disconnect did not cancel the task
+- [ ] Device revocation prevented refresh without affecting task execution
 
-## Stale-approval policy (Slack replay)
+## Stale-approval policy (mobile replay)
 
 - [ ] Approving digest A does not authorize a changed action A'
-- [ ] Slack cannot authorize the changed action by replaying an earlier approval
+- [ ] Mobile cannot authorize the changed action by replaying an earlier approval
 
 Offline digest mismatch is covered by `eval-overnight-pause-resume`.
-The Slack replay path is still this soak.
+The remote-client replay path is still this soak.
 
 ## After both comparison tags
 

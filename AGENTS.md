@@ -4,12 +4,14 @@
 
 Majesta Two is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays on
 a dedicated Mac inference host. This repository is not a Slack (or other
-messenger) product. Slack is the MVP optional adapter. The SQLite WAL store (`two.store`) persists tasks, events, and leases.
+messenger) product. The CLI is first-party today; ADR 0015/B14 plans a secure
+first-party mobile client over the same API. The SQLite WAL store (`two.store`) persists tasks, events, and leases.
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
 The workflow controller owns stage policy, budgets, fresh review, and
-terminal status. Slack remains the optional adapter and is not implemented.
+terminal status. Messaging adapters are optional and not implemented; Slack
+is deferred.
 GitHub export of task branches is post-MVP (ADR 0012) and is not implemented.
 
 ## Stack
@@ -113,7 +115,7 @@ listed in `config/repositories/two.yaml`.
   24 GB / 16K operator guidance. `docs/backlog/` is the implementation
   tracker (one item per file; agent prompts at the end).
 - `deploy/compose/` — Linux control-plane packaging (`api`, `scheduler`,
-  `worker`; optional `slack` profile stub). No Ollama image.
+ `worker`; legacy optional `slack` profile stub). No Ollama image.
 - `deploy/systemd/` — optional user-unit templates. Compose is the default
   unattended packaging.
 - `evals/` — evaluation corpus (architecture §18). Tasks, tiny synthetic

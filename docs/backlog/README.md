@@ -2,8 +2,8 @@
 
 Executable slices of [architecture.md](../architecture.md) §20. The
 foundation scaffold (package layout, types, manifests, CLI help, config
-templates) is already in the tree. B01–B16 are the remaining work to
-reach MVP acceptance in architecture §21. B17 is post-MVP (ADR 0012)
+templates) is already in the tree. B01–B16 are the implementation sequence
+toward the architecture acceptance contract. B17 is post-MVP (ADR 0012)
 and does not block §21. B18 is the interactive two-Mac LAN setup path
 (ADR 0013); it does not block §21. B19 is the persisted work graph
 around DeepSeek Harness (ADR 0014); it does not block §21.
@@ -48,14 +48,15 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B11](B11-questions-approvals.md) | Questions, approvals, pause/resume/cancel | 5 | B06, B07 | done |
 | [B12](B12-dev-host-services.md) | Development-host services and Compose | 5 | B07, B08, B09, B10 | done |
 | [B13](B13-cli-and-interaction.md) | CLI client and interaction-contract tests | 6 | B07 | done |
-| [B14](B14-slack-adapter.md) | Slack MVP adapter | 6 | B07, B11 | planned |
+| [B14](B14-secure-mobile-client.md) | Secure first-party mobile client | 6 | B07, B11, B19 | planned |
 | [B15](B15-evaluation-corpus.md) | Evaluation corpus and promotion gates | 5 / 18 | B03 (fixtures); B10–B12 (promotion) | done |
 | [B16](B16-paid-model-routes.md) | Optional paid-model routes | 7 | B10 | planned |
 | [B17](B17-github-export.md) | GitHub App source-control export | 8 | B03, B10, B11 | planned |
 | [B18](B18-streamlined-lan-setup.md) | Streamlined two-Mac LAN setup | 6 | B01, B12, B13 | done |
 | [B19](B19-persisted-work-graph.md) | Persisted work graph around DeepSeek Harness | 5+ | B05, B06, B09, B10 | planned |
 
-Optional thin web UI is a subsection of B13, not a second product.
+The skipped thin web UI in B13 is superseded by the first-party client
+direction in ADR 0015/B14.
 B17 is parked: local worktree handoff remains the MVP.
 B18 streamlines the interactive operator path (ADR 0013) and does not
 change topology or inference defaults. B19 (ADR 0014) is the alignment
@@ -66,7 +67,7 @@ layer for longer loops; the linear B10 stage machine remains valid.
 Default (matches architecture §20):
 
 ```text
-B01 → B02 → B03 → B04 → B05 → B06 → B07 → B08 → B09 → B10 → B11 → B12 → B13 → B14 → B15 → B16 → B17
+B01 → B02 → B03 → B04 → B05 → B06 → B07 → B08 → B09 → B10 → B11 → B12 → B13 → B19 → B14 → B15 → B16 → B17
 ```
 
 Safe parallelization while the tree is still a scaffold:
@@ -86,7 +87,8 @@ flowchart LR
   B11[B11 Approvals]
   B13[B13 CLI]
   B12[B12 Host]
-  B14[B14 Slack]
+  B19[B19 Work graph]
+  B14[B14 Mobile]
   B15[B15 Evals]
   B16[B16 Paid]
   B17[B17 GitHub export]
@@ -105,7 +107,12 @@ flowchart LR
   B07 --> B11
   B10 --> B12
   B07 --> B13
+  B05 --> B19
+  B06 --> B19
+  B09 --> B19
+  B10 --> B19
   B11 --> B14
+  B19 --> B14
   B10 --> B15
   B10 --> B16
   B03 --> B17
@@ -133,6 +140,8 @@ These apply even if an agentic prompt is pasted without this README:
   (`workspace`, DSH, worker). Approved GitHub export is ADR 0012 /
   B17 and is not implemented; do not add `push` to B03.
 - Do not reimplement the DeepSeek Harness agent loop.
-- Slack is the MVP adapter only; this repo is the backend.
-- Unit tests stay offline: no live Mac, Slack, Ollama, GitHub, or
+- The secure mobile client is B14; this repo remains the backend and does not
+  put workflow policy in any client.
+- Unit tests stay offline: no live Mac, mobile identity provider, push
+  provider, Slack, Ollama, GitHub, or
   paid model.

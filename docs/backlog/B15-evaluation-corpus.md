@@ -47,8 +47,9 @@ alias requires the §18 metrics, not token speed.
    - Harness kill before/after tool result
    - controller restart with active lease
    - uncertain command reconciliation
-   - Slack disconnect/duplicate (if B14 present; else skip marker)
-   - overnight pause/resume from another channel
+   - mobile/API disconnect, duplicate mutation, and stale cursor (when B14
+     exists; otherwise skip marker)
+   - overnight pause/resume from another client
    - cancel during long test
 
 2. **Fixtures**  
@@ -70,7 +71,7 @@ alias requires the §18 metrics, not token speed.
 5. **Promotion checklist**  
    A markdown section in `docs/operations.md` or
    `evals/PROMOTION.md`: 24h soak, 8h controller soak, reboot recovery,
-   Slack no-terminal path, stale-approval policy test. Operators
+   mobile no-terminal path, stale-approval policy test. Operators
    tick boxes; CI does not fake green soaks.
 
 6. **Compare two tags**  
