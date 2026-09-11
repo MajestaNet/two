@@ -326,6 +326,8 @@ The intended GUI has five primary views:
 The graph is rendered from `TaskProjection.graph`; the UI does not derive a
 plan from chat prose. The conversation and graph cross-link by task event
 cursor and node id. A refresh can reconstruct every view from API snapshots.
+Until B19 persists a graph, `graph` may be `null`. Client API work must not
+wait on that field.
 
 ## 9. Delivery boundaries
 
@@ -344,6 +346,7 @@ This design intentionally does not:
 
 Implementation should be sliced into: contract/auth foundations, read-only
 GUI projections and SSE, typed config candidates, then the separate native
-mobile client. Each slice needs offline contract tests; remote auth and
+mobile client. B19 is parallel work; it is not a start gate for those API
+slices. Each slice needs offline contract tests; remote auth and
 mobile security require dedicated integration and threat-model review before
 promotion.
