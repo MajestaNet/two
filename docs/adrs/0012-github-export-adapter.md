@@ -42,8 +42,8 @@ so DSH commits do not impersonate the operator. That layer needs no
 remote.
 
 Architecture §3 forbids *automatically* merging, pushing, releasing, or
-deploying. Architecture §15 forbids push in the MVP. Slack (ADR 0007)
-already shows the adapter pattern: vendor credentials and side effects
+deploying. Architecture §15 forbids push in the MVP. ADR 0007
+establishes the adapter pattern: vendor credentials and side effects
 stay outside the model/tool loop; silence is never approval.
 
 ## Decision
@@ -54,8 +54,8 @@ stay outside the model/tool loop; silence is never approval.
    `two.workspace`, `two.worker`, or DeepSeek Harness.
 
 2. **Prefer a GitHub App as the eventual remote path.** Repositories
-   are already GitHub. The App is the source-control analogue of the
-   Slack adapter: an optional process on the development host, tokens
+   are already GitHub. The App is a source-control adapter: an optional
+   process on the development host, tokens
    in environment variables only, never in DSH, Qwen, or the target
    worktree.
 
@@ -66,7 +66,7 @@ stay outside the model/tool loop; silence is never approval.
    call the GitHub pull-request API. It must not become a second
    workspace manager.
 
-4. **Same approval rules as Slack.** Completion of a task does not
+4. **Same durable approval rules.** Completion of a task does not
    publish anything. Export requires a durable, digest-scoped approval
    (`two.approvals`). The digest covers at least repository, branch,
    head SHA, and remote. Silence is never export. A later or duplicate
@@ -96,8 +96,7 @@ stay outside the model/tool loop; silence is never approval.
    optional handoff after Stage 8, not a rewrite of B03.
 
 8. **Do not add a GitHub SDK in this ADR.** B17, if it needs a vendor
-   library, writes the next free ADR in that implementation PR
-   (same rule as B14 / Slack).
+   library, writes a focused dependency ADR in that implementation PR.
 
 ## Consequences
 
@@ -106,10 +105,9 @@ stay outside the model/tool loop; silence is never approval.
   [source-control-export.md](../source-control-export.md).
 - Layer 1 (local `Majesta Two Agent` author/committer, no remotes)
   may land as the first slice of B17 without talking to GitHub.
-- Layer 2 is optional: the backend runs without a GitHub App, just as
-  it runs without Slack.
+- Layer 2 is optional: the backend runs without a GitHub App or remote
+  client.
 - Coding agents must not reopen B03 to add `push`. They must not put
   GitHub tokens in the ACP child environment.
 - ADR **0014** is the persisted work graph around DeepSeek Harness.
-  The next free ADR number is **0015** (B14’s Slack SDK note and B07’s
-  “next after 0012” pointer are updated to match).
+  ADR **0015** defines the first-party client API and secure mobile direction.
