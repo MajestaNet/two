@@ -1,6 +1,6 @@
 # Majesta Two
 
-Majesta Two is a **backend** control plane for local, private software-development agents. It drives [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) on a development host and calls an official Qwen 3.8 model served from a Mac over a private network. Which messaging app you use is your choice; Slack is only the first optional adapter.
+Majesta Two is a **backend** control plane for local, private software-development agents. It drives [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) on a development host and calls an official Qwen 3.8 model served from a Mac over a private network. The CLI uses its channel-neutral control API today; a secure first-party mobile client is planned.
 
 Inference stays on the Mac. Repositories, shells, tests, and git worktrees stay on the development host. The model never mounts source and never executes commands on the inference appliance.
 
@@ -9,8 +9,8 @@ state lives in SQLite (`two.store`). The control API (`two api`), scheduler
 (`two scheduler`), and ACP worker (`two worker`) run on the development
 host. The interactive default is a Mac laptop on the same LAN as the
 inference Mac ([ADR 0013](docs/adrs/0013-streamline-default-lan-setup.md));
-Compose remains the unattended Linux packaging. Slack remains an optional
-adapter (not required).
+Compose remains the unattended Linux packaging. Mobile and messaging clients
+are optional and not required.
 
 **Private by default.** Prompts and repository excerpts remain on the private network unless a task explicitly permits a cloud route. The inference API and Majesta Two API must not be exposed to the public internet.
 
@@ -22,8 +22,9 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 
 - [Setup](docs/setup.md) — operator walkthrough; default two-Mac LAN path first
 - [ADR 0013](docs/adrs/0013-streamline-default-lan-setup.md) — streamline that path
-- [Channels](docs/channels.md) — backend API; optional adapters; Slack is the MVP
-- [Remote access](docs/remote-access.md) — overlay for CLI/web; outbound adapters only
+- [Client API design](docs/client-api-design.md) — chat, config, graph monitoring, health, and mobile security
+- [Channels](docs/channels.md) — backend API, first-party client direction, optional adapters
+- [Remote access](docs/remote-access.md) — private-overlay CLI/mobile; optional outbound adapters
 - [Viability review](docs/viability.md)
 - [Operations](docs/operations.md)
 - [Unattended operations](docs/unattended-operations.md)
@@ -38,7 +39,7 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 
 ## Install and test
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). **Operator walkthrough** (config, privacy, network, CLI): [docs/setup.md](docs/setup.md). CLI on the development host is enough; Slack is optional.
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). **Operator walkthrough** (config, privacy, network, CLI): [docs/setup.md](docs/setup.md). CLI on the development host is enough; no mobile or messenger client is required.
 
 ```bash
 uv sync --dev

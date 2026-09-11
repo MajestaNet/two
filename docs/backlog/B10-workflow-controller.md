@@ -26,7 +26,7 @@ Independent validation (B04) is authoritative.
 
 ## Out of scope
 
-- Slack (B14).
+- Client UI and GUI API expansion (B14).
 - Paid routing (B16) except honoring `cloud_allowed: false` (never
   escalate).
 - Merge/push/deploy.

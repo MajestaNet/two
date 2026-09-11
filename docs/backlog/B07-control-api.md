@@ -18,8 +18,9 @@ loopback or a Unix socket by default. Authentication is required once
 the bind is not loopback. The API does not call the model.
 
 This item is **implemented**. The rest of this file is the **frozen
-client contract** for B13 (CLI) and B14 (Slack adapter). Do not invent
-a second JSON shape in those items.
+baseline client contract** for B13 (CLI) and B14 (secure mobile client).
+ADR 0015 and `docs/client-api-design.md` define planned additive GUI
+resources; they do not claim those routes are implemented.
 
 ## Current tree
 
@@ -35,7 +36,8 @@ a second JSON shape in those items.
 
 ## Out of scope
 
-- Slack or any vendor adapter (B14).
+- GUI/mobile resources, remote identity, configuration, SSE, and aggregate
+  health (B14 / ADR 0015).
 - Workflow stage policy (B10) and ACP (B09).
 - Public reverse proxies.
 - Token-by-token model streaming.
@@ -90,7 +92,9 @@ Keep these names stable.
 
 Duplicate `manifest.id` is 409 `duplicate_task`. Unknown task is 404.
 Non-loopback binds require `Authorization: Bearer $TWO_API_TOKEN`.
-`principal` / `actor` is an opaque string (`cli:…`, `slack:U…`).
+`principal` / `actor` is currently an opaque string (`cli:…`). Under ADR
+0015, authenticated network principals are server-derived; clients cannot
+use these body fields to assert authority.
 
 ## Projection fields (`two.projection.TaskProjection`)
 
@@ -112,7 +116,7 @@ CLI and adapters **import `two.projection`**, not FastAPI.
 ## Thinness
 
 `api/` maps HTTP to `two.store` and `two.approvals`. No git, no
-subprocess, no Slack, no Ollama client.
+subprocess, no client UI, no Ollama client.
 
 ## Tests
 
@@ -143,8 +147,10 @@ interfaces. Status `done`. Later items extend `/v1` additively.
 
 This item is **done**. Do not re-implement the control API.
 
-B13 and B14 must consume `two.projection.TaskProjection` and the routes
-in this file. If a new field is required, add it optionally on `/v1` in
-`projection.py` with tests; do not fork a second schema. New event types
+B13 and B14 must consume `two.projection.TaskProjection` and extend the
+routes in this file additively according to ADR 0015. If a new field is
+required, add it optionally on `/v1` in `projection.py` with tests; do not
+fork a second schema. New event types
 must be `domain.verb` members of `two.types.EventType`. A new HTTP
-framework or public bind needs an ADR (next free number is **0015**).
+framework or public bind needs an ADR. ADR 0015 does not authorize a public
+bind or select implementation dependencies.

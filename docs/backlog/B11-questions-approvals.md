@@ -26,7 +26,7 @@ writes the records and API).
 
 ## Out of scope
 
-- Slack buttons (B14 maps to these APIs).
+- Client UI and remote scoped identity (B14 maps to these APIs).
 - Changing an action after approval (digest must not match).
 
 ## Implementation plan
@@ -56,9 +56,9 @@ writes the records and API).
      lifecycle `cancelled`, retain worktree.
 
 5. **Authorization**  
-   For the API, define who may decide (env token / local user). Do
-   not invent Slack allowlists here; leave a principal id string that
-   B14 will fill.
+   The implemented baseline accepts an environment token / local user and
+   records a principal string. ADR 0015/B14 must derive remote principals
+   and scopes server-side; a request body cannot assert its own authority.
 
 6. **Tests**
    - Duplicate decide ignored.
@@ -72,7 +72,7 @@ writes the records and API).
 - [x] Silence ≠ approval.
 - [x] Digest mismatch rejected.
 - [x] `awaiting_input` is persisted so B08 can release the slot.
-- [x] CLI/API can resolve questions without Slack.
+- [x] CLI/API can resolve questions without a remote client.
 
 ## Definition of done
 

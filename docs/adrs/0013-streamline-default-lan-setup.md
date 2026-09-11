@@ -318,8 +318,8 @@ Slice 1 must not write files, open SQLite, or call the network.
   setup steps.
 - A Mac laptop that sleeps is a valid interactive host and a poor
   overnight host. Do not paper over that with colocation on 24 GB.
-- Next free ADR number after this file is **0015**. ADR **0014** is the
-  persisted work graph around DeepSeek Harness.
+- ADR **0014** is the persisted work graph around DeepSeek Harness; ADR
+  **0015** defines the first-party client API and mobile direction.
 
 ## Alternatives considered
 

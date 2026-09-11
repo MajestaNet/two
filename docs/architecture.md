@@ -6,7 +6,7 @@
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
 | Status | Proposed architecture for implementation |
-| Version | 0.8 |
+| Version | 0.9 |
 | Date | 11 September 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
@@ -22,7 +22,7 @@ The system will separate **inference** from **software-development execution**. 
 - They call Ollama through an OpenAI-compatible HTTP endpoint. The model process never mounts the repository and never executes commands, even if Ollama and the harness share one Mac (`topology: colocated`, intended for ~48 GB+ and no sleep).
 - Colocation is a bind-address change (`127.0.0.1` instead of a LAN name), not a second architecture. See ADR 0006 and `two topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
-- A channel-neutral interaction gateway exposes the same task through the control API. This repository is the backend (API, CLI, later a thin web view). Messaging clients are optional adapters. Slack is the MVP adapter because it is the easiest outbound path; other messengers are in scope via the same contract. These are control surfaces over one durable task record, not separate agent sessions.
+- A channel-neutral interaction gateway exposes the same task through the control API. This repository is the backend (API and CLI now; a secure first-party mobile GUI later). Messaging clients remain possible optional adapters, but Slack is no longer the planned MVP. Every client is a control surface over one durable task record, not a separate agent session.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
 
 The MVP deliberately uses one model and one inference request at a time. It does not use SSD streaming, macOS swap as working memory, automatic production deployment, or concurrent local subagents.
@@ -47,7 +47,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 6. Allow optional paid specialist models later without coupling the workflow to any one provider.
 7. Persist enough evidence to replay or audit what an automated task did.
 8. Run bounded unattended jobs for several hours or overnight, surviving model, harness, channel, and development-host process restarts without losing repository work or blindly repeating side effects.
-9. Provide a task-scoped, conversational development experience with visible plans, progress, diffs, commands, validation results, questions, approvals, and final reports through the control API (CLI first; optional web and optional messaging adapters).
+9. Provide a task-scoped, conversational development experience with visible plans, progress, diffs, commands, validation results, questions, approvals, and final reports through the control API (CLI first; secure first-party mobile GUI later; optional messaging adapters remain possible).
 
 ### 2.2 Non-functional goals
 
@@ -87,7 +87,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 5. Target repositories use git and provide reproducible build/test commands or can be given an external repository profile containing them.
 6. Only one automated development task actively uses the local model at a time.
 7. The development host or VM remains powered on for overnight work and runs Majesta Two under an operating-system service manager rather than an interactive shell.
-8. A messaging adapter, if enabled, is an external control and notification channel. Its outage must not stop a running job. Repository content sent to any messenger is governed by channel-output policy. Slack is the MVP adapter only.
+8. A remote client or messaging adapter, if enabled, is an external control and notification channel. Its outage must not stop a running job. Remote output is governed by disclosure policy. The planned remote GUI is the first-party mobile client in ADR 0015; Slack is deferred.
 
 ## 5. Architecture overview
 
@@ -95,11 +95,11 @@ The MVP deliberately uses one model and one inference request at a time. It does
 flowchart TB
     subgraph Channels["Clients and adapters"]
         CLI["CLI first-party"]
-        WEB["Optional web"]
+        MOBILE["First-party mobile GUI (planned)"]
         MSG["Optional messenger adapter"]
     end
     CLI --> API["Majesta Two control API"]
-    WEB --> API
+    MOBILE --> API
     MSG --> API
     API --> C["Durable controller and queue"]
     C --> H["DeepSeek Harness and worktree tools"]
@@ -111,7 +111,7 @@ flowchart TB
 
 The model produces intentions and tool calls. The development host decides whether and how those calls execute.
 
-| Capability | Mac inference host | Development host | External messaging service |
+| Capability | Mac inference host | Development host | Remote client / external service |
 | --- | --- | --- | --- |
 | Model weights and decoding | Yes | No | No |
 | Repository checkout | No | Yes | No |
@@ -122,7 +122,7 @@ The model produces intentions and tool calls. The development host decides wheth
 | Raw source and verbose artifacts | No | Yes | Suppressed by default |
 | Source-control credentials | No | Optional, policy controlled | No |
 | Paid-model credentials | No | Optional, policy controlled | No |
-| Messaging credentials | No | Adapter process only | Service-managed identity |
+| Client credentials | No | API verifier/configuration only | Device secure storage or service-managed identity |
 
 This separation keeps the Mac simple and ensures a model cannot directly act outside the development host’s policy boundary.
 
@@ -416,32 +416,53 @@ The interaction gateway presents one controller contract to every UI:
 - request a review or final report;
 - open the retained worktree or branch from a development-capable client.
 
-The Majesta Two API binds to a Unix socket or loopback interface by default. If the web client is used from another machine, access is through the private network or overlay with controller authentication; the API is never exposed directly to the public internet.
+The Majesta Two API binds to a Unix socket or loopback interface by default.
+A remote client uses authenticated HTTPS over a private overlay; the API is
+never exposed directly to the public internet.
 
-Every conversational surface binds to the stable task identifier. A messenger thread or DM (Slack is the MVP example) may create a task; follow-ups continue that task and do not silently create new Harness sessions. Duplicate channel events are discarded using their source event identifier.
+Every conversational surface binds to the stable task identifier. Follow-ups
+continue that task and do not silently create new Harness sessions. A
+review-only task is the no-write conversational mode; the system does not add
+a second chat-agent runtime beside DeepSeek Harness.
 
-Slack is the **MVP adapter** only: easiest outbound path (Socket Mode, threads). This repo does not ship a Slack product. Any adapter must:
+The implemented B07 API is the CLI baseline. The additive GUI contract is
+specified in [client-api-design.md](client-api-design.md) and ADR 0015. It
+adds:
 
-- acknowledge vendor interactions immediately and perform all long work asynchronously;
-- authenticate with dedicated app and bot tokens stored outside repositories;
-- allow only configured workspace, channel, and user identities;
-- translate messages and button actions into typed Majesta Two API commands rather than shell strings;
-- remain unable to call the model, shell, git, or deployment systems directly;
-- post concise stage changes, questions, approval requests, failures, and completion summaries rather than token-by-token model output;
-- expose source excerpts and full logs only on explicit request and under channel-output policy;
-- reconnect with backoff without changing the underlying task state.
+- client-safe conversation pagination and resumable server-sent events;
+- repository and project resources with immutable, validated config
+  candidates;
+- persisted-graph, bounded diff/artifact, queue, and aggregate health
+  projections;
+- optimistic concurrency and idempotent mutations;
+- server-derived principals, scoped authorization, and mobile-grade
+  authentication.
 
-Any cloud messenger is an external data processor even though model inference remains local. The default policy therefore permits objectives, high-level progress, test summaries, and diff statistics, but suppresses secrets, environment values, raw trajectories, and large source excerpts. Matrix, Discord, or another adapter implements the same gateway contract; do not fork the controller.
+The first-party mobile app calls only this API. It reaches HTTPS over a
+private overlay and uses OAuth 2.1 Authorization Code with PKCE against an
+operator-configured OIDC issuer; the shared CLI bearer token is not embedded
+in the app. The server fails closed when trusted remote authentication is not
+configured. Approval remains bound to an immutable action digest and may
+require recent or local operator authentication.
+
+Any future messenger adapter implements the same API rather than forking the
+controller. It authenticates dedicated identities, maps vendor input to typed
+commands, deduplicates retries, posts only policy-filtered summaries, and
+remains unable to call the model, shell, git, or deployment systems directly.
+Any cloud notification or messenger service is an external data processor:
+payloads suppress secrets, environment values, raw trajectories, source,
+approval details, and verbose logs by default.
 
 ### 6.4 State and storage
 
-The MVP requires no server database.
+The MVP requires no separate network database; authoritative control-plane
+state uses the development host's SQLite WAL store.
 
 | State | Storage |
 | --- | --- |
 | Task queue, lifecycle, leases, and budgets | SQLite in WAL mode on development host |
 | Work graph (nodes, edges, cursor) | SQLite on development host (ADR 0014) |
-| Questions, approvals, and channel/thread bindings | SQLite on development host |
+| Questions, approvals, projects, client subscriptions, and config revisions | SQLite on development host |
 | Harness trajectories | DeepSeek Harness session store/JSONL |
 | Append-only controller events and reports | Filesystem plus SQLite index |
 | Repository task changes | Git worktree and task branch |
@@ -640,7 +661,7 @@ The output includes:
 
 The product experience should capture the useful workflow properties of modern AI coding tools without coupling them to a particular UI or Harness implementation:
 
-1. **One task, one durable conversation.** The task, plan, worktree, model sessions, questions, approvals, and evidence share one identifier across the CLI, optional web, and any messaging adapter.
+1. **One task, one durable conversation.** The task, plan, worktree, model sessions, questions, approvals, and evidence share one identifier across the CLI, first-party mobile GUI, and any future adapter.
 2. **Grounded repository awareness.** Model claims and proposed changes reference concrete paths, symbols, callers, tests, and diff hunks. Search and LSP evidence are available without flooding the conversation.
 3. **Clear working modes.** `review-only` answers and investigates; `interactive` proposes and asks at key boundaries; `workspace-auto` executes a bounded change; `unattended` adds durable scheduling and asynchronous escalation.
 4. **Visible plan and progress.** The UI can show acceptance criteria, current stage, the work graph (nodes, edges, cursor), current todo, active command, elapsed and remaining budgets, changed files, and latest validation state without querying the model.
@@ -754,13 +775,12 @@ Recommended processes:
 - `two-scheduler`: durable queue, leases, budgets, and recovery;
 - `two-worker`: single local-model execution worker and ACP supervisor;
 - pinned DeepSeek Harness runtime, launched or attached per task;
-- optional `two-slack`: isolated Socket Mode channel adapter;
 - optional DSH Web UI bound locally or to the private network;
 - repository language servers and build toolchains;
 - SQLite task state;
 - lightweight health poller for the Mac endpoint.
 
-The API, scheduler, worker, and enabled channel adapters run under `systemd` or the development host’s equivalent service manager with automatic restart and bounded restart backoff. On a dedicated Linux host, Docker Compose (`deploy/compose`) is the recommended packaging for those processes; a full VM is optional extra isolation. Ollama stays native on the Mac. The worker count for the local Qwen route is one. Optional messaging adapters (Slack MVP) dial out. CLI/web from another network uses a private overlay, not a public bind. See ADR 0005, ADR 0007, and `docs/channels.md`.
+The API, scheduler, worker, and enabled adapters run under `systemd` or the development host’s equivalent service manager with automatic restart and bounded restart backoff. On a dedicated Linux host, Docker Compose (`deploy/compose`) is the recommended packaging for those processes; a full VM is optional extra isolation. Ollama stays native on the Mac. The worker count for the local Qwen route is one. CLI/mobile from another network uses authenticated HTTPS over a private overlay, not a public bind. See ADR 0005, ADR 0015, `docs/channels.md`, and `docs/client-api-design.md`.
 
 ### 12.3 Health states
 
@@ -801,21 +821,33 @@ Arbitrary shell commands cannot be made exactly-once across every possible host 
 
 The development host should use persistent storage with routine snapshots. A laptop can run interactive jobs, but a small always-on Linux VM is the recommended control plane for overnight execution.
 
-### 12.6 Messaging adapters (Slack is the MVP)
+### 12.6 Secure remote GUI and optional adapters
 
-This repo is the backend. Adapters are optional. The Slack adapter, if you use it, runs independently of the worker and uses outbound Socket Mode. No vendor webhook, inference endpoint, Harness UI, or Majesta Two API needs to be exposed publicly.
+The first planned rich client is a first-party native mobile app (ADR 0015,
+B14). It is detachable and reconstructs state from snapshots plus resumable
+server-sent events. Its five primary views are Projects, Task conversation,
+Development loop, Evidence, and System health. Once B19 persists and
+populates it, the work graph—not chat prose—supplies plan topology, cursor,
+readiness, and dependency reasons.
 
-Initial conversational behavior:
+Remote access requires:
 
-- DM the bot or mention it with either an `ask` request for a `review-only` conversation or a `task` request for a worktree-backed development workflow. Ambiguous requests are normalized and confirmed before repository writes.
-- The bot replies with normalized repository, base ref, mode, execution profile, acceptance criteria, and budgets; starting execution is an explicit action unless a configured channel is pre-authorized for automatic intake.
-- The bot creates or binds a dedicated thread and posts only meaningful stage transitions.
-- Natural-language follow-ups in the bound thread become task messages. Explicit controls such as `status`, `pause`, `resume`, `cancel`, `diff`, `tests`, `approve`, and `reject` are also available as buttons or commands.
-- Long operations are acknowledged immediately; later messages carry progress or results.
-- Questions and approvals remain resolvable through CLI or web if Slack is unavailable.
-- Completion posts a concise report and stable task identifier. Large diffs and logs remain on the development host and are retrieved on demand.
+- HTTPS over a private Tailscale/WireGuard overlay; no public API bind;
+- OAuth 2.1 Authorization Code with PKCE and a trusted
+  operator-configured OIDC issuer;
+- short-lived access tokens, rotating refresh credentials in platform secure
+  storage, server-side revocation, and server-derived scopes;
+- foreground, fresh-state interaction for approvals and sensitive config;
+- bounded encrypted caching and minimal lock-screen disclosure.
 
-The adapter requires an egress path to Slack and therefore is optional. A task continues normally during a Slack outage; only notifications and Slack-originated responses are delayed.
+Push is optional. APNs/FCM receives only an opaque task id and coarse event
+class; the app fetches details after unlock. A notification tap, silence, or
+offline action never grants approval. Closing the app, losing connectivity,
+or revoking a device does not stop a controller-owned task.
+
+Future cloud messenger adapters may still dial out and project the same
+redacted API, but none is required or selected as the MVP. They must not
+publish the API, call the model or shell, or become a second state store.
 
 ### 12.7 Source-control export (GitHub App; post-MVP)
 
@@ -827,7 +859,7 @@ After MVP, an optional GitHub App on the development host may export that **alre
 - Split local git object identity (`GIT_AUTHOR_*` / `GIT_COMMITTER_*` for the agent) from remote export. DSH must not impersonate the operator’s laptop `user.name`, and must not receive GitHub tokens.
 - Export is controller-owned and approval-gated. Silence is never export. Completing a task does not push.
 - The adapter may push only the approved task branch (or a documented bot namespace) and open a draft PR. It cannot merge, push the default or other shared branches, release, or deploy.
-- Tokens stay in environment variables on the development host, the same rule as Slack tokens. They never reach DeepSeek Harness, Qwen, or the target worktree.
+- Tokens stay in environment variables on the development host, the same rule as client-verifier and adapter credentials. They never reach DeepSeek Harness, Qwen, or the target worktree.
 - Package this as `two.export`, not `two.channels` (channels must not run git) and not `two.workspace` (the workspace manager keeps its no-push surface).
 
 See ADR 0012, `docs/source-control-export.md`, and backlog B17. This section does not add a §21 MVP acceptance item.
@@ -881,8 +913,8 @@ A static non-zero swap allocation is not itself a failure. Sustained page-out gr
 | Model process crash | Restart Ollama, verify digest, preload, resume last safe model turn |
 | Development-host or controller restart | Reclaim expired lease, verify worktree, reconcile last action, then resume |
 | Harness child crashes | Restart from valid session reference or fresh structured handoff; preserve task identity |
-| Slack disconnects | Continue task; reconnect with backoff; deliver current state rather than replaying every missed progress message |
-| Duplicate Slack event or approval | Deduplicate by source identifier and resolve the durable record once |
+| Mobile/client disconnects | Continue task; reconnect from snapshot plus durable event cursor |
+| Duplicate client mutation or approval | Idempotency key plus first-writer-wins resolution; stale digest fails |
 | Cancellation during a command | Request cooperative termination, enforce grace timeout, record partial outcome, and reconcile before any resume |
 | Test failure | Bounded diagnosis/repair loop using concise diagnostics |
 | No progress across repairs | Fresh reviewer, then block or allowed paid-model escalation |
@@ -903,8 +935,11 @@ Default policy:
 - Dependency-lock changes, database migrations, infrastructure changes, and generated large diffs require explicit policy or human approval.
 - Push, merge, release, deploy, email, ticket updates, and other external actions are prohibited in the MVP.
 - Chat and messaging payloads are parsed into typed controller commands; raw message text is never interpolated into a shell command.
-- Slack workspace, channel, and user allowlists are enforced at the adapter and controller layers.
-- Slack tokens and channel credentials are not exposed to DeepSeek Harness, Qwen, build commands, or target repositories.
+- Under the B14 remote-auth target, identity and scopes are derived by the
+  API from a trusted issuer; request bodies cannot assert their own authority.
+  Until then, the shared bearer token is one coarse trusted-operator
+  credential, not multi-user authorization.
+- Mobile, OIDC, push, and adapter credentials are not exposed to DeepSeek Harness, Qwen, build commands, or target repositories.
 - GitHub App tokens, when export is enabled, follow the same rule (ADR 0012). They are not ambient credentials for the agent loop.
 - Approval records are scoped to one task and one immutable action digest; broad conversational agreement is not executable authorization.
 - Channel-output policy redacts secrets and suppresses raw source, full trajectories, and verbose logs by default.
@@ -923,7 +958,7 @@ Default policy:
 | Harness integration | Durable external Majesta Two control plane | Insulates the workflow from developer-preview churn and supplies queueing, recovery, interaction, and deterministic gates |
 | Task lifetime | Majesta Two state machine, events, leases, and checkpoints | Allows overnight execution and restart recovery independent of clients or Harness processes |
 | Developer experience | Task-scoped plan, progress, diff, evidence, and conversation contract | Preserves productive coding-agent workflows across replaceable clients |
-| Messaging | Channel-neutral backend; Slack is the MVP adapter only | Conversational control without publishing an inbound API or coupling the product to one vendor |
+| Client direction | Channel-neutral backend; CLI now, secure first-party mobile GUI later | Rich graph/config/health UX without coupling workflow state to a vendor |
 | Source-control export | Optional GitHub App after approval (ADR 0012); not a local forge | Distinct agent principal on remotes that already live on GitHub; DSH never holds the token |
 | Repository isolation | Git worktree per task | Recoverability and concurrent task safety |
 | Long-term task memory | Structured external state plus a persisted work graph (ADR 0014) | Survives compaction without replaying long reasoning traces; longer loops keep node/edge alignment |
@@ -946,9 +981,9 @@ Default policy:
 | Long unattended loop consumes time without progress | Wasted runtime or damaging churn | Hard budgets, stage ceilings, two-attempt no-progress limit, deterministic gates, pause/block outcomes |
 | Crash occurs around a shell side effect | Duplicate or ambiguous action | Intent/result action ledger, diff fingerprints, reconciliation state, no blind replay |
 | Controller database or disk is lost | Task and audit-state loss | Persistent VM disk, WAL mode, filesystem artifacts, routine host snapshots, retained git worktrees |
-| Slack is unavailable | Lost control-channel messages | Task execution independent of adapter; reconnect/backoff; CLI and web remain authoritative alternatives |
-| Repository or secrets leak through Slack | Privacy or credential exposure | Minimal summaries, output policy, redaction, allowlists, no raw trajectories or environment values |
-| Unauthorized Slack action controls a task | Unsafe pause, cancellation, or approval | Workspace/channel/user allowlists, typed commands, immutable scoped approvals, complete audit events |
+| Mobile device is lost or compromised | Unauthorized task/source access | Short-lived scoped tokens, rotating secure-storage refresh credentials, server-side revocation, bounded encrypted cache |
+| Repository or secrets leak through client/push | Privacy or credential exposure | On-demand source scope, redaction, minimal opaque notifications, no raw trajectories or environment values |
+| Unauthorized or stale client action controls a task | Unsafe pause, cancellation, config, or approval | Server-derived scopes, idempotency, ETags, recent-auth policy, immutable action digests, complete audit events |
 
 ## 18. Evaluation and promotion gates
 
@@ -967,7 +1002,7 @@ Before unattended use, create a representative evaluation corpus containing:
 - Harness termination immediately before and after a tool result;
 - development-host controller restart while a task lease is active;
 - uncertain command-result reconciliation without duplicate execution;
-- Slack disconnect/reconnect and duplicate-event delivery;
+- mobile disconnect/reconnect, stale SSE cursor, and duplicate mutation retry;
 - an overnight task that pauses for a question and resumes hours later from another channel;
 - cancellation during a long-running build or test.
 
@@ -997,8 +1032,8 @@ Before promoting unattended overnight mode, the system must also pass:
 - a 24-hour inference-appliance soak at representative duty cycle without sustained page-out growth or unrecovered model failure;
 - an 8-hour unattended controller soak containing multiple tasks, at least one injected Harness restart, and one temporary Mac-endpoint outage;
 - recovery of every retained worktree and non-terminal task after a controlled development-host reboot;
-- a channel test proving that a Slack-originated task can be started, inspected, answered, paused, resumed, cancelled, and completed without terminal access;
-- a policy test proving that Slack cannot authorize a changed action by replaying an earlier approval.
+- a private-overlay client test proving that a task can be started, inspected, answered, paused, resumed, cancelled, and completed without terminal access;
+- a policy test proving that a remote client cannot authorize a changed action by replaying an earlier approval.
 
 ## 19. Proposed implementation-repository shape
 
@@ -1012,6 +1047,7 @@ two/
 │   ├── setup.md
 │   ├── local-16k.md
 │   ├── channels.md
+│   ├── client-api-design.md
 │   ├── remote-access.md
 │   ├── architecture.md
 │   ├── operations.md
@@ -1039,7 +1075,7 @@ two/
 │   ├── policies/
 │   │   └── default.yaml
 │   ├── channels/
-│   │   └── slack-app-manifest.yaml.template
+│   │   └── slack-app-manifest.yaml.template  # deferred legacy stub
 │   └── repositories/
 │       ├── two.yaml
 │       └── example.yaml
@@ -1056,7 +1092,7 @@ two/
 │       ├── providers/
 │       ├── approvals/
 │       ├── channels/
-│       │   └── slack/
+│       │   └── slack/                        # deferred legacy stub
 │       ├── export/
 │       │   └── github/
 │       └── reporting/
@@ -1120,9 +1156,14 @@ invent a second architecture.
 
 ### Phase 6 — Conversational control
 
-- Implement the interaction contract in the CLI and lightweight Majesta Two web view.
-- Add the optional Slack MVP adapter (allowlists, typed commands, thread binding, deduplication, questions, approvals, output policy). The backend must run without any messenger.
-- Pass channel-disconnection, duplicate-event, authorization, and no-terminal workflow tests.
+- Keep the implemented API-backed CLI as the local operator surface.
+- Add the client API resources in ADR 0015: safe conversation/SSE,
+  repository and project configuration, graph/evidence monitoring, aggregate
+  health, idempotency, and scoped remote identity.
+- Build the secure first-party native mobile client as B14. The backend must
+  run without it and without an OIDC issuer.
+- Pass private-overlay disconnect, revocation, duplicate-mutation,
+  authorization, stale-approval, disclosure, and no-terminal workflow tests.
 
 ### Phase 7 — Optional paid routes
 
@@ -1133,11 +1174,16 @@ invent a second architecture.
 - Inject a local agent git identity so worktree commits are not the operator’s ambient `user.name`.
 - Add an optional GitHub App adapter that, after a digest-scoped approval, pushes only `agent/<task-id>` and opens a draft pull request (ADR 0012).
 - Keep `two.workspace` without push/merge APIs. Do not merge, push shared branches, or deploy. Do not add a local git forge to the default host.
-- The backend must run without any GitHub App, as it runs without Slack.
+- The backend must run without any GitHub App, mobile client, or optional messenger.
 
 ## 21. MVP acceptance criteria
 
 The first repository implementation is complete when:
+
+Items 13–17 are future full-product gates: the current CLI/B07 baseline does
+not satisfy the first-party mobile, scoped-identity, or remote-disclosure
+parts. They remain open until B14's API and native-client slices are
+implemented and promoted.
 
 1. The Mac automatically starts Ollama, loads the expected Qwen model, and serves it on the private network.
 2. The model remains resident and the Mac shows no sustained swap-out growth or unrecovered failure during the 24-hour promotion soak.
@@ -1151,11 +1197,11 @@ The first repository implementation is complete when:
 10. Cloud access cannot occur unless the task manifest explicitly permits it.
 11. An `overnight` task can run for at least eight hours without an attached terminal or browser, while hard budgets and no-progress limits remain enforced.
 12. Restarting the controller, worker, Harness child, or Mac endpoint preserves the task and worktree and resumes from a safe checkpoint or reconciliation state without automatically duplicating a tool action.
-13. CLI, optional web, and any enabled adapter project the same authoritative task, plan, status, questions, approvals, diff summary, tests, and final report.
-14. A messaging thread (Slack MVP) can create or continue a task, answer a question, approve a specifically scoped action, and issue status, pause, resume, cancel, diff, and test requests without direct access to the model or shell.
+13. CLI, first-party mobile GUI, and any future adapter project the same authoritative task, plan, status, questions, approvals, diff summary, tests, and final report.
+14. An authenticated first-party client can create or continue a task, answer a question, approve a specifically scoped action, and issue status, pause, resume, cancel, diff, and test requests without direct access to the model or shell.
 15. Closing or disconnecting every UI leaves an unattended task running; an adapter outage affects notifications only.
-16. Unauthorized adapter identities, duplicate events, stale approvals, and altered action digests cannot control or authorize a task.
-17. Messaging output suppresses secrets, environment values, full trajectories, large source excerpts, and raw verbose logs by default.
+16. Unauthorized client identities, duplicate mutations, stale resource revisions, stale approvals, and altered action digests cannot control or authorize a task.
+17. Remote client and notification output suppresses secrets, environment values, full trajectories, source, approval details, and raw verbose logs by default.
 
 ## 22. References
 
@@ -1171,7 +1217,8 @@ The first repository implementation is complete when:
 - [DeepSeek Harness ACP automation interface](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/acp/acp/README.md)
 - [DeepSeek Harness Ralph workflow](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/workflow/tool-ralph/README.md)
 - [Majesta Two work graph (ADR 0014)](adrs/0014-persisted-work-graph.md)
-- [Slack Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode)
-- [Slack HTTP and Socket Mode comparison](https://docs.slack.dev/apis/events-api/comparing-http-socket-mode)
-- [Slack interaction acknowledgement and asynchronous responses](https://docs.slack.dev/interactivity/handling-user-interaction)
+- [Majesta Two first-party client API (ADR 0015)](adrs/0015-first-party-client-api.md)
+- [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)
+- [OAuth 2.0 Authorization Server Issuer Identification (RFC 9207)](https://www.rfc-editor.org/rfc/rfc9207)
+- [Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html)
 - [GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)

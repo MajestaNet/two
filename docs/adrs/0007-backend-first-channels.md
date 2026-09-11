@@ -1,8 +1,10 @@
-# ADR 0007 — This repo is the backend; Slack is the MVP adapter
+# ADR 0007 — This repo is the backend; clients are adapters
 
 ## Status
 
-Accepted (supersedes the product-identity parts of ADR 0005)
+Accepted in part (supersedes the product-identity parts of ADR 0005).
+[ADR 0015](0015-first-party-client-api.md) supersedes the Slack-MVP and
+out-of-tree first-party UX decisions; the backend-first boundary remains.
 
 ## Context
 
@@ -21,17 +23,17 @@ uses is their choice.
 2. **Messaging clients are adapters.** They translate a vendor’s events
    into typed API commands and project summaries back. They never call
    the model, shell, or git.
-3. **Slack is the MVP adapter** because Socket Mode is outbound (no
-   public webhook) and threads map cleanly to a task id. It is not the
-   only supported shape and it is not bundled as a required service.
-4. **Out of this repo:** Slack app UX, workspace branding, and any
-   other vendor client UI. In-tree Slack files are a reference adapter
-   and a manifest template.
+3. **Original decision, superseded by ADR 0015:** Slack was selected as the
+   MVP adapter because Socket Mode is outbound. The planned rich client is
+   now a secure first-party mobile GUI over the control API; Slack is
+   deferred.
+4. **Vendor UX remains out of the backend.** First-party client UX may live
+   in a separate first-party repository while this repository owns the API
+   and authorization contract.
 5. A later adapter (Matrix, Discord, email, …) implements the same
    gateway contract. Do not fork the controller for a new messenger.
 
 ## Consequences
 
-Setup leads with the API and CLI. Slack appears under “optional
-adapters.” Channel-output policy and allowlists apply to every adapter,
-not only Slack.
+Setup leads with the API and CLI. Remote clients and optional adapters use
+the same disclosure policy and cannot bypass controller authorization.

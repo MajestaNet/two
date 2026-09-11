@@ -14,7 +14,8 @@ Use this page as an index, not a second spec:
 - Health states — §12.3
 - Timeouts and retries — §12.4
 - Startup recovery and action reconciliation — §12.5
-- Messaging adapters (Slack MVP) — §12.6 and [channels.md](channels.md)
+- Secure remote GUI and optional adapters — §12.6,
+  [client-api-design.md](client-api-design.md), and [channels.md](channels.md)
 - Source-control export (GitHub App, post-MVP) — §12.7 and
   [source-control-export.md](source-control-export.md)
 - Evaluation corpus and promotion soaks — [evals/PROMOTION.md](../evals/PROMOTION.md)

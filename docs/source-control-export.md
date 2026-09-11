@@ -23,8 +23,8 @@ than filing GitHub issues ([local-16k.md](local-16k.md);
 | 1. Git object identity | `GIT_AUTHOR_*` / `GIT_COMMITTER_*` so DSH commits are not the operator’s laptop `user.name` | No | Parked in B17 slice 1 |
 | 2. GitHub App export | Push only the task ref; open a **draft** PR as a bot principal | Yes, after approval | Parked in B17 slice 2 |
 
-Layer 2 uses the same adapter pattern as Slack ([channels.md](channels.md),
-ADR 0007): credentials and side effects stay on the development host,
+Layer 2 uses the same backend adapter boundary as optional clients
+([channels.md](channels.md), ADR 0007): credentials and side effects stay on the development host,
 outside the model/tool loop. Silence is never approval. The adapter
 **cannot merge**.
 
@@ -44,7 +44,7 @@ outside the model/tool loop. Silence is never approval. The adapter
 ## Credentials
 
 GitHub App tokens (when they exist) live in environment variables on
-the development host only, same rule as Slack tokens. They must never
+the development host only, like any adapter credential. They must never
 reach DeepSeek Harness, Qwen, or a target worktree. Do not commit
 `.env`, installation IDs, or private keys.
 

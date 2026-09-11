@@ -13,9 +13,9 @@
 
 First-party CLI talks **only** to the control API and projects the same
 authoritative task state. Closing the CLI detaches; it does not
-cancel the task. Test the ten interaction-contract behaviors without
-Slack widgets. Optional thin web is in-scope **after** CLI, same API,
-loopback only.
+cancel the task. Test the ten interaction-contract behaviors without a GUI.
+The skipped thin web idea is superseded by ADR 0015/B14's secure
+first-party mobile client on the same API.
 
 ## Current tree
 
@@ -28,13 +28,13 @@ loopback only.
 - Coverage: `tests/unit/test_interaction_contract.py`,
   `tests/unit/test_client.py`, `tests/unit/test_cli.py`.
 - Optional loopback web UI was **skipped**. CLI + interaction-contract
-  tests fill this item. Remaining web work is a later follow-up on the
-  same `two.projection` JSON, loopback only, no second state store.
+  tests fill this item. Rich GUI work is B14 and must use the same
+  `two.projection` JSON without a second state store.
 
 ## Out of scope
 
 - Putting workflow policy or git in the CLI.
-- Slack (B14).
+- Mobile/GUI API resources and app UX (B14).
 - Token-by-token model streaming in the CLI (progress is from store
   events).
 - Optional loopback HTML view (skipped; not faked).
@@ -63,9 +63,8 @@ loopback only.
    agent loop in the CLI.
 
 4. **Optional web**
-   Skipped. CLI + tests fill the item. Remaining work: a minimal
-   loopback HTML view of `GET /v1/tasks/{id}`. Same JSON. No second
-   state store.
+   Skipped. CLI + tests fill this item. ADR 0015 supersedes this idea with
+   B14; any GUI still uses the same JSON and no second state store.
 
 5. **Interaction-contract tests** (`tests/unit/test_interaction_contract.py`)
    Map §8.3:
@@ -108,4 +107,5 @@ this repository checked out.
 ---
 
 This item is **done**. Do not re-implement the CLI client. Optional
-loopback web was skipped; do not fake a UI. Slack remains B14.
+loopback web was skipped; do not fake a UI. Secure mobile/API expansion
+remains B14.

@@ -3,7 +3,8 @@
 ## Status
 
 Accepted. Messaging product identity is superseded by
-[ADR 0007](0007-backend-first-channels.md).
+[ADR 0007](0007-backend-first-channels.md); the first-party mobile remote
+path is detailed by [ADR 0015](0015-first-party-client-api.md).
 
 ## Context
 
@@ -16,10 +17,11 @@ running the harness?
 
 ## Decision
 
-1. **Off-LAN chat = an optional messaging adapter** that dials out (Slack
-   Socket Mode is the MVP example). Do not expose the Majesta Two API or Ollama so a
-   vendor can webhook in. See ADR 0007.
-2. **Off-LAN CLI or web = private overlay** (Tailscale or WireGuard) plus
+1. **Original chat decision, superseded:** an outbound messaging adapter was
+   selected for off-LAN chat. ADR 0015 instead plans a first-party mobile
+   client over authenticated HTTPS on a private overlay. Future outbound
+   adapters remain optional. Do not expose Majesta Two or Ollama publicly.
+2. **Off-LAN clients = private overlay** (Tailscale or WireGuard) plus
    controller authentication. Default API bind stays loopback or a Unix
    socket.
 3. **Ollama stays native on the Mac.** No Docker on the inference host.
@@ -32,7 +34,6 @@ running the harness?
 
 ## Consequences
 
-Setup leads with the API and CLI. Slack is documented as the first
-adapter, not as the product. `deploy/compose` packages `api`, `scheduler`,
-and `worker` (optional `slack` profile is a stub until B14). Ollama is
+Setup leads with the API and CLI. `deploy/compose` packages `api`, `scheduler`,
+and `worker` (the optional `slack` profile is a deferred legacy stub). Ollama is
 never in this image. See [B12](../backlog/B12-dev-host-services.md).

@@ -1,6 +1,8 @@
 # docs
 
 - `architecture.md` is the canonical product specification.
+- `client-api-design.md` is the detailed client/API design adopted by
+  architecture §6.3.H and ADR 0015. Keep implementation status explicit.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
 - `backlog/` holds dedicated implementation items (B01–B19). Status
@@ -13,9 +15,9 @@
   decisions. Do not copy the spec into those files. `local-16k.md` is
   24 GB / 16K operator guidance (quality, manifests, overnight starter
   workflows). `work-graph.md` points at ADR 0014 (persisted nodes/edges
-  around DeepSeek Harness). This repo is the backend; do not write
-  Slack-as-the-product docs. Default two-Mac LAN operator path: ADR 0013
-  / B18.
+  around DeepSeek Harness). This repo is the backend; B14 is a secure
+  first-party mobile client over the same API, not a second agent runtime.
+  Slack is deferred. Default two-Mac LAN operator path: ADR 0013 / B18.
 - Behavior changes that disagree with the spec need a new ADR in `adrs/`.
 - The public product name is Majesta Two (ADR 0008). Do not revive
   working names such as DevFlow.

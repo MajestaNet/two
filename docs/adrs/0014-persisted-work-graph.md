@@ -118,7 +118,7 @@ persists the graph and walks it.
 
 ```mermaid
 flowchart TB
-    clients["CLI / optional web / optional adapter"] --> api["Control API /v1"]
+    clients["CLI / planned mobile / optional adapter"] --> api["Control API /v1"]
     api --> proj["TaskProjection + GraphView"]
     api --> ctrl["WorkflowController"]
     ctrl --> graph["two.graph walker"]
@@ -270,8 +270,8 @@ A missing graph on a pre-B19 task is compiled with
 - DSH upgrades still cannot rewrite workflow policy. If ACP grows a
   native workflow API, Majesta Two may *project* it into this graph;
   it must not take the graph as an ephemeral child-only structure.
-- Next free ADR after this file is **0015** (Slack SDK, GitHub SDK, or
-  a new HTTP framework — still ask first).
+- ADR 0015 follows this file. Any later SDK or HTTP-framework dependency
+  still needs focused review.
 
 ## Non-goals (this ADR)
 
@@ -284,4 +284,4 @@ A missing graph on a pre-B19 task is compiled with
 - Changing the default inference profile or topology.
 - Raising overnight ceilings.
 - Checkpoint HTTP for clients (restore stays internal).
-- GitHub export (ADR 0012) or Slack (B14).
+- GitHub export (ADR 0012) or first-party mobile/API work (B14).
