@@ -32,10 +32,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from two.types import (
+    EdgeKind,
     ErrorCode,
     ExecutionProfile,
     LifecycleState,
     Mode,
+    NodeKind,
+    NodeStatus,
     TodoStatus,
     WorkflowStage,
 )
@@ -110,6 +113,39 @@ class TodoItem(BaseModel):
     status: TodoStatus = TodoStatus.PENDING
 
 
+class GraphNodeView(BaseModel):
+    """One work-graph node as projected to clients (ADR 0014)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    kind: NodeKind
+    status: NodeStatus
+    title: str
+    summary: str = ""
+
+
+class GraphEdgeView(BaseModel):
+    """One typed connection as projected to clients (ADR 0014)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: EdgeKind
+    from_id: str
+    to_id: str
+
+
+class GraphView(BaseModel):
+    """Persisted work graph. Absent until B19 persists one for the task."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    revision: int = 0
+    cursor_node_id: str | None = None
+    nodes: list[GraphNodeView] = Field(default_factory=list)
+    edges: list[GraphEdgeView] = Field(default_factory=list)
+
+
 class QuestionView(BaseModel):
     """Durable question as projected to clients (architecture §8.4)."""
 
@@ -157,6 +193,7 @@ class TaskProjection(BaseModel):
     budgets: TaskBudgets
     plan: dict[str, Any] | None = None
     todos: list[TodoItem] = Field(default_factory=list)
+    graph: GraphView | None = None
     diff_summary: DiffSummary = Field(default_factory=DiffSummary)
     validation_summary: ValidationSummary = Field(default_factory=ValidationSummary)
     blockers: list[str] = Field(default_factory=list)

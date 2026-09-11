@@ -5,7 +5,8 @@ foundation scaffold (package layout, types, manifests, CLI help, config
 templates) is already in the tree. B01–B16 are the remaining work to
 reach MVP acceptance in architecture §21. B17 is post-MVP (ADR 0012)
 and does not block §21. B18 is the interactive two-Mac LAN setup path
-(ADR 0013); it does not block §21.
+(ADR 0013); it does not block §21. B19 is the persisted work graph
+around DeepSeek Harness (ADR 0014); it does not block §21.
 
 Each item is one markdown file. **Status is the tracker.** Update the
 item file and this table in the same PR that lands the work. Do not
@@ -52,11 +53,13 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B16](B16-paid-model-routes.md) | Optional paid-model routes | 7 | B10 | planned |
 | [B17](B17-github-export.md) | GitHub App source-control export | 8 | B03, B10, B11 | planned |
 | [B18](B18-streamlined-lan-setup.md) | Streamlined two-Mac LAN setup | 6 | B01, B12, B13 | done |
+| [B19](B19-persisted-work-graph.md) | Persisted work graph around DeepSeek Harness | 5+ | B05, B06, B09, B10 | planned |
 
 Optional thin web UI is a subsection of B13, not a second product.
 B17 is parked: local worktree handoff remains the MVP.
 B18 streamlines the interactive operator path (ADR 0013) and does not
-change topology or inference defaults.
+change topology or inference defaults. B19 (ADR 0014) is the alignment
+layer for longer loops; the linear B10 stage machine remains valid.
 
 ## Recommended order
 

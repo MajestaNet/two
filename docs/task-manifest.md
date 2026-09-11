@@ -25,4 +25,7 @@ See also `config/policies/default.yaml` for default budgets and forbidden
 actions. The live task view clients consume is
 `two.projection.TaskProjection` ([B07](backlog/B07-control-api.md)), not
 the manifest alone. Workflow implementation is backlog
-[B10](backlog/B10-workflow-controller.md).
+[B10](backlog/B10-workflow-controller.md). Longer loops use a persisted
+work graph produced at Plan, not a new required manifest field
+([ADR 0014](adrs/0014-persisted-work-graph.md),
+[work-graph.md](work-graph.md)).

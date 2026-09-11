@@ -63,6 +63,7 @@ def test_projection_defaults_are_additive_v1() -> None:
     assert view.base_commit is None
     assert view.plan is None
     assert view.todos == []
+    assert view.graph is None
     assert view.diff_summary.placeholder is True
     assert view.diff_summary.paths == []
     assert view.validation_summary.passed is None
@@ -113,6 +114,7 @@ def test_message_text_is_bounded() -> None:
 
 def test_event_type_catalog_covers_gateway_and_aliases() -> None:
     assert EventType.TASK_CREATED == "task.created"
+    assert EventType.TASK_GRAPH == "task.graph"
     assert EventType.TASK_MESSAGE == "task.message"
     assert EventType.SCHEDULER_DISPATCHED == "dispatched"
     assert is_known_event_type("task.created")
