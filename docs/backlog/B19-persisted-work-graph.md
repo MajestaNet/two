@@ -6,7 +6,7 @@
 | Phase | 5+ — Longer-running loops (alignment) |
 | Status | planned |
 | Depends on | B05, B06, B09, B10 |
-| Blocks | none (MVP §21 still ships on the linear stage machine) |
+| Blocks | B14 Development-loop completeness only (B14 slices 1–3 may start now) |
 | Architecture | §6.3.A/E/G, §7.2, §8.2–8.5, §10, ADR 0014 |
 
 ## Goal
