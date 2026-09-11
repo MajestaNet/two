@@ -16,9 +16,10 @@ the spec.
 | List inference profiles | Works (`two profiles`) |
 | Serve Qwen on the Mac | Scripts exist (`bootstrap-mac.sh`, `health-check.sh`, `soak-inference.sh`); live path requires a Mac ([B01](backlog/B01-mac-inference-appliance.md)) |
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
-| Messaging adapter (Slack MVP) | Optional; not implemented ([B14](backlog/B14-slack-adapter.md)) |
-| CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task. Optional loopback web UI is later ([B13](backlog/B13-cli-and-interaction.md)) |
-| CLI/web from another network | Overlay (Tailscale); CLI uses `--url` / `--socket` / `--token` or `TWO_API_*`. Web UI not implemented ([B13](backlog/B13-cli-and-interaction.md)) |
+| Secure first-party mobile client | Planned; API design only, not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [B14](backlog/B14-secure-mobile-client.md)) |
+| CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
+| Remote client | CLI works over a private overlay with `--url` / `--token`. Mobile requires future HTTPS + OIDC/PKCE work and is not implemented ([client API design](client-api-design.md)) |
+| Messaging adapters | Optional and deferred; Slack stubs are not an implemented adapter |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
@@ -35,8 +36,8 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 11 September 2026 (ADR 0014 work-graph contract; B19 not
-wired).
+Last updated: 11 September 2026 (ADR 0015 first-party client/API design;
+B14 not implemented).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -44,8 +45,9 @@ Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
 ## How to use this guide
 
-**CLI on the development host is enough.** You do not need Slack, a web UI,
-or a public hostname. Messaging adapters are optional ([channels.md](channels.md)).
+**CLI on the development host is enough.** You do not need a mobile app,
+messenger, or public hostname. Remote clients are optional
+([channels.md](channels.md)).
 
 Two tracks:
 
@@ -53,7 +55,7 @@ Two tracks:
 | --- | --- | --- |
 | **Contributor** | Clone, `make ci`, read the spec | No |
 | **Operator (default LAN)** | Inference Mac + Mac laptop on the same private network | Yes for model work |
-| **Operator (reference)** | Overlay, Compose, soaks, Slack — [full walkthrough](#step-by-step-get-it-running-full-reference) | Yes for model work; no for CLI-against-API smoke |
+| **Operator (reference)** | Overlay, Compose, and soaks — [full walkthrough](#step-by-step-get-it-running-full-reference) | Yes for model work; no for CLI-against-API smoke |
 
 The default interactive layout is **two Macs, `topology: split`, one LAN**.
 Print the recipe (no files written):
@@ -136,8 +138,8 @@ routes are [B16](backlog/B16-paid-model-routes.md) and default **off**).
 
 > **Network.** Never bind Ollama or the Majesta Two API to `0.0.0.0`, `::`,
 > or any publicly routed interface. Never `docker -p 8741:8741` or
-> `11434:11434` on a public IP. Cloudflare tunnels and inbound Slack
-> request URLs are the wrong default. Scripts refuse obvious public binds;
+> `11434:11434` on a public IP. Public tunnels and inbound messenger
+> webhooks are the wrong default. Scripts refuse obvious public binds;
 > that is not a substitute for checking the host firewall.
 
 > **Privacy.** The Mac must not mount git repos, hold messenger tokens, or
@@ -151,7 +153,7 @@ Allowed ways to reach the backend:
 | --- | --- | --- |
 | On the development host | `two task …` → `http://127.0.0.1:8741` or a Unix socket | No |
 | On another machine | Tailscale/WireGuard, then SSH local-forward **or** bind the API to the overlay IP only + `TWO_API_TOKEN` | Only on the overlay |
-| On a phone later | Optional Slack adapter dials **out** (Socket Mode). Not implemented ([B14](backlog/B14-slack-adapter.md)) | No |
+| On a phone later | First-party app uses authenticated HTTPS over a private overlay. Not implemented ([B14](backlog/B14-secure-mobile-client.md)) | Only on the overlay |
 
 Ollama is never a remote-user endpoint. Only the development host (or the
 same Mac when `colocated`) calls `MAC_QWEN_BASE_URL`. Details:
@@ -181,8 +183,8 @@ or a real Mac address ([public-repo.md](public-repo.md)).
 | Task request | YAML you pass to `two task submit` | Each job | Copy [config/examples/task.example.yaml](../config/examples/task.example.yaml) | Keep `cloud_allowed: false` unless B16 is enabled **and** you intend to send excerpts off-box |
 | Access policy | `config/access/remote.yaml` | Bind enforcement | Leave `allow_public_bind: false` | Flipping this to true is **refused** at runtime |
 | DSH overlay | `config/dsh/profile.patch.yml` | Live harness | Usually leave as committed | Web fetch/search and telemetry stay **disabled** |
-| Channel policy | `config/policies/default.yaml` `channel_output` | Slack later | Summaries allowed; secrets/source suppressed | Irrelevant until B14 |
-| Slack tokens | `SLACK_*` in `.env` | Optional adapter | Leave empty | Backend runs without them. Never pass them to DSH |
+| Disclosure policy | `config/policies/default.yaml` `channel_output` | Remote clients/adapters later | Summaries allowed; secrets/source suppressed | Keep defaults for B14 |
+| Legacy Slack tokens | `SLACK_*` in `.env` | Deferred adapter stub | Leave empty | Not used by B14. Never pass them to DSH |
 
 `config/inference/profiles.yaml` and `config/deploy/topology.yaml` are
 catalogs. Do not put a real LAN hostname in those committed files.
@@ -517,11 +519,14 @@ and pass `--token`. Never bind a public Ethernet/WAN address.
 > localhost. SSH forwarding is the simpler first option because the API
 > stays local-trust on the host.
 
-### 12. Optional: Slack
+### 12. Future remote clients
 
-Leave it off. Tokens empty. Compose `slack` profile is a stub until
-[B14](backlog/B14-slack-adapter.md). Phone access is an outbound adapter,
-not a public webhook.
+Leave the legacy Slack stub off and its tokens empty. It is not B14. The
+planned phone path is the first-party client in
+[B14](backlog/B14-secure-mobile-client.md): HTTPS over a private overlay,
+trusted OIDC with PKCE, and scoped server-derived identity. That work is not
+implemented. Never open the API publicly for phone access. See
+[client-api-design.md](client-api-design.md).
 
 ---
 
@@ -545,7 +550,7 @@ docker compose --env-file ../../.env up -d api scheduler worker
 | `scheduler` | `two scheduler` | Startup recovery, then the tick loop. |
 | `worker` | `two worker` | One local-Qwen ACP supervisor. Explicit volume list. |
 | `two` | CLI helper | `docker compose run --rm two --help` (profile `cli`). |
-| `slack` | stub | `profiles: [slack]` until B14. |
+| `slack` | legacy stub | Deferred; no implementation backlog commitment. |
 
 Volumes: `config/` read-only, named volume `two-data` (`TWO_DATA_DIR`),
 named volume `two-worktrees`. Optional host git mirrors:

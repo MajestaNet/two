@@ -14,8 +14,8 @@ a development host (Mac laptop on the same LAN, or Linux) can clone, run
 A **live coding task** still needs a Mac running native Ollama plus a
 DeepSeek Harness child that speaks the supervisor protocol. Default tests
 use a JSONL fixture child; a stock `dsh` binary does not yet complete ACP
-([ADR 0011](adrs/0011-jsonl-acp-supervisor.md)). Slack and paid-model
-routes are optional and not implemented. GitHub export of task branches
+([ADR 0011](adrs/0011-jsonl-acp-supervisor.md)). The first-party mobile
+client and paid-model routes are optional and not implemented. GitHub export of task branches
 is post-MVP ([ADR 0012](adrs/0012-github-export-adapter.md)) and is not
 implemented; handoff is the local worktree.
 
@@ -39,7 +39,8 @@ model work.
 - Documented default inference profile (`m24-qwen38-16k`) plus larger-host
   profiles in `config/inference/profiles.yaml`. Operator task shape for
   that 16K window: [local-16k.md](local-16k.md).
-- Backend-first channels: CLI/API required; Slack is the optional MVP adapter
+- Backend-first clients: CLI/API required; secure first-party mobile is
+  planned in ADR 0015/B14
 - Deployment topology: `split` default, `colocated` optional (`two topology`)
 - Task git worktrees (`two.workspace`)
 - Independent validation gates in the worktree (`two.validation`)
@@ -57,7 +58,8 @@ model work.
 - Mac live bootstrap requires Darwin; `--dry-run` and health fixtures work offline
 - Live ACP still needs a pinned `dsh` binary that speaks JSON-RPC; default
   tests use a JSONL fixture child (ADR 0011)
-- Slack adapter is not implemented ([B14](backlog/B14-slack-adapter.md))
+- First-party mobile client and its additive API resources are not
+  implemented ([B14](backlog/B14-secure-mobile-client.md))
 - GitHub export adapter is not implemented ([B17](backlog/B17-github-export.md))
 - Optional loopback web UI was skipped in B13
 - GitHub Actions may be skipped if the org has no Actions minutes
@@ -76,15 +78,15 @@ Implementation work after this scaffold is tracked in
 
 1. **Contributor laptop** — easy. Python 3.12 + uv.
 2. **CLI on the development host** — the intended first client. Start
-   `two api` (loopback), then `two task submit`. No Slack. See setup.md.
+   `two api` (loopback), then `two task submit`. No mobile app required. See setup.md.
 3. **Two-machine private network (`split`)** — the hard part if you use
    the 24 GB appliance layout. Stable hostname, no Mac sleep, firewall.
 4. **One larger Mac (`colocated`)** — drops the LAN hop, not DSH
    pinning or disable-sleep. Do not use this to “simplify” a 24 GB Mini.
-5. **Optional messenger (Slack MVP)** — easy *once an adapter exists*.
-   Outbound only. You do not port-forward Majesta Two or Ollama. The backend
-   runs without any messenger.
-6. **Web/CLI from another network** — needs an overlay (Tailscale is the
+5. **First-party mobile (planned)** — requires HTTPS over a private overlay,
+   trusted OIDC/PKCE, scoped authorization, and the B14 app/API work. You do
+   not port-forward Majesta Two or Ollama.
+6. **CLI from another network** — needs an overlay (Tailscale is the
    default recommendation) or SSH local-forward. A public reverse proxy is
    the wrong default.
 7. **Docker from day one** — useful for the *control plane* on Linux,
@@ -95,5 +97,6 @@ Implementation work after this scaffold is tracked in
 See [ADR 0004](adrs/0004-inference-profiles.md),
 [ADR 0005](adrs/0005-remote-access-and-compose.md),
 [ADR 0006](adrs/0006-logical-split-physical-colocation.md),
-[ADR 0007](adrs/0007-backend-first-channels.md), and
+[ADR 0007](adrs/0007-backend-first-channels.md),
+[ADR 0015](adrs/0015-first-party-client-api.md), and
 [ADR 0012](adrs/0012-github-export-adapter.md).

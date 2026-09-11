@@ -27,7 +27,8 @@ Mac — never in this image.
 
 ## Out of scope
 
-- Shipping Slack as a required service (optional Compose profile).
+- Shipping any mobile/messaging client as a required service (the Slack
+  profile is a deferred legacy stub).
 - Putting DSH inside the foundation image if interactive use still
   wants host toolchains — Phase 5 **may** add a worker service with
   explicit mounts (ADR 0005). Document both: Compose worker with
@@ -45,12 +46,12 @@ Mac — never in this image.
 2. **Compose services**
    - `api`, `scheduler`, `worker` as separate processes (or one
      `two-supervisor` with subcommands if that is simpler — prefer
-     the architecture's four names: api, scheduler, worker, optional
-     slack).
+     the architecture's three backend names: api, scheduler, worker).
    - No `ports:` to `0.0.0.0`. Loopback-only if any publish.
    - Volumes: config ro, `var/` data, worktrees, optional host git
      mirrors. Explicit list in compose comments.
-   - Optional `profiles: [slack]` for B14 later.
+   - Existing optional `profiles: [slack]` remains a disabled legacy stub,
+     not B14.
 
 3. **Startup recovery** (must be a real function called at worker
    or scheduler boot — architecture §12.5 steps 1–7). Tests with a
