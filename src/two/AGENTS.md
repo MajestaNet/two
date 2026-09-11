@@ -57,6 +57,11 @@ Python package for the Majesta Two control plane.
   and terminal status. Inject a worker and validation in tests. Production
   `two worker` drives this module (`two.recovery.drive`). It does not call
   the model, import Slack, or import an Ollama client.
+- `graph/` is the no-I/O work-graph contract (ADR 0014): nodes, typed
+  edges, linear compile, proposal apply, walker, digest, and node-scoped
+  harness handoff. It must not import the store, ACP worker, Slack, or an
+  Ollama client. SQLite persistence and controller wiring are B19. Do not
+  add LangGraph or a second agent runtime.
 - `worker/` supervises ACP children, the action ledger, and session resume.
   Default pytest uses a JSONL fixture child (ADR 0011). It must not import
   Slack or set lifecycle `complete`. Local Qwen worker count is one.

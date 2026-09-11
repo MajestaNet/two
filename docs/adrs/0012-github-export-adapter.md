@@ -110,6 +110,6 @@ stay outside the model/tool loop; silence is never approval.
   it runs without Slack.
 - Coding agents must not reopen B03 to add `push`. They must not put
   GitHub tokens in the ACP child environment.
-- ADR **0013** is the default LAN setup operator path. The next free
-  ADR number is **0014** (B14’s Slack SDK note and B07’s “next after
-  0012” pointer are updated to match).
+- ADR **0014** is the persisted work graph around DeepSeek Harness.
+  The next free ADR number is **0015** (B14’s Slack SDK note and B07’s
+  “next after 0012” pointer are updated to match).

@@ -97,6 +97,44 @@ class TodoStatus(StrEnum):
     COMPLETED = "completed"
 
 
+class NodeKind(StrEnum):
+    """Work-graph node kind (ADR 0014). Stage policy is unchanged."""
+
+    INSPECT = "inspect"
+    PLAN = "plan"
+    IMPLEMENT = "implement"
+    VALIDATE = "validate"
+    REPAIR = "repair"
+    REVIEW = "review"
+    DECISION = "decision"
+
+
+class NodeStatus(StrEnum):
+    """Durable status of one work-graph node (ADR 0014)."""
+
+    PENDING = "pending"
+    READY = "ready"
+    RUNNING = "running"
+    AWAITING_INPUT = "awaiting_input"
+    DONE = "done"
+    BLOCKED = "blocked"
+    SKIPPED = "skipped"
+    SUPERSEDED = "superseded"
+
+
+class EdgeKind(StrEnum):
+    """Typed connection between work-graph nodes (ADR 0014).
+
+    ``depends_on`` is stored as ``from_id`` must finish before ``to_id``.
+    """
+
+    DEPENDS_ON = "depends_on"
+    REPAIRS = "repairs"
+    REVIEWS = "reviews"
+    SUPERSEDES = "supersedes"
+    BLOCKS = "blocks"
+
+
 class ErrorCode(StrEnum):
     """Stable ``error.code`` values on /v1 responses. Additive only."""
 
@@ -126,6 +164,7 @@ class EventType(StrEnum):
     TASK_MESSAGE = "task.message"
     TASK_PLAN = "task.plan"
     TASK_TODOS = "task.todos"
+    TASK_GRAPH = "task.graph"
     TASK_DIFF = "task.diff"
     TASK_VALIDATION = "task.validation"
     TASK_BLOCKER = "task.blocker"
@@ -146,6 +185,9 @@ class EventType(StrEnum):
     WORKFLOW_FAILED = "workflow.failed"
     WORKFLOW_NO_PROGRESS = "workflow.no_progress"
     WORKFLOW_WORKER = "workflow.worker"
+    GRAPH_NODE = "graph.node"
+    GRAPH_EDGE = "graph.edge"
+    GRAPH_WALK = "graph.walk"
     QUESTION_ASKED = "question.asked"
     QUESTION_ANSWERED = "question.answered"
     QUESTION_EXPIRED = "question.expired"

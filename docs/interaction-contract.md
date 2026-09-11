@@ -5,8 +5,10 @@ contracts. They are specified in [architecture.md](architecture.md) section 8.3.
 
 Every client (CLI, optional web, optional messenger adapter) must project the
 same authoritative task state from the control API. The JSON shape is
-`two.projection.TaskProjection` ([B07](backlog/B07-control-api.md)). Clients
-never query the model for status. Slack is the MVP adapter only; see
+`two.projection.TaskProjection` ([B07](backlog/B07-control-api.md)).
+`graph` is additive ([ADR 0014](adrs/0014-persisted-work-graph.md));
+it is `null` until [B19](backlog/B19-persisted-work-graph.md) persists
+a graph. Clients never query the model for status. Slack is the MVP adapter only; see
 [channels.md](channels.md).
 
 The CLI (`two task …`) is the first-party client. Offline coverage lives in
