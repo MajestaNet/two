@@ -6,7 +6,8 @@ Majesta Two is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays o
 a dedicated Mac inference host. This repository is not a Slack (or other
 messenger) product. The CLI is first-party today; ADR 0015/B14 plans a secure
 first-party mobile client over the same API. The SQLite WAL store (`two.store`)
-persists tasks, events, leases, and the work graph (schema v5).
+persists tasks, events, leases, the work graph (schema v5), and
+projects/config candidates (schema v6).
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
@@ -74,13 +75,17 @@ listed in `config/repositories/two.yaml`.
   launchd rendering, health classification, and the optional Mac HTTP poller.
   `src/two/context/` is the context broker and structured task memory
   (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
-  `src/two/store/` is the SQLite WAL store (tasks, events, leases, work
-  graph). CLI does not open it at import time. Schema v5 adds `work_nodes`
-  and `work_edges` (v4 is B14 idempotency).
+ `src/two/store/` is the SQLite WAL store (tasks, events, leases, work
+ graph). CLI does not open it at import time. Schema v5 adds `work_nodes`
+ and `work_edges` (v4 is B14 idempotency). Schema v6 adds `projects`,
+ `repository_config_state`, `config_candidates`, and `config_approvals`
+ (B14 slice 3).
  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
  `two api` lazy-imports it so `two profiles` does not load the store.
  Additive B14 slice 2 routes include conversation, SSE, aggregate health,
- queue, repository/project reads, and bounded diff/artifacts.
+ queue, repository/project reads, and bounded diff/artifacts. Slice 3 adds
+ persisted `POST /v1/projects` and immutable config-candidate activate
+ routes. `two.api.config` validates typed, non-secret fields.
  Principal/scope checks live in `two.api.principal`; correlation, ETag,
  and idempotency helpers live in `two.api.contract`. Conversation and
  SSE mapping live in `two.api.conversation`; health/queue/repo/diff/artifact
