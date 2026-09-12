@@ -180,6 +180,7 @@ class TaskProjection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: int = PROJECTION_SCHEMA_VERSION
+    revision: int = 1
     id: str
     repository: str
     base_ref: str
@@ -259,6 +260,7 @@ class TaskMessageReceipt(BaseModel):
 
     task_id: str
     event_id: int
+    revision: int | None = None
 
 
 class TaskControlRequest(BaseModel):
@@ -379,6 +381,16 @@ class ErrorBody(BaseModel):
     message: str
 
 
+class FieldError(BaseModel):
+    """One request-field failure. Never used to carry secrets or host paths."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: str
+    code: str
+    message: str
+
+
 class ErrorResponse(BaseModel):
     """Envelope alongside FastAPI ``detail`` so existing clients keep working."""
 
@@ -386,3 +398,45 @@ class ErrorResponse(BaseModel):
 
     error: ErrorBody
     detail: str | list[Any]
+    correlation_id: str | None = None
+    field_errors: list[FieldError] | None = None
+    retry_after_seconds: int | None = None
+
+
+class AuthCapabilities(BaseModel):
+    """How this caller was authenticated. OIDC is advertised, not implied."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["local_trust", "bearer_token"]
+    oidc_available: bool = False
+    mobile_ready: bool = False
+
+
+class ClientFeatures(BaseModel):
+    """Optional GUI resources. False means not implemented on this server."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_keys: bool = True
+    etags: bool = True
+    conversation: bool = False
+    sse: bool = False
+    projects: bool = False
+    repositories: bool = False
+    aggregate_health: bool = False
+    queue: bool = False
+    graph: bool = False
+
+
+class SystemCapabilities(BaseModel):
+    """``GET /v1/system/capabilities``. Clients feature-detect from this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    api_versions: list[str] = Field(default_factory=lambda: ["v1"])
+    principal: str
+    scopes: list[str]
+    auth: AuthCapabilities
+    features: ClientFeatures = Field(default_factory=ClientFeatures)

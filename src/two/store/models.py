@@ -63,6 +63,7 @@ class TaskRecord:
     active_elapsed_ms: int = 0
     active_started_at: datetime | None = None
     dsh_session_id: str | None = None
+    revision: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,3 +141,18 @@ class ActionRecord:
     diff_fingerprint: str | None
     created_at: datetime
     completed_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class IdempotencyRecord:
+    """Durable mutation replay row keyed by server principal and Idempotency-Key."""
+
+    principal: str
+    key: str
+    method: str
+    path: str
+    request_hash: str
+    status_code: int
+    response_body: str
+    response_headers: dict[str, str]
+    created_at: datetime
