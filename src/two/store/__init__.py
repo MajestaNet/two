@@ -14,11 +14,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""SQLite WAL store for tasks, leases, events, questions, and approvals.
+"""SQLite WAL store for tasks, leases, events, questions, approvals, and the work graph.
 
 A successful commit is required before any UI acknowledgement
 (architecture §6.4). The factory is ``open_store``; ``two.cli`` must not
-open the database. See docs/architecture.md §6.3.G, §8.4, and §12.5.
+open the database. Schema v5 persists ``work_nodes`` / ``work_edges``.
+See docs/architecture.md §6.3.G, §8.4, §8.5, and §12.5.
 """
 
 from two.store.engine import BUSY_TIMEOUT_MS, DEFAULT_DB_FILENAME, resolve_db_path
@@ -30,6 +31,7 @@ from two.store.errors import (
     DuplicateQuestionError,
     DuplicateSourceEventError,
     DuplicateTaskError,
+    GraphCommitError,
     IdempotencyConflictError,
     IdempotencyInFlightError,
     QuestionNotFoundError,
@@ -66,6 +68,7 @@ __all__ = [
     "DuplicateSourceEventError",
     "DuplicateTaskError",
     "EventRecord",
+    "GraphCommitError",
     "LeaseRecord",
     "IdempotencyConflictError",
     "IdempotencyInFlightError",

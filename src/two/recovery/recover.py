@@ -39,7 +39,7 @@ from two.scheduler.models import HealthProbe
 from two.scheduler.scheduler import Scheduler
 from two.store.models import ActionStatus, TaskRecord
 from two.store.store import Store
-from two.types import LifecycleState
+from two.types import LifecycleState, WorkflowStage
 from two.worker.ledger import ActionLedger
 
 EVENT_STARTUP_RECOVERY = "startup_recovery"
@@ -93,7 +93,8 @@ def recover_startup(
     5. Check Mac and Harness health (injectable; default is healthy/offline).
     6. Leave human-paused / awaiting-input / blocked tasks untouched.
        Expired-lease running tasks are already requeued. This function does
-       not dispatch a worker.
+       not dispatch a worker. Pre-graph tasks compile a linear work graph
+       from the current stage so old rows keep working (ADR 0014 / B19).
     7. Emit one ``startup_recovery`` event on an existing non-terminal task.
     """
     instant = _utc(now)
@@ -108,6 +109,7 @@ def recover_startup(
     non_terminal = [task for task in store.list_tasks() if task.lifecycle not in _TERMINAL]
     worktrees = tuple(verifier(task) for task in non_terminal)
     actions = tuple(_classify_actions(store, task, now=instant) for task in non_terminal)
+    graphs = tuple(_reload_graph(store, task, now=instant) for task in non_terminal)
 
     mac_health = mac_probe()
     harness_ok = harness()
@@ -153,6 +155,14 @@ def recover_startup(
                     }
                     for item in worktrees
                 ],
+                "graphs": [
+                    {
+                        "task_id": item[0],
+                        "loaded": item[1],
+                        "cursor_node_id": item[2],
+                    }
+                    for item in graphs
+                ],
             },
             now=instant,
         )
@@ -170,6 +180,21 @@ def recover_startup(
         event_id=event_id,
         event_task_id=event_task_id,
     )
+
+
+def _reload_graph(
+    store: Store,
+    task: TaskRecord,
+    *,
+    now: datetime,
+) -> tuple[str, bool, str | None]:
+    """Reload or compile the work graph. Does not replay tool actions."""
+    if task.stage in {WorkflowStage.INTAKE, WorkflowStage.ISOLATE}:
+        existing = store.load_graph(task.id)
+        cursor = existing.cursor_node_id if existing is not None else None
+        return (task.id, existing is not None, cursor)
+    graph = store.ensure_graph(task, now=now)
+    return (task.id, True, graph.cursor_node_id)
 
 
 def _classify_actions(

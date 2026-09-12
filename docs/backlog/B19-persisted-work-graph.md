@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B19 |
 | Phase | 5+ — Longer-running loops (alignment) |
-| Status | planned |
+| Status | done |
 | Depends on | B05, B06, B09, B10 |
 | Blocks | B14 Development-loop completeness only (B14 slices 1–3 may start now) |
 | Architecture | §6.3.A/E/G, §7.2, §8.2–8.5, §10, ADR 0014 |
@@ -16,21 +16,21 @@ loops stay aligned across compaction, harness restart, and channel
 handoff — **without** reimplementing DeepSeek Harness or replacing the
 B10 stage machine.
 
-The executable contract already lives in `src/two/graph/` (types,
-invariants, linear compile, proposal apply, walker, node handoff).
-This item stores that graph in SQLite, has the controller walk it, and
+The executable contract lives in `src/two/graph/` (types, invariants,
+linear compile, proposal apply, walker, node handoff). This item stores
+that graph in SQLite (schema **v5**), has the controller walk it, and
 projects it on `/v1`.
 
 ## Current tree
 
 - `two.graph` is the no-I/O contract ([ADR 0014](../adrs/0014-persisted-work-graph.md)).
-- `WorkflowController` still drives a linear stage sequence
-  ([B10](B10-workflow-controller.md)).
-- `TaskMemory.plan` is a string ([B05](B05-context-broker.md)).
-- Store schema is v3 (`dsh_session_id` on `tasks`)
-  ([B06](B06-sqlite-store.md)).
+- `WorkflowController` walks `next_decision` after Intake/Isolate.
+- `TaskMemory.plan` / `current_step` summarize the cursor (B05).
+- Store schema is **v5** (`work_nodes`, `work_edges`). v4 is B14
+  `idempotency_records` and must not be reused.
 - ACP worker + ledger ([B09](B09-acp-worker.md), ADR 0011).
-- `TaskProjection.graph` exists and is `null`.
+- `TaskProjection.graph` is filled when a graph is stored; `null`
+  until then. `schema_version` stays 1.
 
 ## Out of scope
 
@@ -45,17 +45,17 @@ projects it on `/v1`.
 ## Implementation plan
 
 Three slices. Slice 1 may land alone. Slice 3 must not ship without 1
-and 2.
+and 2. This item landed all three together.
 
-### Slice 1 — SQLite graph (no controller behavior change)
+### Slice 1 — SQLite graph
 
-- Schema v4: `work_nodes`, `work_edges`.
+- Schema v5: `work_nodes`, `work_edges` (plus `work_graphs` cursor/revision).
 - `Store` load/commit for one task graph. Commit before ack.
 - Events `task.graph`, `graph.node`, `graph.edge`.
 - Compile `compile_linear_graph` for new tasks at isolate (or first
   drive) so old tests keep a 1:1 stage mapping.
-- Tests: round-trip, cycle rejected at the store boundary, pre-v4
-  databases migrate.
+- Tests: round-trip, cycle rejected at the store boundary, v3 and v4
+  databases migrate to v5; B14 idempotency tables survive.
 
 ### Slice 2 — Walker in the controller
 
@@ -82,15 +82,15 @@ and 2.
 
 ## Acceptance criteria
 
-- [ ] Schema v4 round-trips a linear graph and a two-node proposal.
-- [ ] `depends_on` cycles never persist.
-- [ ] At most one RUNNING node per task.
-- [ ] Validate nodes do not start a harness child.
-- [ ] Review nodes start a fresh session with no implementation
+- [x] Schema v5 round-trips a linear graph and a two-node proposal.
+- [x] `depends_on` cycles never persist.
+- [x] At most one RUNNING node per task.
+- [x] Validate nodes do not start a harness child.
+- [x] Review nodes start a fresh session with no implementation
       transcript.
-- [ ] Overnight task-level budgets still win over node slices.
-- [ ] `/v1` `graph` is additive; `schema_version` stays 1.
-- [ ] Controller still does not import Slack or Ollama clients.
+- [x] Overnight task-level budgets still win over node slices.
+- [x] `/v1` `graph` is additive; `schema_version` stays 1.
+- [x] Controller still does not import Slack or Ollama clients.
 
 ## Definition of done
 
@@ -129,12 +129,14 @@ Standing orders:
 
 - Architecture wins. ADR 0014 is the graph decision. The controller
   still owns terminal status. DSH owns the tool loop.
+- Graph tables are schema **v5**. Never reuse version 4 (B14
+  idempotency).
 - `make ci` green. Unit tests stay offline.
 - Apache 2.0 headers. No merge/push/deploy.
 
 Concrete work:
 
-1. SQLite v4 `work_nodes` / `work_edges` plus events.
+1. SQLite v5 `work_nodes` / `work_edges` plus events.
 2. Controller walks `next_decision`; validate is B04; review is fresh.
 3. Project `graph` on `/v1`; keep `todos` as a view.
 4. Recovery reloads the graph; no duplicate tool replay.

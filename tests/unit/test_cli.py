@@ -14,6 +14,9 @@ import pytest
 
 from two import __version__
 from two.cli import main
+from two.cli_task import format_projection
+from two.projection import GraphNodeView, GraphView, TaskProjection
+from two.types import ExecutionProfile, LifecycleState, Mode, NodeKind, NodeStatus, WorkflowStage
 
 
 def test_help_exits_zero() -> None:
@@ -74,3 +77,45 @@ def test_task_subcommand_help() -> None:
         with pytest.raises(SystemExit) as exc_info:
             main(["task", sub, "--help"])
         assert exc_info.value.code == 0
+
+
+def test_task_show_includes_cursor_and_ready_set() -> None:
+    now = "2026-08-31T00:00:00Z"
+    view = TaskProjection.model_validate(
+        {
+            "id": "task-show",
+            "repository": "example-service",
+            "base_ref": "origin/main",
+            "objective": "Show the graph",
+            "acceptance_criteria": ["cursor visible"],
+            "mode": Mode.UNATTENDED,
+            "execution_profile": ExecutionProfile.STANDARD,
+            "lifecycle": LifecycleState.RUNNING,
+            "stage": WorkflowStage.IMPLEMENT,
+            "budgets": {},
+            "created_at": now,
+            "updated_at": now,
+            "graph": GraphView(
+                revision=2,
+                cursor_node_id="task-show:implement:auth",
+                nodes=[
+                    GraphNodeView(
+                        id="task-show:implement:auth",
+                        kind=NodeKind.IMPLEMENT,
+                        status=NodeStatus.RUNNING,
+                        title="Auth cookie hardening",
+                    ),
+                    GraphNodeView(
+                        id="task-show:implement:session",
+                        kind=NodeKind.IMPLEMENT,
+                        status=NodeStatus.READY,
+                        title="Session store",
+                    ),
+                ],
+            ),
+        }
+    )
+    text = format_projection(view)
+    assert "graph:" in text
+    assert "cursor: task-show:implement:auth" in text
+    assert "task-show:implement:session: Session store" in text
