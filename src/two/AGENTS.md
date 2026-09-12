@@ -29,12 +29,15 @@ Python package for the Majesta Two control plane.
   TestClient tests. Do not import the store, git, Slack, or Ollama.
 - `cli_task.py` formats projections and dispatches `two task …`. No workflow
   policy.
-- `api/` maps HTTP to `two.store` and `two.approvals`. It must not import
+- `two.api/` maps HTTP to `two.store` and `two.approvals`. It must not import
   `two.workspace` git operations, `two.channels.slack`, or an Ollama
   client. Bind loopback or a Unix socket by default (ADR 0010). Request
   and projection bodies live in `two.projection`. `two.api.principal`
   derives identity and scopes; request bodies cannot elevate authority.
   `two.api.contract` owns correlation, ETags, and idempotency-key replay.
+  `two.api.conversation` and `two.api.gui` build slice 2 read-only GUI
+  projections (conversation, SSE, health, queue, repositories, diffs,
+  artifacts). They must not call git, the shell, Ollama, or ACP.
 - `approvals/` owns question/approval resolution and pause/resume/cancel
   lifecycle policy. Silence is never approval. Digests are immutable.
   It does not import git, Slack, or the model.

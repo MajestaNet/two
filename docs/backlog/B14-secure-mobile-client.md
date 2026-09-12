@@ -39,10 +39,16 @@ do not attempt the entire item in one PR.
 - Shared `TWO_API_TOKEN` remains a coarse trusted-operator credential. It is
   not a mobile embedding. Remote callers map to `token:operator` with operator
   scopes. Unix/loopback CLI labels remain for audit compatibility.
-- Repository profiles exist as host configuration, but there are no
-  repository/project API resources or project store.
-- There is no client-safe conversation feed, SSE change stream, or aggregate
-  system health projection.
+- **Slice 2 landed:** client-safe conversation pagination, task/system SSE
+  with durable cursors (reconnect, retention-reset, slow-consumer disconnect),
+  aggregate `/v1/system/health` and `/v1/system/queue`, repository/project
+  **read** projections (projects are an empty list until Slice 3), and
+  bounded diff/artifact retrieval by server ids. Network `/v1/tasks/{id}/events`
+  requires `events:audit` and is policy-filtered; Unix/loopback CLI payloads
+  remain compatible. `TaskProjection.graph` stays `null`.
+- Slice 3 still needs a project/config store, immutable candidates, and
+  digest-scoped activation. There is no native app (Slice 4) and no push
+  (Slice 5).
 - Slack stubs may remain for compatibility, but Slack implementation is not
   part of B14.
 
@@ -65,6 +71,8 @@ Status: **implemented** (this item remains `in_progress` until later slices).
   their own principal.
 
 ### Slice 2 — Read-only GUI projections
+
+Status: **implemented** (this item remains `in_progress` until later slices).
 
 - Add client-safe conversation pagination.
 - Add task and system SSE streams with durable cursors and reconnect/reset
@@ -136,8 +144,9 @@ Status: **implemented** (this item remains `in_progress` until later slices).
       elevate authority; unauthenticated remote `/v1` is `401`.
 - [ ] Mobile access is HTTPS over a private overlay and fails closed without
       trusted authentication.
-- [ ] Snapshots plus SSE reconstruct conversation, graph, validation, and
-      health after disconnect without token streaming.
+- [x] Slice 2: snapshots plus SSE reconstruct conversation, validation, and
+      health after disconnect without token streaming. Graph stays `null` until
+      B19.
 - [ ] Repository/project edits are typed, revisioned, validated, auditable,
       and digest-scoped where approval is required.
 - [x] Slice 1: duplicate mutation retries do not double-apply; stale ETags

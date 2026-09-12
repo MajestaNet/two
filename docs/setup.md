@@ -16,7 +16,7 @@ the spec.
 | List inference profiles | Works (`two profiles`) |
 | Serve Qwen on the Mac | Scripts exist (`bootstrap-mac.sh`, `health-check.sh`, `soak-inference.sh`); live path requires a Mac ([B01](backlog/B01-mac-inference-appliance.md)) |
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
-| Secure first-party mobile client | Slice 1 API foundations in this repo; native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
+| Secure first-party mobile client | Slice 1+2 API in this repo (capabilities, conversation, SSE, health/queue, repo reads); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. Mobile requires future HTTPS + OIDC/PKCE work and is not implemented ([client API design](client-api-design.md)) |
 | Messaging adapters | Optional and deferred; Slack stubs are not an implemented adapter |
@@ -27,7 +27,7 @@ the spec.
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
 | SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`) ([B06](backlog/B06-sqlite-store.md)) |
-| Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket). Client JSON is `two.projection`. B14 slice 1 adds `GET /v1/system/capabilities`, server-derived scopes, idempotency keys, and ETags ([B07](backlog/B07-control-api.md), [B14](backlog/B14-secure-mobile-client.md)) |
+| Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket). Client JSON is `two.projection`. B14 slice 2 adds conversation, SSE, aggregate health/queue, repository/project reads, and bounded diff/artifacts ([B07](backlog/B07-control-api.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; `two scheduler` process) ([B08](backlog/B08-scheduler.md)) |
 | ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
 | Workflow controller + reports | Works (`two.controller`; `two worker` drives stages after a lease) ([B10](backlog/B10-workflow-controller.md)) |
@@ -36,7 +36,8 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 12 September 2026 (B19 persisted work graph; schema v5).
+Last updated: 12 September 2026 (B19 persisted work graph, schema v5; B14
+slice 2 read-only GUI projections; OIDC libraries not added, ADR 0016).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 

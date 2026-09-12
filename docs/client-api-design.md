@@ -141,12 +141,12 @@ Health is observed state, not a command channel to Ollama or Harness.
 
 ## 4. HTTP surface
 
-The table distinguishes the implemented B07 contract and B14 slice 1
-foundations from later additive GUI resources. Exact Pydantic schemas live in
-`two.projection` with contract tests. This document remains authoritative for
-resource responsibilities and security behavior. The implementation threat
-model is [client-threat-model.md](client-threat-model.md). OIDC/JWT libraries
-are selected in [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md) and are
+The table distinguishes implemented B07 / B14 slice 1–2 routes from later
+additive GUI resources. Exact Pydantic schemas live in `two.projection` with
+contract tests. This document remains authoritative for resource
+responsibilities and security behavior. The implementation threat model is
+[client-threat-model.md](client-threat-model.md). OIDC/JWT libraries are
+selected in [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md) and are
 **not** added until that ADR is accepted.
 
 ### Tasks, conversation, and development-loop monitoring
@@ -156,20 +156,20 @@ are selected in [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md) and are
 | `POST` | `/v1/tasks` | Existing | Create a durable task from `TaskManifest`. |
 | `GET` | `/v1/tasks` | Existing; extend filters/cursor | List task summaries by project, repository, lifecycle, and update time. |
 | `GET` | `/v1/tasks/{id}` | Existing | Authoritative projection including graph, budgets, questions, approvals, diff and validation summaries. |
-| `GET` | `/v1/tasks/{id}/events` | Existing operator route; hardening proposed | Append-only controller events. Today the shared bearer can read it; B14 must require `events:audit` and policy filtering before mobile access is enabled. |
+| `GET` | `/v1/tasks/{id}/events` | Implemented; network hardening in slice 2 | Append-only controller events. Network callers need `events:audit` and receive policy-filtered payloads. Unix/loopback CLI keeps current payloads. |
 | `POST` | `/v1/tasks/{id}/messages` | Existing; add idempotency | Add user text to the durable task conversation. |
-| `GET` | `/v1/tasks/{id}/conversation` | Proposed | Page through client-safe conversation items with a durable cursor. |
-| `GET` | `/v1/tasks/{id}/stream` | Proposed | SSE stream of redacted task changes; supports `Last-Event-ID`. |
-| `GET` | `/v1/stream` | Proposed | SSE stream of authorized task-list and system-summary changes. |
+| `GET` | `/v1/tasks/{id}/conversation` | Implemented (B14 slice 2) | Page through client-safe conversation items with a durable cursor. |
+| `GET` | `/v1/tasks/{id}/stream` | Implemented (B14 slice 2) | SSE stream of redacted task changes; supports `Last-Event-ID`. |
+| `GET` | `/v1/stream` | Implemented (B14 slice 2) | SSE stream of authorized task-list and system-summary changes. |
 | `POST` | `/v1/tasks/{id}/pause` | Existing | Request cooperative pause. |
 | `POST` | `/v1/tasks/{id}/resume` | Existing | Requeue a resumable task. |
 | `POST` | `/v1/tasks/{id}/cancel` | Existing | Request cooperative cancellation. |
 | `POST` | `/v1/tasks/{id}/questions/{qid}/answer` | Existing | Resolve one durable question, first writer wins. |
 | `POST` | `/v1/tasks/{id}/approvals/{aid}/decide` | Existing | Decide one immutable action digest. |
 | `GET` | `/v1/tasks/{id}/report` | Existing | Fetch the Stage 8 report. |
-| `GET` | `/v1/tasks/{id}/diff` | Proposed | Fetch a bounded, policy-filtered unified diff or file summary. |
-| `GET` | `/v1/tasks/{id}/artifacts` | Proposed | List safe artifact metadata. |
-| `GET` | `/v1/tasks/{id}/artifacts/{artifact_id}` | Proposed | Download an authorized bounded artifact; no arbitrary filesystem path. |
+| `GET` | `/v1/tasks/{id}/diff` | Implemented (B14 slice 2) | Fetch a bounded, policy-filtered unified diff or file summary. |
+| `GET` | `/v1/tasks/{id}/artifacts` | Implemented (B14 slice 2) | List safe artifact metadata. |
+| `GET` | `/v1/tasks/{id}/artifacts/{artifact_id}` | Implemented (B14 slice 2) | Download an authorized bounded artifact; no arbitrary filesystem path. |
 
 SSE carries controller changes, not model tokens. Every stream event contains
 an opaque cursor, resource id, event kind, resource revision, and minimal
@@ -180,17 +180,17 @@ reloads snapshots.
 
 ### Repository and project configuration
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/v1/repositories` | List authorized repository summaries and readiness. |
-| `GET` | `/v1/repositories/{id}` | Fetch active, redacted configuration and revision. |
-| `POST` | `/v1/repositories/{id}/config-candidates` | Validate an immutable candidate and return field-level errors, risk class, digest, and redacted diff. |
-| `POST` | `/v1/repositories/{id}/config-candidates/{revision}/activate` | Activate the exact candidate immediately or create a required approval. |
-| `GET` | `/v1/projects` | List authorized projects and aggregate task counts. |
-| `POST` | `/v1/projects` | Create a project from typed, non-secret fields. |
-| `GET` | `/v1/projects/{id}` | Fetch project defaults, repository membership, and revision. |
-| `POST` | `/v1/projects/{id}/config-candidates` | Validate an immutable project candidate. |
-| `POST` | `/v1/projects/{id}/config-candidates/{revision}/activate` | Activate the exact candidate subject to policy. |
+| Method | Path | Status | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/v1/repositories` | Implemented (B14 slice 2) | List authorized repository summaries and readiness. |
+| `GET` | `/v1/repositories/{id}` | Implemented (B14 slice 2) | Fetch active, redacted configuration. |
+| `POST` | `/v1/repositories/{id}/config-candidates` | Proposed (slice 3) | Validate an immutable candidate and return field-level errors, risk class, digest, and redacted diff. |
+| `POST` | `/v1/repositories/{id}/config-candidates/{revision}/activate` | Proposed (slice 3) | Activate the exact candidate immediately or create a required approval. |
+| `GET` | `/v1/projects` | Implemented (B14 slice 2; empty until slice 3 persists rows) | List authorized projects and aggregate task counts. |
+| `POST` | `/v1/projects` | Proposed (slice 3) | Create a project from typed, non-secret fields. |
+| `GET` | `/v1/projects/{id}` | Implemented (B14 slice 2; 404 until slice 3) | Fetch project defaults, repository membership, and revision. |
+| `POST` | `/v1/projects/{id}/config-candidates` | Proposed (slice 3) | Validate an immutable project candidate. |
+| `POST` | `/v1/projects/{id}/config-candidates/{revision}/activate` | Proposed (slice 3) | Activate the exact candidate subject to policy. |
 
 Configuration uses immutable candidates rather than allowing a GUI to edit
 host YAML or arbitrary paths. Candidate activation uses optimistic
@@ -209,10 +209,10 @@ secret reference where a future feature explicitly permits one.
 
 | Method | Path | Status | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/health` | Existing | Shallow API/store liveness; loopback/service-manager use. |
-| `GET` | `/v1/system/health` | Proposed | Authenticated aggregate component health and observation freshness. |
+| `GET` | `/health` | Existing | Shallow API/store liveness; loopback/service-manager use. Not Mac health. |
+| `GET` | `/v1/system/health` | Implemented (B14 slice 2) | Authenticated aggregate component health and observation freshness. |
 | `GET` | `/v1/system/capabilities` | Implemented (B14 slice 1) | API versions, auth method, scopes, and optional features available to this client. |
-| `GET` | `/v1/system/queue` | Proposed | Redacted queue order, active slot, retry waits, and lease freshness. |
+| `GET` | `/v1/system/queue` | Implemented (B14 slice 2) | Redacted queue order, active slot, retry waits, and lease freshness. |
 
 Clients feature-detect through capabilities; they do not infer support from
 server version strings. Health responses distinguish `healthy`, `degraded`,
@@ -258,8 +258,9 @@ the full operator scope set. Request `principal`/`actor` fields cannot
 establish authority for authenticated network clients. They remain audit
 labels for trusted Unix/loopback callers. `/v1/tasks/{id}/events` requires
 `events:audit` (granted to local-trust and the shared operator token).
-Do not embed the token in a mobile app or grant it to mutually untrusted
-users.
+Network event payloads are policy-filtered (slice 2). Unix/loopback CLI
+keeps current event payloads. Do not embed the token in a mobile app or
+grant it to mutually untrusted users.
 
 ### Mobile identity
 
@@ -355,9 +356,9 @@ This design intentionally does not:
   same redacted resources and scoped identity model.
 
 Implementation should be sliced into: contract/auth foundations (slice 1,
-landed), read-only GUI projections and SSE, typed config candidates, then
-the separate native mobile client. B19 is parallel work; it is not a start
-gate for those API slices. Each slice needs offline contract tests;
-remote auth and mobile security require dedicated integration and
-threat-model review before promotion. Do not add PyJWT or TLS libraries
-until ADR 0016 is accepted.
+landed), read-only GUI projections and SSE (slice 2, landed), typed config
+candidates (slice 3), then the separate native mobile client. B19 is
+parallel work; it is not a start gate for those API slices. Each slice
+needs offline contract tests; remote auth and mobile security require
+dedicated integration and threat-model review before promotion. Do not add
+PyJWT or TLS libraries until ADR 0016 is accepted.
