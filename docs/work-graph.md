@@ -10,10 +10,10 @@ This page does not copy the ADR. Pointers:
 
 - Inner loop stays DeepSeek Harness (architecture §6.3.B, ADR 0011).
 - Outer alignment is `two.graph` (no I/O in the contract package).
-- SQLite persistence and controller wiring are B19.
-- Clients read `TaskProjection.graph` (additive `/v1`; `null` until
-  B19 fills it). `todos` remain a flattened view of implement /
-  validate / repair / review nodes.
+- SQLite persistence and controller wiring are implemented (schema v5).
+- Clients read `TaskProjection.graph` (additive `/v1`; `null` until a
+  graph is stored for the task). `todos` remain a flattened view of
+  implement / validate / repair / review nodes.
 - Overnight still means larger *ceilings*, not an infinite loop
   ([unattended-operations.md](unattended-operations.md),
   [local-16k.md](local-16k.md)).

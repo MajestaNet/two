@@ -83,7 +83,7 @@ def test_capabilities_local_trust(client: TestClient) -> None:
     assert body["features"]["queue"] is True
     assert body["features"]["repositories"] is True
     assert body["features"]["projects"] is True
-    assert body["features"]["graph"] is False
+    assert body["features"]["graph"] is True
     assert "tasks:read" in body["scopes"]
     assert "events:audit" in body["scopes"]
     assert "X-Correlation-ID" in response.headers

@@ -60,12 +60,14 @@ def todos_from_graph(graph: WorkGraph) -> list[TodoItem]:
     for node in graph.nodes:
         if node.kind not in _TODO_KINDS:
             continue
+        if node.status is NodeStatus.SUPERSEDED:
+            continue
         items.append(TodoItem(id=node.id, content=node.title, status=_todo_status(node.status)))
     return items
 
 
 def _todo_status(status: NodeStatus) -> TodoStatus:
-    if status is NodeStatus.DONE:
+    if status in {NodeStatus.DONE, NodeStatus.SKIPPED}:
         return TodoStatus.COMPLETED
     if status in {NodeStatus.RUNNING, NodeStatus.READY, NodeStatus.AWAITING_INPUT}:
         return TodoStatus.IN_PROGRESS

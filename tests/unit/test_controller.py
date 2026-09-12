@@ -35,10 +35,11 @@ from two.controller.events import (
     EVENT_REPORT,
     EVENT_VALIDATION,
 )
+from two.graph import GraphProposal, ProposedNode
 from two.manifest import TaskManifest
 from two.reporting import format_final_report, report_from_payload
 from two.store import Store, open_store
-from two.types import ExecutionProfile, LifecycleState, WorkflowStage
+from two.types import ExecutionProfile, LifecycleState, NodeKind, NodeStatus, WorkflowStage
 from two.validation import load_default_policy
 from two.validation.results import GateResult, ValidationResult
 from two.workspace.identity import branch_for_task
@@ -532,3 +533,124 @@ def test_drive_restores_validation_from_events(store: Store, tmp_path: Path) -> 
     record = controller.drive("task-restore")
     assert record.lifecycle is LifecycleState.COMPLETE
     assert any(call.stage is WorkflowStage.REVIEW for call in worker.calls)
+
+
+def test_two_implement_overnight_serializes_then_repairs(store: Store, tmp_path: Path) -> None:
+    worker = ScriptedWorker()
+    worker.enqueue(
+        WorkflowStage.PLAN,
+        WorkerPhaseResult(
+            ok=True,
+            plan="Auth then session store.",
+            files_named=("src/auth.py", "src/session.py", "tests/test_auth.py"),
+            tests_named=("tests/test_auth.py", "tests/test_session.py"),
+            assumptions=("cookies first",),
+            graph_proposal=GraphProposal(
+                notes="split by package",
+                nodes=[
+                    ProposedNode(
+                        id="task-night:implement:auth",
+                        kind=NodeKind.IMPLEMENT,
+                        title="Auth cookie hardening",
+                        files_named=["src/auth.py"],
+                        tests_named=["tests/test_auth.py"],
+                    ),
+                    ProposedNode(
+                        id="task-night:implement:session",
+                        kind=NodeKind.IMPLEMENT,
+                        title="Session store",
+                        depends_on=["task-night:implement:auth"],
+                        files_named=["src/session.py"],
+                        tests_named=["tests/test_session.py"],
+                    ),
+                ],
+            ),
+        ),
+    )
+    validate = ScriptedValidation(tmp_path, outcomes=[False, True])
+    controller, fake_worker, fake_validate, _ = _controller(
+        store, tmp_path, worker=worker, validate=validate
+    )
+    store.insert_task(
+        _manifest(
+            id="task-night",
+            execution_profile="overnight",
+            allowed_paths=["src/**", "tests/**"],
+        )
+    )
+    record = controller.drive("task-night")
+    assert record.lifecycle is LifecycleState.COMPLETE
+    graph = store.load_graph("task-night")
+    assert graph is not None
+    assert graph.node("task-night:implement:auth").status is NodeStatus.DONE
+    assert graph.node("task-night:implement:session").status is NodeStatus.DONE
+    running = [node.id for node in graph.nodes if node.status is NodeStatus.RUNNING]
+    assert running == []
+    implement_ids = [
+        call.node_id for call in fake_worker.calls if call.stage is WorkflowStage.IMPLEMENT
+    ]
+    assert implement_ids == [
+        "task-night:implement:auth",
+        "task-night:implement:session",
+    ]
+    assert all(call.stage is not WorkflowStage.VALIDATE for call in fake_worker.calls)
+    assert fake_validate.calls == 2
+    review = next(call for call in fake_worker.calls if call.stage is WorkflowStage.REVIEW)
+    assert review.fresh_session is True
+    assert "Work-graph node handoff" in review.prompt
+    assert "implementation conversation" not in review.prompt.lower()
+    events = store.list_events("task-night")
+    assert any(event.type == EVENT_REPAIR for event in events)
+    assert any(event.type == "graph.walk" for event in events)
+
+
+def test_invalid_graph_proposal_falls_back_to_linear(store: Store, tmp_path: Path) -> None:
+    worker = ScriptedWorker()
+    worker.enqueue(
+        WorkflowStage.PLAN,
+        WorkerPhaseResult(
+            ok=True,
+            plan="Cyclic proposal should be ignored.",
+            files_named=("src/adder.py", "tests/test_adder.py"),
+            tests_named=("tests/test_adder.py",),
+            assumptions=("integers",),
+            graph_proposal=GraphProposal(
+                nodes=[
+                    ProposedNode(
+                        id="a",
+                        kind=NodeKind.IMPLEMENT,
+                        title="A",
+                        depends_on=["b"],
+                    ),
+                    ProposedNode(
+                        id="b",
+                        kind=NodeKind.IMPLEMENT,
+                        title="B",
+                        depends_on=["a"],
+                    ),
+                ]
+            ),
+        ),
+    )
+    controller, _, _, _ = _controller(store, tmp_path, worker=worker)
+    store.insert_task(_manifest(id="task-cycle-plan"))
+    record = controller.drive("task-cycle-plan")
+    assert record.lifecycle is LifecycleState.COMPLETE
+    graph = store.load_graph("task-cycle-plan")
+    assert graph is not None
+    assert graph.node("task-cycle-plan:implement").status is NodeStatus.DONE
+    assert all(node.id not in {"a", "b"} for node in graph.nodes)
+
+
+def test_failed_gates_cannot_self_certify_complete(store: Store, tmp_path: Path) -> None:
+    worker = ScriptedWorker()
+    worker.enqueue(
+        WorkflowStage.REVIEW,
+        WorkerPhaseResult(ok=True, summary="model claims done", findings=()),
+    )
+    validate = ScriptedValidation(tmp_path, outcomes=[])
+    controller, _, _, _ = _controller(store, tmp_path, worker=worker, validate=validate)
+    store.insert_task(_manifest(id="task-self", max_repair_cycles=1))
+    record = controller.drive("task-self")
+    assert record.lifecycle is not LifecycleState.COMPLETE
+    assert record.lifecycle is LifecycleState.BLOCKED

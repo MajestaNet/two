@@ -5,13 +5,14 @@
 Majesta Two is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays on
 a dedicated Mac inference host. This repository is not a Slack (or other
 messenger) product. The CLI is first-party today; ADR 0015/B14 plans a secure
-first-party mobile client over the same API. The SQLite WAL store (`two.store`) persists tasks, events, and leases.
+first-party mobile client over the same API. The SQLite WAL store (`two.store`)
+persists tasks, events, leases, and the work graph (schema v5).
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
-The workflow controller owns stage policy, budgets, fresh review, and
-terminal status. Messaging adapters are optional and not implemented; Slack
-is deferred.
+The workflow controller owns stage policy, budgets, fresh review, the
+persisted work-graph walker, and terminal status. Messaging adapters are
+optional and not implemented; Slack is deferred.
 GitHub export of task branches is post-MVP (ADR 0012) and is not implemented.
 
 ## Stack
@@ -73,8 +74,9 @@ listed in `config/repositories/two.yaml`.
   launchd rendering, health classification, and the optional Mac HTTP poller.
   `src/two/context/` is the context broker and structured task memory
   (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
-  `src/two/store/` is the SQLite WAL store (tasks, events, leases). CLI
-  does not open it at import time.
+  `src/two/store/` is the SQLite WAL store (tasks, events, leases, work
+  graph). CLI does not open it at import time. Schema v5 adds `work_nodes`
+  and `work_edges` (v4 is B14 idempotency).
  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
  `two api` lazy-imports it so `two profiles` does not load the store.
  Additive B14 slice 2 routes include conversation, SSE, aggregate health,
@@ -97,11 +99,13 @@ listed in `config/repositories/two.yaml`.
   `src/two/worker/` supervises a pinned ACP child, the action ledger, and
   session resume. Default tests use a fake child (`@pytest.mark.live_dsh`
   is opt-in).
-  `src/two/controller/` drives the durable workflow, binds budgets, starts a
-  fresh review session, and is the only writer of terminal status.
+  `src/two/controller/` drives the durable workflow, binds budgets, walks
+  the persisted work graph, starts a fresh review session, and is the only
+  writer of terminal status.
   `src/two/graph/` is the no-I/O work-graph contract (ADR 0014): nodes,
   typed edges, walker, and node-scoped harness handoff. SQLite persistence
-  and controller wiring are B19. Do not put a second agent runtime here.
+  and controller wiring live in `two.store` / `two.controller`. Do not put
+  a second agent runtime here.
   `src/two/reporting/` formats gate fragments and Stage 8 final reports.
   `src/two/recovery/` is development-host startup recovery (architecture
   §12.5) and the `two scheduler` / `two worker` process loops.

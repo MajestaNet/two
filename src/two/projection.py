@@ -163,7 +163,7 @@ class GraphEdgeView(BaseModel):
 
 
 class GraphView(BaseModel):
-    """Persisted work graph. Absent until B19 persists one for the task."""
+    """Persisted work graph. Null until a graph is stored for the task."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -453,7 +453,7 @@ class ClientFeatures(BaseModel):
     repositories: bool = False
     aggregate_health: bool = False
     queue: bool = False
-    graph: bool = False
+    graph: bool = True
 
 
 class SystemCapabilities(BaseModel):

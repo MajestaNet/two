@@ -46,6 +46,15 @@ from two.types import (
 )
 
 
+def test_linear_graph_from_stage_marks_predecessors_done() -> None:
+    graph = compile_linear_graph("task-s", from_stage=WorkflowStage.REVIEW)
+    assert graph.node("task-s:inspect").status is NodeStatus.DONE
+    assert graph.node("task-s:plan").status is NodeStatus.DONE
+    assert graph.node("task-s:implement").status is NodeStatus.DONE
+    assert graph.node("task-s:validate").status is NodeStatus.DONE
+    assert graph.node("task-s:review").status is NodeStatus.READY
+
+
 def test_linear_graph_is_the_eight_stage_pipeline() -> None:
     graph = compile_linear_graph(
         "task-123",
