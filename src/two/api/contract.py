@@ -99,6 +99,34 @@ def check_if_match(request: Request, revision: int) -> None:
         raise HTTPException(status_code=412, detail="resource revision mismatch")
 
 
+def require_if_match(request: Request, revision: int) -> None:
+    """Required If-Match for config activation. Missing or stale is 412."""
+    offered = request.headers.get(IF_MATCH_HEADER)
+    if offered is None or offered.strip() == "":
+        raise HTTPException(status_code=412, detail="resource revision mismatch")
+    if not etag_matches(offered, revision):
+        raise HTTPException(status_code=412, detail="resource revision mismatch")
+
+
+def etag_json_response(
+    payload: object,
+    *,
+    revision: int,
+    status_code: int = 200,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """Serialize a Pydantic model with its resource-revision ETag."""
+    extra = dict(headers or {})
+    extra[ETAG_HEADER] = format_etag(revision)
+    content: Any
+    dump = getattr(payload, "model_dump", None)
+    if callable(dump):
+        content = dump(mode="json")
+    else:
+        content = payload
+    return JSONResponse(status_code=status_code, content=content, headers=extra)
+
+
 def request_hash(method: str, path: str, body: bytes) -> str:
     """Canonical hash of a mutation. Path excludes the query string."""
     digest = hashlib.sha256()
@@ -286,6 +314,8 @@ def _error_code(status: int, message: str) -> ErrorCode:
         if "idempotency" in text:
             return ErrorCode.IDEMPOTENCY_CONFLICT
         if "already exists" in text:
+            if "project" in text:
+                return ErrorCode.DUPLICATE_PROJECT
             return ErrorCode.DUPLICATE_TASK
         if "stale" in text:
             return ErrorCode.STALE_DIGEST

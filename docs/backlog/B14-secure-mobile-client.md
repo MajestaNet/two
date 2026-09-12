@@ -42,12 +42,18 @@ do not attempt the entire item in one PR.
 - **Slice 2 landed:** client-safe conversation pagination, task/system SSE
   with durable cursors (reconnect, retention-reset, slow-consumer disconnect),
   aggregate `/v1/system/health` and `/v1/system/queue`, repository/project
-  **read** projections (projects are an empty list until Slice 3), and
-  bounded diff/artifact retrieval by server ids. Network `/v1/tasks/{id}/events`
-  requires `events:audit` and is policy-filtered; Unix/loopback CLI payloads
-  remain compatible. `TaskProjection.graph` stays `null`.
-- Slice 3 still needs a project/config store, immutable candidates, and
-  digest-scoped activation. There is no native app (Slice 4) and no push
+  **read** projections, and bounded diff/artifact retrieval by server ids.
+  Network `/v1/tasks/{id}/events` requires `events:audit` and is
+  policy-filtered; Unix/loopback CLI payloads remain compatible.
+  `TaskProjection.graph` is populated when B19 has a graph and stays `null`
+  otherwise.
+- **Slice 3 landed:** persisted projects (schema v6), immutable
+  repository/project config candidates, redacted diffs/risk class/digest on
+  POST, and `If-Match` activation. Display/task-default changes activate with
+  `config:write`. Capability-expanding changes need `config:write`, `admin`,
+  and a digest-scoped approval (`approvals:decide`). Host YAML remains the
+  operator-seeded baseline; ordinary clients cannot send secrets, host paths,
+  YAML blobs, or shell strings. There is no native app (Slice 4) and no push
   (Slice 5).
 - Slack stubs may remain for compatibility, but Slack implementation is not
   part of B14.
@@ -85,8 +91,10 @@ Status: **implemented** (this item remains `in_progress` until later slices).
 
 ### Slice 3 — Typed repository and project configuration
 
+Status: **implemented** (this item remains `in_progress` until later slices).
+
 - Persist project records and revisioned repository/project config
-  candidates in the backend store.
+  candidates in the backend store (schema v6).
 - Validate immutable candidates; return a redacted diff, errors, risk class,
   and digest before activation.
 - Use `If-Match` for activation. Capability-expanding changes require
@@ -147,8 +155,8 @@ Status: **implemented** (this item remains `in_progress` until later slices).
 - [x] Slice 2: snapshots plus SSE reconstruct conversation, validation, and
       health after disconnect without token streaming. Graph stays `null` until
       B19.
-- [ ] Repository/project edits are typed, revisioned, validated, auditable,
-      and digest-scoped where approval is required.
+- [x] Slice 3: repository/project edits are typed, revisioned, validated,
+      auditable, and digest-scoped where approval is required.
 - [x] Slice 1: duplicate mutation retries do not double-apply; stale ETags
       fail (`412`). Stale approval digests remain `409` (B11).
 - [ ] Push, lock-screen UI, caches, and client logs do not disclose source,

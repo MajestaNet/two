@@ -219,7 +219,7 @@ def test_v3_and_v4_databases_migrate_to_v5(tmp_path: Path) -> None:
 
     with open_store(v3_path) as opened:
         assert opened.schema_version() == SCHEMA_VERSION
-        assert SCHEMA_VERSION == 5
+        assert SCHEMA_VERSION == 6
         loaded = opened.get_task("task-v3")
         assert loaded is not None
         assert loaded.dsh_session_id == "sess-old"
@@ -266,7 +266,7 @@ def test_v3_and_v4_databases_migrate_to_v5(tmp_path: Path) -> None:
         connection.close()
 
     with open_store(v4_path) as opened:
-        assert opened.schema_version() == 5
+        assert opened.schema_version() == SCHEMA_VERSION
         record = opened.get_idempotency("local", "key-1")
         assert record is not None
         assert record.request_hash == "hash-1"
@@ -282,6 +282,56 @@ def test_v3_and_v4_databases_migrate_to_v5(tmp_path: Path) -> None:
         assert "work_nodes" in tables
         assert "work_edges" in tables
         assert "idempotency_records" in tables
+        assert "projects" in tables
+        assert "config_candidates" in tables
+
+
+def test_v5_databases_migrate_to_v6(tmp_path: Path) -> None:
+    path = tmp_path / "v5.sqlite"
+    connection = connect(path)
+    try:
+        _apply_through(connection, 5)
+        assert current_schema_version(connection) == 5
+        names = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+        assert "work_nodes" in names
+        assert "projects" not in names
+    finally:
+        connection.close()
+    with open_store(path) as opened:
+        assert opened.schema_version() == SCHEMA_VERSION
+        opened.insert_project(project_id="p1", display_name="One", now=T0)
+        loaded = opened.get_project("p1")
+        assert loaded is not None
+        assert loaded.display_name == "One"
+        assert loaded.revision == 1
+        candidate = opened.insert_config_candidate(
+            subject_kind="project",
+            subject_id="p1",
+            digest="abc",
+            risk_class="display",
+            payload={"display_name": "Two"},
+            created_by="local",
+            now=T0,
+        )
+        assert candidate.revision == 1
+        assert candidate.status == "pending"
+        updated, revision = opened.activate_config_candidate(
+            subject_kind="project",
+            subject_id="p1",
+            revision=1,
+            overlay={"display_name": "Two"},
+            expected_resource_revision=1,
+            now=T0,
+        )
+        assert updated.status == "activated"
+        assert revision == 2
+        assert opened.get_project("p1") is not None
+        assert opened.get_project("p1").display_name == "Two"
 
 
 def test_ensure_graph_compiles_from_current_stage(store: Store) -> None:

@@ -69,3 +69,15 @@ class IdempotencyInFlightError(StoreError):
 
 class GraphCommitError(StoreError):
     """A work graph failed invariants at the store boundary and was not persisted."""
+
+
+class DuplicateProjectError(StoreError):
+    """A project with this id already exists."""
+
+
+class ProjectNotFoundError(StoreError):
+    """The referenced project id is not in the store."""
+
+
+class ConfigCandidateNotFoundError(StoreError):
+    """The referenced config candidate revision is not in the store."""
