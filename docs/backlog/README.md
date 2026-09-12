@@ -48,7 +48,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B11](B11-questions-approvals.md) | Questions, approvals, pause/resume/cancel | 5 | B06, B07 | done |
 | [B12](B12-dev-host-services.md) | Development-host services and Compose | 5 | B07, B08, B09, B10 | done |
 | [B13](B13-cli-and-interaction.md) | CLI client and interaction-contract tests | 6 | B07 | done |
-| [B14](B14-secure-mobile-client.md) | Secure first-party mobile client | 6 | B07, B11, B19 | planned |
+| [B14](B14-secure-mobile-client.md) | Secure first-party mobile client | 6 | B07, B11, B19 | in_progress |
 | [B15](B15-evaluation-corpus.md) | Evaluation corpus and promotion gates | 5 / 18 | B03 (fixtures); B10–B12 (promotion) | done |
 | [B16](B16-paid-model-routes.md) | Optional paid-model routes | 7 | B10 | planned |
 | [B17](B17-github-export.md) | GitHub App source-control export | 8 | B03, B10, B11 | planned |
