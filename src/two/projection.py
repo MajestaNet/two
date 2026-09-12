@@ -612,6 +612,8 @@ class RepositoryView(BaseModel):
     forbidden_path_patterns: list[str] = Field(default_factory=list)
     config_digest: str
     readiness: Literal["configured", "unknown"] = "configured"
+    revision: int = 1
+    active_candidate_revision: int | None = None
 
 
 class RepositoryListResponse(BaseModel):
@@ -625,7 +627,7 @@ class RepositoryListResponse(BaseModel):
 
 
 class ProjectSummary(BaseModel):
-    """One project row. Persistence is Slice 3; Slice 2 may return none."""
+    """One project row from the persisted project store."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -637,13 +639,151 @@ class ProjectSummary(BaseModel):
 
 
 class ProjectListResponse(BaseModel):
-    """``GET /v1/projects``. Empty until Slice 3 persists projects."""
+    """``GET /v1/projects``."""
 
     model_config = ConfigDict(extra="forbid")
 
     schema_version: int = PROJECTION_SCHEMA_VERSION
     projects: list[ProjectSummary]
     limit: int
+
+
+class ProjectCreateRequest(BaseModel):
+    """``POST /v1/projects``. Typed non-secret fields only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str | None = None
+    display_name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=4000)
+    repository_ids: list[str] = Field(default_factory=list)
+    default_repository: str | None = None
+    default_base_ref: str | None = None
+    default_mode: Mode | None = None
+    default_execution_profile: ExecutionProfile | None = None
+    labels: list[str] = Field(default_factory=list)
+    acceptance_criteria_templates: list[str] = Field(default_factory=list)
+
+
+class ProjectConfigCandidateRequest(BaseModel):
+    """``POST /v1/projects/{id}/config-candidates``. Partial typed overlay."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=4000)
+    repository_ids: list[str] | None = None
+    default_repository: str | None = None
+    default_base_ref: str | None = None
+    default_mode: Mode | None = None
+    default_execution_profile: ExecutionProfile | None = None
+    labels: list[str] | None = None
+    acceptance_criteria_templates: list[str] | None = None
+
+
+class ProjectView(BaseModel):
+    """``GET /v1/projects/{id}``. No secrets, host paths, or commands."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    id: str
+    display_name: str
+    description: str = ""
+    repository_ids: list[str] = Field(default_factory=list)
+    default_repository: str | None = None
+    default_base_ref: str | None = None
+    default_mode: Mode | None = None
+    default_execution_profile: ExecutionProfile | None = None
+    labels: list[str] = Field(default_factory=list)
+    acceptance_criteria_templates: list[str] = Field(default_factory=list)
+    active_candidate_revision: int | None = None
+    revision: int = 1
+    config_digest: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RepositoryConfigCandidateRequest(BaseModel):
+    """``POST /v1/repositories/{id}/config-candidates``. Gate names, not commands."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str | None = Field(default=None, min_length=1, max_length=200)
+    language: str | None = Field(default=None, min_length=1, max_length=64)
+    validation_profile: str | None = Field(default=None, min_length=1, max_length=64)
+    secret_scan: bool | None = None
+    gate_names: list[str] | None = None
+    allowed_path_patterns: list[str] | None = None
+    forbidden_path_patterns: list[str] | None = None
+    network: RepositoryNetworkView | None = None
+
+
+class ConfigDiffEntry(BaseModel):
+    """One redacted field change. Values never include commands or secrets."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: str
+    before: Any = None
+    after: Any = None
+
+
+class ConfigCandidateView(BaseModel):
+    """Immutable candidate snapshot. POST does not activate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    subject_kind: Literal["repository", "project"]
+    subject_id: str
+    revision: int
+    digest: str
+    risk_class: Literal["display", "capability"]
+    status: Literal["pending", "activated"]
+    field_errors: list[FieldError] = Field(default_factory=list)
+    redacted_diff: list[ConfigDiffEntry] = Field(default_factory=list)
+    created_at: datetime
+
+
+class ConfigApprovalView(BaseModel):
+    """Digest-scoped config approval. First writer wins; silence is never approval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    action_class: str
+    action_digest: str
+    status: Literal["open", "approved", "rejected"]
+    created_at: datetime
+
+
+class ConfigActivateRequest(BaseModel):
+    """``POST …/config-candidates/{revision}/activate``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_digest: str | None = None
+    decision: Literal["approve", "reject"] | None = None
+    principal: str | None = None
+    actor: str | None = None
+
+
+class ConfigActivateResponse(BaseModel):
+    """Activation result, or a required digest-scoped approval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    activated: bool
+    approval_required: bool = False
+    subject_kind: Literal["repository", "project"]
+    subject_id: str
+    candidate_revision: int
+    resource_revision: int
+    digest: str
+    risk_class: Literal["display", "capability"]
+    approval: ConfigApprovalView | None = None
 
 
 class TaskDiffView(BaseModel):

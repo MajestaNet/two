@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -234,12 +234,88 @@ _V5_STATEMENTS = (
     "CREATE INDEX idx_work_edges_to ON work_edges (to_id)",
 )
 
+# Version 6: B14 slice 3 persisted projects and immutable config candidates.
+# v5 remains the work-graph tables (ADR 0014 / B19).
+_V6_STATEMENTS = (
+    """
+    CREATE TABLE projects (
+        id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        repository_ids_json TEXT NOT NULL,
+        default_repository TEXT,
+        default_base_ref TEXT,
+        default_mode TEXT,
+        default_execution_profile TEXT,
+        labels_json TEXT NOT NULL,
+        acceptance_json TEXT NOT NULL,
+        overlay_json TEXT NOT NULL,
+        active_candidate_revision INTEGER,
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (revision >= 1)
+    )
+    """,
+    """
+    CREATE TABLE repository_config_state (
+        repository_id TEXT PRIMARY KEY,
+        overlay_json TEXT NOT NULL,
+        active_candidate_revision INTEGER,
+        revision INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL,
+        CHECK (revision >= 1)
+    )
+    """,
+    """
+    CREATE TABLE config_candidates (
+        subject_kind TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        digest TEXT NOT NULL,
+        risk_class TEXT NOT NULL,
+        status TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        field_errors_json TEXT NOT NULL,
+        redacted_diff_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        PRIMARY KEY (subject_kind, subject_id, revision),
+        CHECK (subject_kind IN ('repository', 'project')),
+        CHECK (risk_class IN ('display', 'capability')),
+        CHECK (status IN ('pending', 'activated')),
+        CHECK (revision >= 1)
+    )
+    """,
+    """
+    CREATE TABLE config_approvals (
+        id TEXT PRIMARY KEY,
+        subject_kind TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        candidate_revision INTEGER NOT NULL,
+        action_class TEXT NOT NULL,
+        action_digest TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolver TEXT,
+        UNIQUE (subject_kind, subject_id, candidate_revision),
+        CHECK (subject_kind IN ('repository', 'project')),
+        CHECK (status IN ('open', 'approved', 'rejected'))
+    )
+    """,
+    "CREATE INDEX idx_projects_updated ON projects (updated_at)",
+    "CREATE INDEX idx_config_candidates_digest ON config_candidates (digest)",
+    "CREATE INDEX idx_config_approvals_digest ON config_approvals (action_digest)",
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1_STATEMENTS),
     (2, _V2_STATEMENTS),
     (3, _V3_STATEMENTS),
     (4, _V4_STATEMENTS),
     (5, _V5_STATEMENTS),
+    (6, _V6_STATEMENTS),
 )
 
 

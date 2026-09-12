@@ -19,6 +19,7 @@
 A successful commit is required before any UI acknowledgement
 (architecture §6.4). The factory is ``open_store``; ``two.cli`` must not
 open the database. Schema v5 persists ``work_nodes`` / ``work_edges``.
+Schema v6 persists projects and immutable config candidates (B14 slice 3).
 See docs/architecture.md §6.3.G, §8.4, §8.5, and §12.5.
 """
 
@@ -26,14 +27,17 @@ from two.store.engine import BUSY_TIMEOUT_MS, DEFAULT_DB_FILENAME, resolve_db_pa
 from two.store.errors import (
     ActionNotFoundError,
     ApprovalNotFoundError,
+    ConfigCandidateNotFoundError,
     DuplicateActionError,
     DuplicateApprovalError,
+    DuplicateProjectError,
     DuplicateQuestionError,
     DuplicateSourceEventError,
     DuplicateTaskError,
     GraphCommitError,
     IdempotencyConflictError,
     IdempotencyInFlightError,
+    ProjectNotFoundError,
     QuestionNotFoundError,
     StoreError,
     TaskNotFoundError,
@@ -43,10 +47,14 @@ from two.store.models import (
     ActionStatus,
     ApprovalRecord,
     ChannelBinding,
+    ConfigApprovalRecord,
+    ConfigCandidateRecord,
     EventRecord,
     IdempotencyRecord,
     LeaseRecord,
+    ProjectRecord,
     QuestionRecord,
+    RepositoryConfigState,
     TaskRecord,
 )
 from two.store.schema import SCHEMA_VERSION
@@ -62,19 +70,26 @@ __all__ = [
     "ApprovalNotFoundError",
     "ApprovalRecord",
     "ChannelBinding",
+    "ConfigApprovalRecord",
+    "ConfigCandidateRecord",
     "DuplicateActionError",
     "DuplicateApprovalError",
     "DuplicateQuestionError",
     "DuplicateSourceEventError",
     "DuplicateTaskError",
     "EventRecord",
+    "ConfigCandidateNotFoundError",
+    "DuplicateProjectError",
     "GraphCommitError",
     "LeaseRecord",
     "IdempotencyConflictError",
     "IdempotencyInFlightError",
     "IdempotencyRecord",
+    "ProjectNotFoundError",
+    "ProjectRecord",
     "QuestionNotFoundError",
     "QuestionRecord",
+    "RepositoryConfigState",
     "Store",
     "StoreError",
     "TaskNotFoundError",

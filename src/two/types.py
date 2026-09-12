@@ -151,6 +151,7 @@ class ErrorCode(StrEnum):
     DIGEST_REQUIRED = "digest_required"
     OPEN_INPUT = "open_input"
     NOT_RESUMABLE = "not_resumable"
+    DUPLICATE_PROJECT = "duplicate_project"
     INTERNAL = "internal"
 
 

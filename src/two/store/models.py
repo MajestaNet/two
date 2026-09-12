@@ -156,3 +156,68 @@ class IdempotencyRecord:
     response_body: str
     response_headers: dict[str, str]
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectRecord:
+    """Persisted project defaults. Overlay fields are API-owned, not host YAML."""
+
+    id: str
+    display_name: str
+    description: str
+    repository_ids: list[str]
+    default_repository: str | None
+    default_base_ref: str | None
+    default_mode: str | None
+    default_execution_profile: str | None
+    labels: list[str]
+    acceptance_criteria_templates: list[str]
+    overlay: dict[str, Any]
+    active_candidate_revision: int | None
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class RepositoryConfigState:
+    """API-owned overlay on an operator-seeded host YAML repository."""
+
+    repository_id: str
+    overlay: dict[str, Any]
+    active_candidate_revision: int | None
+    revision: int
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigCandidateRecord:
+    """Immutable config candidate. Payload is never updated after insert."""
+
+    subject_kind: str
+    subject_id: str
+    revision: int
+    digest: str
+    risk_class: str
+    status: str
+    payload: dict[str, Any]
+    field_errors: list[dict[str, Any]]
+    redacted_diff: list[dict[str, Any]]
+    created_at: datetime
+    created_by: str
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigApprovalRecord:
+    """Digest-scoped config approval. First-writer-wins status change."""
+
+    id: str
+    subject_kind: str
+    subject_id: str
+    candidate_revision: int
+    action_class: str
+    action_digest: str
+    status: str
+    created_at: datetime
+    resolved_at: datetime | None
+    resolver: str | None

@@ -19,10 +19,10 @@ Python package for the Majesta Two control plane.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop.
-- `store/` is the SQLite WAL store (`open_store`). Schema v5 adds
-  `work_nodes` / `work_edges` (v4 is B14 idempotency). Do not open
-  databases from `cli.py` at import time. The `two api` subcommand
-  lazy-imports `two.api.server`.
+- `store/` is the SQLite WAL store (`open_store`). Schema v5 persists
+  `work_nodes` / `work_edges`. Schema v6 persists projects and immutable
+  config candidates (B14 slice 3). Do not open databases from `cli.py` at
+  import time. The `two api` subcommand lazy-imports `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
   including AF_UNIX). CLI task subcommands lazy-import it. Parse bodies with
   `two.projection`. Accept an injectable request callable for in-process
@@ -37,7 +37,8 @@ Python package for the Majesta Two control plane.
   `two.api.contract` owns correlation, ETags, and idempotency-key replay.
   `two.api.conversation` and `two.api.gui` build slice 2 read-only GUI
   projections (conversation, SSE, health, queue, repositories, diffs,
-  artifacts). They must not call git, the shell, Ollama, or ACP.
+  artifacts). `two.api.config` validates typed repository/project
+  candidates (slice 3). They must not call git, the shell, Ollama, or ACP.
 - `approvals/` owns question/approval resolution and pause/resume/cancel
   lifecycle policy. Silence is never approval. Digests are immutable.
   It does not import git, Slack, or the model.
