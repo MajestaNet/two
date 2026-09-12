@@ -1,8 +1,8 @@
-# Client API threat model (B14 slice 1)
+# Client API threat model (B14)
 
 | Field | Value |
 | --- | --- |
-| Status | Implemented contract for B14 slice 1 |
+| Status | Implemented contract for B14 slices 1–2 |
 | Authority | [Architecture §6.3.H](architecture.md), [§12.6](architecture.md), [§15](architecture.md), [ADR 0015](adrs/0015-first-party-client-api.md) |
 | Design | [Client API design](client-api-design.md) |
 | OIDC/TLS libraries | Not added. Selection is [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md) and waits on review. |
@@ -105,12 +105,16 @@ A device may be on coffee-shop Wi-Fi or a hostile LAN.
 
 ### Source leakage through notifications, caches, and errors
 
-- Slice 1 does not add push, SSE, or conversation feeds.
+- Slice 2 adds conversation pagination, SSE controller summaries, aggregate
+  health/queue, repository/project reads, and bounded diffs/artifacts.
+  Those bodies must not include secrets, environment values, canonical
+  paths, raw Harness output, or verbose command logs.
 - Error bodies keep `error.code` plus optional `correlation_id`,
   `field_errors`, and `retry_after_seconds`. They must not echo secrets,
   environment values, canonical paths, or raw Harness output.
 - `/v1/tasks/{id}/events` remains an operator route. Remote callers need
-  `events:audit`. Policy-filtered event redaction is slice 2.
+  `events:audit` and receive policy-filtered payloads. Unix/loopback CLI
+  compatibility keeps current payloads.
 - `TaskProjection.graph` is `null` until B19 persists a graph. Do not invent
   one.
 
@@ -138,6 +142,6 @@ A device may be on coffee-shop Wi-Fi or a hostile LAN.
 
 - Implementing OIDC, PKCE, or TLS libraries
 - Building the native mobile app
-- SSE, conversation pagination, project/config stores (later B14 slices)
+- Project/config stores and candidate activation (B14 slice 3)
 - Persisting the work graph (B19)
 - Slack or any messenger adapter

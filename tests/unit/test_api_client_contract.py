@@ -77,7 +77,12 @@ def test_capabilities_local_trust(client: TestClient) -> None:
     assert body["auth"]["mobile_ready"] is False
     assert body["features"]["idempotency_keys"] is True
     assert body["features"]["etags"] is True
-    assert body["features"]["conversation"] is False
+    assert body["features"]["conversation"] is True
+    assert body["features"]["sse"] is True
+    assert body["features"]["aggregate_health"] is True
+    assert body["features"]["queue"] is True
+    assert body["features"]["repositories"] is True
+    assert body["features"]["projects"] is True
     assert body["features"]["graph"] is True
     assert "tasks:read" in body["scopes"]
     assert "events:audit" in body["scopes"]

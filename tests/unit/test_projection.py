@@ -139,7 +139,37 @@ def test_capabilities_contract_defaults() -> None:
     assert dumped["api_versions"] == ["v1"]
     assert dumped["auth"]["oidc_available"] is False
     assert dumped["features"]["graph"] is True
+    assert dumped["features"]["conversation"] is False
     assert dumped["features"]["idempotency_keys"] is True
+
+
+def test_conversation_and_health_contracts_reject_unknown_fields() -> None:
+    from two.projection import ConversationItem, SystemHealth
+
+    now = datetime(2026, 8, 31, tzinfo=UTC)
+    item = ConversationItem(
+        cursor="1",
+        seq=1,
+        kind="user_message",
+        created_at=now,
+        summary="hello",
+        task_id="task-123",
+    )
+    assert item.kind == "user_message"
+    health = SystemHealth(status="unknown", observed_at=now, components=[])
+    assert health.status == "unknown"
+    with pytest.raises(ValidationError):
+        ConversationItem.model_validate(
+            {
+                "cursor": "1",
+                "seq": 1,
+                "kind": "user_message",
+                "created_at": now,
+                "summary": "hello",
+                "task_id": "task-123",
+                "stdout": "nope",
+            }
+        )
 
 
 def test_projection_module_does_not_import_fastapi() -> None:
