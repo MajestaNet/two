@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -177,11 +177,69 @@ _V4_STATEMENTS = (
     "CREATE INDEX idx_idempotency_created ON idempotency_records (created_at)",
 )
 
+# Version 5: persisted work graph (ADR 0014 / B19). v4 is B14 idempotency.
+_V5_STATEMENTS = (
+    """
+    CREATE TABLE work_graphs (
+        task_id TEXT PRIMARY KEY REFERENCES tasks(id),
+        cursor_node_id TEXT,
+        revision INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    """
+    CREATE TABLE work_nodes (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES tasks(id),
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        title TEXT NOT NULL,
+        objective TEXT NOT NULL DEFAULT '',
+        acceptance_json TEXT NOT NULL,
+        allow_writes INTEGER NOT NULL,
+        fresh_session INTEGER NOT NULL,
+        max_model_turns INTEGER,
+        summary TEXT NOT NULL DEFAULT '',
+        session_id TEXT,
+        evidence_fingerprint TEXT,
+        files_json TEXT NOT NULL,
+        tests_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (kind IN (
+            'inspect', 'plan', 'implement', 'validate', 'repair', 'review', 'decision'
+        )),
+        CHECK (status IN (
+            'pending', 'ready', 'running', 'awaiting_input', 'done', 'blocked',
+            'skipped', 'superseded'
+        )),
+        CHECK (allow_writes IN (0, 1)),
+        CHECK (fresh_session IN (0, 1))
+    )
+    """,
+    """
+    CREATE TABLE work_edges (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES tasks(id),
+        kind TEXT NOT NULL,
+        from_id TEXT NOT NULL,
+        to_id TEXT NOT NULL,
+        CHECK (kind IN (
+            'depends_on', 'repairs', 'reviews', 'supersedes', 'blocks'
+        ))
+    )
+    """,
+    "CREATE INDEX idx_work_nodes_task ON work_nodes (task_id, status)",
+    "CREATE INDEX idx_work_edges_task ON work_edges (task_id)",
+    "CREATE INDEX idx_work_edges_from ON work_edges (from_id)",
+    "CREATE INDEX idx_work_edges_to ON work_edges (to_id)",
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1_STATEMENTS),
     (2, _V2_STATEMENTS),
     (3, _V3_STATEMENTS),
     (4, _V4_STATEMENTS),
+    (5, _V5_STATEMENTS),
 )
 
 

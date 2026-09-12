@@ -22,6 +22,7 @@ worker, Slack, or an Ollama client.
 """
 
 from two.graph.compile import (
+    advance_linear_graph,
     apply_proposal,
     compile_linear_graph,
     compile_skeleton_graph,
@@ -62,6 +63,7 @@ __all__ = [
     "WorkEdge",
     "WorkGraph",
     "WorkNode",
+    "advance_linear_graph",
     "apply_proposal",
     "compile_linear_graph",
     "compile_skeleton_graph",

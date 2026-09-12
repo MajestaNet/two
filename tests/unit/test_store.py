@@ -302,7 +302,7 @@ def test_schema_migrates_from_v1_through_current(tmp_path: Path) -> None:
 
     with open_store(path) as opened:
         assert opened.schema_version() == SCHEMA_VERSION
-        assert SCHEMA_VERSION == 4
+        assert SCHEMA_VERSION == 5
         loaded = opened.get_task("task-123")
         assert loaded is not None
         assert loaded.worktree_path == "/tmp/wt"

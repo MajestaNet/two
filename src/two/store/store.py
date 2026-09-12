@@ -38,6 +38,9 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
+from two.graph.errors import GraphInvariantError
+from two.graph.invariants import validate_graph
+from two.graph.models import WorkGraph
 from two.manifest import TaskManifest
 from two.store.engine import prepare_database
 from two.store.errors import (
@@ -48,12 +51,14 @@ from two.store.errors import (
     DuplicateQuestionError,
     DuplicateSourceEventError,
     DuplicateTaskError,
+    GraphCommitError,
     IdempotencyConflictError,
     IdempotencyInFlightError,
     QuestionNotFoundError,
     StoreError,
     TaskNotFoundError,
 )
+from two.store.graphs import fetch_graph, replace_graph_rows
 from two.store.models import (
     ActionRecord,
     ActionStatus,
@@ -316,31 +321,10 @@ class Store:
         if not type:
             raise StoreError("event type must be non-empty")
         stamp = _iso(_utc(now))
-        body = json.dumps(dict(payload), sort_keys=True)
         try:
             with self._txn():
                 self._require_task(task_id)
-                seq_row = self._connection.execute(
-                    "SELECT COALESCE(MAX(seq), 0) FROM events WHERE task_id = ?",
-                    (task_id,),
-                ).fetchone()
-                seq = int(seq_row[0]) + 1 if seq_row is not None else 1
-                cursor = self._connection.execute(
-                    """
-                    INSERT INTO events (task_id, seq, type, payload_json, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (task_id, seq, type, body, stamp),
-                )
-                self._connection.execute(
-                    """
-                    UPDATE tasks
-                    SET revision = revision + 1, updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (stamp, task_id),
-                )
-                event_id = cursor.lastrowid
+                event_id = self._insert_event_locked(task_id, type, payload, stamp)
         except sqlite3.IntegrityError as exc:
             raise TaskNotFoundError(f"unknown task: {task_id}") from exc
         if not isinstance(event_id, int) or event_id <= 0:
@@ -364,6 +348,72 @@ class Store:
             (task_id,),
         ).fetchall()
         return [_event_from_row(row) for row in rows]
+
+    def load_graph(self, task_id: str) -> WorkGraph | None:
+        """Return the persisted work graph for ``task_id``, or ``None``."""
+        self._require_task(task_id)
+        return fetch_graph(self._connection, task_id)
+
+    def commit_graph(
+        self,
+        graph: WorkGraph,
+        *,
+        now: datetime | None = None,
+        emit_events: bool = True,
+    ) -> WorkGraph:
+        """Persist one task graph and commit before returning.
+
+        ``depends_on`` cycles and other invariants are rejected here. A
+        successful return is durable (architecture §6.4 ack-after-persist).
+        """
+        task = self.get_task(graph.task_id)
+        if task is None:
+            raise TaskNotFoundError(f"unknown task: {graph.task_id}")
+        try:
+            validate_graph(graph, profile=task.execution_profile)
+        except GraphInvariantError as exc:
+            raise GraphCommitError(str(exc)) from exc
+        stamp = _iso(_utc(now))
+        previous = fetch_graph(self._connection, graph.task_id)
+        with self._txn():
+            self._require_task(graph.task_id)
+            replace_graph_rows(self._connection, graph, stamp)
+            if emit_events:
+                self._emit_graph_events_locked(graph, previous=previous, stamp=stamp)
+        loaded = fetch_graph(self._connection, graph.task_id)
+        if loaded is None:
+            raise StoreError(f"graph missing after commit for {graph.task_id}")
+        return loaded
+
+    def ensure_graph(self, task: TaskRecord, *, now: datetime | None = None) -> WorkGraph:
+        """Load the task graph, compiling a linear DAG when none is stored."""
+        existing = self.load_graph(task.id)
+        if existing is not None:
+            return existing
+        from two.graph.compile import compile_linear_graph, insert_repair, linear_node_id
+        from two.types import NodeKind, NodeStatus
+
+        stage = task.stage
+        compile_stage = WorkflowStage.VALIDATE if stage is WorkflowStage.REPAIR else stage
+        graph = compile_linear_graph(
+            task.id,
+            profile=task.execution_profile,
+            objective=task.objective,
+            acceptance_criteria=list(task.manifest.acceptance_criteria),
+            from_stage=compile_stage,
+        )
+        if stage is WorkflowStage.REPAIR:
+            validate_id = linear_node_id(task.id, NodeKind.VALIDATE)
+            failed = graph.node(validate_id)
+            graph = graph.replace_node(failed.model_copy(update={"status": NodeStatus.DONE}))
+            ceiling = task.max_repair_cycles if task.max_repair_cycles is not None else 1
+            graph = insert_repair(
+                graph,
+                failed_validate_id=validate_id,
+                max_repair_cycles=max(1, ceiling),
+                profile=task.execution_profile,
+            )
+        return self.commit_graph(graph, now=now)
 
     def obtain_lease(
         self,
@@ -1004,6 +1054,89 @@ class Store:
         ).fetchone()
         if row is None:
             raise TaskNotFoundError(f"unknown task: {task_id}")
+
+    def _insert_event_locked(
+        self,
+        task_id: str,
+        type: str,
+        payload: Mapping[str, object],
+        stamp: str,
+    ) -> int:
+        body = json.dumps(dict(payload), sort_keys=True)
+        seq_row = self._connection.execute(
+            "SELECT COALESCE(MAX(seq), 0) FROM events WHERE task_id = ?",
+            (task_id,),
+        ).fetchone()
+        seq = int(seq_row[0]) + 1 if seq_row is not None else 1
+        cursor = self._connection.execute(
+            """
+            INSERT INTO events (task_id, seq, type, payload_json, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (task_id, seq, type, body, stamp),
+        )
+        self._connection.execute(
+            """
+            UPDATE tasks
+            SET revision = revision + 1, updated_at = ?
+            WHERE id = ?
+            """,
+            (stamp, task_id),
+        )
+        event_id = cursor.lastrowid
+        if not isinstance(event_id, int) or event_id <= 0:
+            raise StoreError("append_event did not produce an event id")
+        return event_id
+
+    def _emit_graph_events_locked(
+        self,
+        graph: WorkGraph,
+        *,
+        previous: WorkGraph | None,
+        stamp: str,
+    ) -> None:
+        prev_nodes = {node.id: node for node in previous.nodes} if previous is not None else {}
+        prev_edges = {item.id for item in previous.edges} if previous is not None else set()
+        self._insert_event_locked(
+            graph.task_id,
+            "task.graph",
+            {
+                "revision": graph.revision,
+                "cursor_node_id": graph.cursor_node_id,
+                "node_ids": [node.id for node in graph.nodes],
+                "edge_ids": [item.id for item in graph.edges],
+            },
+            stamp,
+        )
+        for node in graph.nodes:
+            prior = prev_nodes.get(node.id)
+            if prior is not None and prior == node:
+                continue
+            self._insert_event_locked(
+                graph.task_id,
+                "graph.node",
+                {
+                    "id": node.id,
+                    "kind": node.kind.value,
+                    "status": node.status.value,
+                    "title": node.title,
+                },
+                stamp,
+            )
+        for item in graph.edges:
+            if item.id in prev_edges:
+                continue
+            self._insert_event_locked(
+                graph.task_id,
+                "graph.edge",
+                {
+                    "id": item.id,
+                    "kind": item.kind.value,
+                    "from_id": item.from_id,
+                    "to_id": item.to_id,
+                },
+                stamp,
+            )
 
     def _lease_row(self, task_id: str) -> sqlite3.Row | None:
         row = self._connection.execute(
