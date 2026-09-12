@@ -27,7 +27,7 @@ dev = [
     "pyyaml>=6",
     "pytest>=8",
     "pytest-cov>=6",
-    "ruff>=0.9",
+    "ruff>=0.16.6",
     "types-pyyaml>=6",
 ]
 
