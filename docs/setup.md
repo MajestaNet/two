@@ -31,13 +31,12 @@ the spec.
 | Durable scheduler (single slot) | Works (`two.scheduler`; `two scheduler` process) ([B08](backlog/B08-scheduler.md)) |
 | ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
 | Workflow controller + reports | Works (`two.controller`; `two worker` drives stages after a lease) ([B10](backlog/B10-workflow-controller.md)) |
-| Persisted work graph (longer loops) | Contract in `two.graph`; SQLite walker not wired ([ADR 0014](adrs/0014-persisted-work-graph.md), [B19](backlog/B19-persisted-work-graph.md), [work-graph.md](work-graph.md)) |
+| Persisted work graph (longer loops) | Works (`two.store` schema v5; controller walks `two.graph`; `/v1` `graph` is additive) ([ADR 0014](adrs/0014-persisted-work-graph.md), [B19](backlog/B19-persisted-work-graph.md), [work-graph.md](work-graph.md)) |
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 11 September 2026 (B14 slice 1 contract foundations;
-OIDC libraries not added, ADR 0016).
+Last updated: 12 September 2026 (B19 persisted work graph; schema v5).
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 

@@ -334,6 +334,47 @@ def test_run_worker_drives_controller_to_complete(store: Store, tmp_path: Path) 
     assert task.lifecycle is not LifecycleState.RUNNING
 
 
+def test_recover_compiles_pre_graph_task_without_replaying_tools(
+    store: Store, tmp_path: Path
+) -> None:
+    wt = tmp_path / "wt-impl"
+    wt.mkdir()
+    store.insert_task(
+        _manifest(id="pre-graph"),
+        lifecycle=LifecycleState.RUNNING,
+        stage=WorkflowStage.IMPLEMENT,
+        worktree_path=str(wt),
+        branch="agent/pre-graph",
+        base_commit="abc123",
+        now=T0,
+    )
+    store.record_action("act-gap-graph", "pre-graph", {"tool": "rm"}, now=T0)
+    report = recover_startup(
+        store,
+        now=T0,
+        health_probe=lambda: HealthState.HEALTHY,
+        harness_probe=lambda: True,
+        worktree_verifier=_verify,
+    )
+    graph = store.load_graph("pre-graph")
+    assert graph is not None
+    assert graph.node("pre-graph:implement").status.value == "ready"
+    gap = store.get_action("act-gap-graph")
+    assert gap is not None and gap.status is ActionStatus.RECONCILE
+    by_task = {item.task_id: item for item in report.actions}
+    assert by_task["pre-graph"].classification is LastActionClass.RECONCILE
+    invokes: list[str] = []
+
+    def runner(intent: Mapping[str, object]) -> dict[str, object]:
+        invokes.append(str(intent.get("tool")))
+        return {"exit_code": 0}
+
+    ledger = ActionLedger(store)
+    with pytest.raises(ActionReplayError):
+        ledger.execute("act-gap-graph", "pre-graph", {"tool": "rm"}, runner, now=T0)
+    assert invokes == []
+
+
 def test_poller_refuses_public_origin_without_network() -> None:
     assert probe_mac_health("http://0.0.0.0:11434") is HealthState.UNAVAILABLE
     probe = mac_health_probe_from_env({})

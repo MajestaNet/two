@@ -138,7 +138,7 @@ def test_capabilities_contract_defaults() -> None:
     dumped = view.model_dump(mode="json")
     assert dumped["api_versions"] == ["v1"]
     assert dumped["auth"]["oidc_available"] is False
-    assert dumped["features"]["graph"] is False
+    assert dumped["features"]["graph"] is True
     assert dumped["features"]["idempotency_keys"] is True
 
 

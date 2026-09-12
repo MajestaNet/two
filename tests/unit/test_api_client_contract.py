@@ -78,7 +78,7 @@ def test_capabilities_local_trust(client: TestClient) -> None:
     assert body["features"]["idempotency_keys"] is True
     assert body["features"]["etags"] is True
     assert body["features"]["conversation"] is False
-    assert body["features"]["graph"] is False
+    assert body["features"]["graph"] is True
     assert "tasks:read" in body["scopes"]
     assert "events:audit" in body["scopes"]
     assert "X-Correlation-ID" in response.headers

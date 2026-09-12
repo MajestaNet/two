@@ -65,3 +65,7 @@ class IdempotencyConflictError(StoreError):
 
 class IdempotencyInFlightError(StoreError):
     """The same Idempotency-Key is currently executing."""
+
+
+class GraphCommitError(StoreError):
+    """A work graph failed invariants at the store boundary and was not persisted."""

@@ -8,4 +8,4 @@ acceptance_criteria:
   - should_compact is true at 72 percent of 16384 tokens
   - a valid session id resumes
   - an invalid session starts fresh with the same task id
-notes: Uses two.context.should_compact and two.worker.plan_session.
+notes: Uses two.context.should_compact, two.worker.plan_session, and a work-graph node slice (not a transcript).

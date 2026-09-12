@@ -522,3 +522,25 @@ def test_cli_api_help_does_not_start_server() -> None:
 def test_manifest_round_trip_type() -> None:
     manifest = TaskManifest.model_validate(MANIFEST)
     assert manifest.id == "task-123"
+
+
+def test_projection_graph_is_additive_when_persisted(client: TestClient, store: Store) -> None:
+    created = client.post("/v1/tasks", json=MANIFEST)
+    assert created.status_code == 201
+    assert created.json()["schema_version"] == 1
+    assert created.json()["graph"] is None
+    store.update_task("task-123", stage=WorkflowStage.INSPECT)
+    task = store.get_task("task-123")
+    assert task is not None
+    store.ensure_graph(task)
+    fetched = client.get("/v1/tasks/task-123")
+    body = fetched.json()
+    assert body["schema_version"] == 1
+    assert body["graph"] is not None
+    assert body["graph"]["cursor_node_id"] == "task-123:inspect"
+    assert body["todos"]
+    assert {item["id"] for item in body["todos"]} == {
+        "task-123:implement",
+        "task-123:validate",
+        "task-123:review",
+    }

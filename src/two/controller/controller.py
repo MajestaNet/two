@@ -16,9 +16,10 @@
 
 """Durable workflow stage machine. Decides continue/retry/ask/stop.
 
-Does not call the model, import Slack, or import an Ollama client.
-Completion is this module plus B04 gate results — never a model self-report.
-See docs/architecture.md §6.3.A, §7.1, §8.2, §9.
+Walks the persisted work graph after Intake/Isolate. Does not call the
+model, import Slack, or import an Ollama client. Completion is this
+module plus B04 gate results — never a model self-report.
+See docs/architecture.md §6.3.A, §7.1, §8.2, §8.5, ADR 0014.
 """
 
 from __future__ import annotations
@@ -27,6 +28,8 @@ import hashlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+
+from pydantic import ValidationError
 
 from two.approvals import request_approval
 from two.context.errors import MemoryPersistenceError
@@ -43,6 +46,7 @@ from two.controller.events import (
     EVENT_COMPLETE,
     EVENT_DIFF,
     EVENT_FAILED,
+    EVENT_GRAPH_WALK,
     EVENT_IMPLEMENT,
     EVENT_INSPECT,
     EVENT_INTAKE,
@@ -53,6 +57,7 @@ from two.controller.events import (
     EVENT_REPORT,
     EVENT_REVIEW,
     EVENT_STAGE,
+    EVENT_TODOS,
     EVENT_VALIDATION,
     EVENT_WORKER,
 )
@@ -68,11 +73,33 @@ from two.controller.models import (
     WorkerPhaseResult,
     WorkspaceOps,
 )
+from two.graph import (
+    GraphProposal,
+    WalkerAction,
+    WalkerDecision,
+    WorkGraph,
+    apply_proposal,
+    compile_linear_graph,
+    insert_repair,
+    next_decision,
+    render_node_handoff,
+    stage_for_node,
+    todos_from_graph,
+)
+from two.graph.errors import GraphProposalError
+from two.graph.models import WorkNode
 from two.manifest import TaskManifest
 from two.reporting.report import assemble_report
 from two.store.models import TaskRecord
 from two.store.store import Store
-from two.types import LifecycleState, Mode, OnHumanInputRequired, WorkflowStage
+from two.types import (
+    LifecycleState,
+    Mode,
+    NodeKind,
+    NodeStatus,
+    OnHumanInputRequired,
+    WorkflowStage,
+)
 from two.validation.paths import path_matches
 from two.validation.policy import DefaultPolicy, load_default_policy
 from two.validation.results import GateResult, ValidationResult
@@ -101,7 +128,7 @@ OnStepFn = Callable[[str], None]
 
 
 class WorkflowController:
-    """Drive Intake → Isolate → Inspect → Plan → Implement → Validate → Repair → Review.
+    """Drive Intake → Isolate, then walk the persisted work graph.
 
     Terminal status is written only here. Inject ``worker`` and ``validate`` so
     unit tests never spawn ACP or run real pytest in a worktree.
@@ -167,9 +194,19 @@ class WorkflowController:
                 return self._require(task_id)
             if task.lifecycle in {LifecycleState.AWAITING_INPUT, LifecycleState.PAUSED}:
                 return task
-            handler = self._handler(task.stage)
+            if task.stage in {WorkflowStage.INTAKE, WorkflowStage.ISOLATE}:
+                handler = self._handler(task.stage)
+                try:
+                    task = handler(task, now)
+                except ReviewOnlyWriteError:
+                    task = self._finish_blocked(self._require(task_id), "review_only_write", now)
+                except _StopBlocked as exc:
+                    task = self._finish_blocked(self._require(task_id), exc.reason, now)
+                except _StopFailed as exc:
+                    task = self._finish_failed(self._require(task_id), exc.reason, now)
+                continue
             try:
-                task = handler(task, now)
+                task = self._walk(task, now)
             except ReviewOnlyWriteError:
                 task = self._finish_blocked(self._require(task_id), "review_only_write", now)
             except _StopBlocked as exc:
@@ -182,12 +219,6 @@ class WorkflowController:
         mapping: dict[WorkflowStage, Callable[[TaskRecord, datetime | None], TaskRecord]] = {
             WorkflowStage.INTAKE: self._stage_intake,
             WorkflowStage.ISOLATE: self._stage_isolate,
-            WorkflowStage.INSPECT: self._stage_inspect,
-            WorkflowStage.PLAN: self._stage_plan,
-            WorkflowStage.IMPLEMENT: self._stage_implement,
-            WorkflowStage.VALIDATE: self._stage_validate,
-            WorkflowStage.REPAIR: self._stage_repair,
-            WorkflowStage.REVIEW: self._stage_review,
             WorkflowStage.COMPLETE: self._already_terminal,
             WorkflowStage.BLOCKED: self._already_terminal,
         }
@@ -280,44 +311,181 @@ class WorkflowController:
             },
             now=now,
         )
+        graph = compile_linear_graph(
+            task.id,
+            profile=task.execution_profile,
+            objective=task.objective,
+            acceptance_criteria=list(task.manifest.acceptance_criteria),
+        )
+        self._store.commit_graph(graph, now=now)
+        self._emit_todos(task.id, graph, now)
         return updated
 
-    def _stage_inspect(self, task: TaskRecord, now: datetime | None) -> TaskRecord:
-        result = self._instruct(
-            task,
-            WorkflowStage.INSPECT,
-            allow_writes=False,
-            prompt=self._phase_prompt(
-                task, WorkflowStage.INSPECT, "Inventory the repository. Do not modify files."
-            ),
+    def _walk(self, task: TaskRecord, now: datetime | None) -> TaskRecord:
+        graph = self._store.ensure_graph(task, now=now)
+        decision = next_decision(graph)
+        self._store.append_event(
+            task.id,
+            EVENT_GRAPH_WALK,
+            {
+                "action": decision.action.value,
+                "reason": decision.reason,
+                "node_id": decision.node.id if decision.node is not None else None,
+                "uses_harness": decision.uses_harness,
+            },
             now=now,
         )
-        memory = self._memory(task)
-        memory.current_step = "inspect"
-        if result.files_named:
-            memory.files_changed = list(result.files_changed) or memory.files_changed
-        save_task_memory(memory, data_dir=self._data_dir)
-        self._store.append_event(task.id, EVENT_INSPECT, {"summary": result.summary}, now=now)
-        return self._transition(task, WorkflowStage.PLAN, now=now, reason="inspect_ok")
+        if decision.action is WalkerAction.AWAIT_INPUT:
+            if task.lifecycle is LifecycleState.AWAITING_INPUT:
+                return task
+            return self._store.update_task(
+                task.id, lifecycle=LifecycleState.AWAITING_INPUT, now=now
+            )
+        if decision.action is WalkerAction.BLOCK:
+            return self._finish_blocked(task, decision.reason, now)
+        if decision.action is WalkerAction.GRAPH_SATISFIED:
+            return self._finish_complete(task, now)
+        if decision.node is None:
+            raise ControllerError("walker run_node missing node")
+        return self._run_graph_node(task, graph, decision, now)
 
-    def _stage_plan(self, task: TaskRecord, now: datetime | None) -> TaskRecord:
+    def _run_graph_node(
+        self,
+        task: TaskRecord,
+        graph: WorkGraph,
+        decision: WalkerDecision,
+        now: datetime | None,
+    ) -> TaskRecord:
+        node = decision.node
+        if node is None:
+            raise ControllerError("walker run_node missing node")
+        if node.status is not NodeStatus.RUNNING:
+            graph = self._commit_node(
+                graph,
+                node.model_copy(update={"status": NodeStatus.RUNNING}),
+                cursor=node.id,
+                now=now,
+            )
+            node = graph.node(node.id)
+        stage = stage_for_node(node) or task.stage
+        if stage is not task.stage:
+            task = self._transition(task, stage, now=now, reason=f"cursor:{node.kind.value}")
+        self._remember_graph(task, graph)
+        if node.kind is NodeKind.VALIDATE:
+            if decision.uses_harness:
+                raise ControllerError("validate nodes must not start a harness child")
+            return self._run_validate_node(task, graph, node, now)
+        if self._skip_writes(task) and node.kind is NodeKind.IMPLEMENT:
+            graph = self._commit_node(
+                graph,
+                node.model_copy(update={"status": NodeStatus.SKIPPED, "summary": "review-only"}),
+                cursor=node.id,
+                now=now,
+            )
+            self._emit_todos(task.id, graph, now)
+            return self._require(task.id)
+        if self._skip_writes(task) and node.kind is NodeKind.REPAIR:
+            return self._finish_blocked(task, "review_only_repair", now)
+        if node.kind is NodeKind.REVIEW:
+            return self._run_review_node(task, graph, node, now)
+        return self._run_model_node(task, graph, node, now)
+
+    def _run_model_node(
+        self,
+        task: TaskRecord,
+        graph: WorkGraph,
+        node: WorkNode,
+        now: datetime | None,
+    ) -> TaskRecord:
+        stage = stage_for_node(node) or task.stage
+        if node.kind is NodeKind.REPAIR:
+            budgets = bind_budgets(task.manifest, self._policy)
+            state = self._state[task.id]
+            if state.repair_cycles >= budgets.max_repair_cycles:
+                return self._finish_blocked(task, "repair_budget_exhausted", now)
+            state.repair_cycles += 1
+            self._store.append_event(
+                task.id,
+                EVENT_REPAIR,
+                {
+                    "cycle": state.repair_cycles,
+                    "max_repair_cycles": budgets.max_repair_cycles,
+                    "node_id": node.id,
+                },
+                now=now,
+            )
+        self._bind_node_session(task, node, now)
+        extra = _NODE_EXTRAS.get(node.kind, "Stay inside the current work-graph node.")
+        prompt = render_node_handoff(
+            graph,
+            node.id,
+            task_objective=task.objective,
+        ) + self._phase_prompt(task, stage, extra)
         result = self._instruct(
             task,
-            WorkflowStage.PLAN,
-            allow_writes=False,
-            prompt=self._phase_prompt(
-                task,
-                WorkflowStage.PLAN,
-                "Produce a bounded plan that names files, tests, and assumptions.",
-            ),
+            stage,
+            allow_writes=node.allow_writes,
+            prompt=prompt,
             now=now,
+            fresh_session=node.fresh_session or not node.session_id,
+            node_id=node.id,
         )
+        if node.kind is NodeKind.PLAN:
+            return self._finish_plan_node(task, graph, node, result, now)
+        if node.kind is NodeKind.INSPECT:
+            self._store.append_event(
+                task.id, EVENT_INSPECT, {"summary": result.summary, "node_id": node.id}, now=now
+            )
+        if node.kind is NodeKind.IMPLEMENT:
+            state = self._state[task.id]
+            if result.files_changed:
+                state.files_changed = list(result.files_changed)
+            self._store.append_event(
+                task.id,
+                EVENT_IMPLEMENT,
+                {
+                    "summary": result.summary,
+                    "files_changed": list(state.files_changed),
+                    "node_id": node.id,
+                },
+                now=now,
+            )
+            if state.files_changed:
+                self._store.append_event(
+                    task.id,
+                    EVENT_DIFF,
+                    {"files_changed": len(state.files_changed), "placeholder": False},
+                    now=now,
+                )
+            memory = self._memory(task)
+            memory.files_changed = list(state.files_changed)
+            save_task_memory(memory, data_dir=self._data_dir)
+        done = node.model_copy(
+            update={
+                "status": NodeStatus.DONE,
+                "summary": result.summary or node.title,
+                "session_id": result.session_id or node.session_id,
+            }
+        )
+        graph = self._commit_node(graph, done, cursor=node.id, now=now)
+        self._remember_graph(task, graph)
+        self._emit_todos(task.id, graph, now)
+        return self._require(task.id)
+
+    def _finish_plan_node(
+        self,
+        task: TaskRecord,
+        graph: WorkGraph,
+        node: WorkNode,
+        result: WorkerPhaseResult,
+        now: datetime | None,
+    ) -> TaskRecord:
         if not (result.files_named and result.tests_named and result.assumptions):
             return self._finish_blocked(task, "plan_incomplete", now)
         self._state[task.id].last_plan = result.plan or result.summary
         memory = self._memory(task)
         memory.plan = self._state[task.id].last_plan
-        memory.current_step = "plan"
+        memory.current_step = node.title
         save_task_memory(memory, data_dir=self._data_dir)
         self._store.append_event(
             task.id,
@@ -330,6 +498,18 @@ class WorkflowController:
             },
             now=now,
         )
+        done = node.model_copy(
+            update={
+                "status": NodeStatus.DONE,
+                "summary": result.summary or result.plan or node.title,
+                "session_id": result.session_id or node.session_id,
+            }
+        )
+        graph = self._commit_node(graph, done, cursor=node.id, now=now)
+        graph = self._apply_plan_proposal(task, graph, result)
+        graph = self._store.commit_graph(graph, now=now)
+        self._remember_graph(task, graph)
+        self._emit_todos(task.id, graph, now)
         if task.mode is Mode.INTERACTIVE and not self._approval_granted(task.id, "plan"):
             return self._request_human(
                 task,
@@ -340,46 +520,15 @@ class WorkflowController:
             )
         if not self._plan_within_policy(task, result):
             return self._finish_blocked(task, "plan_outside_policy", now)
-        nxt = WorkflowStage.VALIDATE if self._skip_writes(task) else WorkflowStage.IMPLEMENT
-        return self._transition(task, nxt, now=now, reason="plan_ok")
+        return self._require(task.id)
 
-    def _stage_implement(self, task: TaskRecord, now: datetime | None) -> TaskRecord:
-        if self._skip_writes(task):
-            return self._transition(
-                task, WorkflowStage.VALIDATE, now=now, reason="review_only_skip_implement"
-            )
-        result = self._instruct(
-            task,
-            WorkflowStage.IMPLEMENT,
-            allow_writes=True,
-            prompt=self._phase_prompt(
-                task, WorkflowStage.IMPLEMENT, "Make small patches. Stay inside allowed_paths."
-            ),
-            now=now,
-        )
-        state = self._state[task.id]
-        if result.files_changed:
-            state.files_changed = list(result.files_changed)
-        self._store.append_event(
-            task.id,
-            EVENT_IMPLEMENT,
-            {"summary": result.summary, "files_changed": list(state.files_changed)},
-            now=now,
-        )
-        if state.files_changed:
-            self._store.append_event(
-                task.id,
-                EVENT_DIFF,
-                {"files_changed": len(state.files_changed), "placeholder": False},
-                now=now,
-            )
-        memory = self._memory(task)
-        memory.files_changed = list(state.files_changed)
-        memory.current_step = "implement"
-        save_task_memory(memory, data_dir=self._data_dir)
-        return self._transition(task, WorkflowStage.VALIDATE, now=now, reason="implement_ok")
-
-    def _stage_validate(self, task: TaskRecord, now: datetime | None) -> TaskRecord:
+    def _run_validate_node(
+        self,
+        task: TaskRecord,
+        graph: WorkGraph,
+        node: WorkNode,
+        now: datetime | None,
+    ) -> TaskRecord:
         workspace = self._workspace(task)
         result = self._validate.run(workspace, manifest=task.manifest, policy=self._policy)
         state = self._state[task.id]
@@ -399,54 +548,50 @@ class WorkflowController:
             for gate in result.gates
         ]
         save_task_memory(memory, data_dir=self._data_dir)
-        if result.passed:
-            return self._transition(task, WorkflowStage.REVIEW, now=now, reason="gates_passed")
+        finished = node.model_copy(
+            update={
+                "status": NodeStatus.DONE,
+                "summary": "gates passed" if result.passed else "gates failed",
+                "evidence_fingerprint": fingerprint,
+            }
+        )
+        graph = self._commit_node(graph, finished, cursor=node.id, now=now)
         budgets = bind_budgets(task.manifest, self._policy)
+        if result.passed:
+            self._remember_graph(task, graph)
+            self._emit_todos(task.id, graph, now)
+            return self._require(task.id)
         if self._no_progress(state, budgets):
             self._store.append_event(
                 task.id,
                 EVENT_NO_PROGRESS,
-                {"limit": budgets.no_progress_limit, "evidence": fingerprint},
+                {"limit": budgets.no_progress_limit, "evidence": fingerprint, "node_id": node.id},
                 now=now,
             )
             state.block_after_review = True
-            return self._transition(task, WorkflowStage.REVIEW, now=now, reason="no_progress")
+            self._remember_graph(task, graph)
+            self._emit_todos(task.id, graph, now)
+            return self._require(task.id)
         if state.repair_cycles >= budgets.max_repair_cycles:
             return self._finish_blocked(task, "repair_budget_exhausted", now)
-        return self._transition(task, WorkflowStage.REPAIR, now=now, reason="gates_failed")
-
-    def _stage_repair(self, task: TaskRecord, now: datetime | None) -> TaskRecord:
-        if self._skip_writes(task):
-            return self._finish_blocked(task, "review_only_repair", now)
-        budgets = bind_budgets(task.manifest, self._policy)
-        state = self._state[task.id]
-        if state.repair_cycles >= budgets.max_repair_cycles:
-            return self._finish_blocked(task, "repair_budget_exhausted", now)
-        state.repair_cycles += 1
-        self._store.append_event(
-            task.id,
-            EVENT_REPAIR,
-            {
-                "cycle": state.repair_cycles,
-                "max_repair_cycles": budgets.max_repair_cycles,
-            },
-            now=now,
+        graph = insert_repair(
+            graph,
+            failed_validate_id=node.id,
+            max_repair_cycles=budgets.max_repair_cycles,
+            profile=task.execution_profile,
         )
-        self._instruct(
-            task,
-            WorkflowStage.REPAIR,
-            allow_writes=True,
-            prompt=self._phase_prompt(
-                task,
-                WorkflowStage.REPAIR,
-                "Diagnose the failing gates and apply a bounded repair. "
-                "Model claims are not evidence.",
-            ),
-            now=now,
-        )
-        return self._transition(task, WorkflowStage.VALIDATE, now=now, reason="repair_attempted")
+        graph = self._store.commit_graph(graph, now=now)
+        self._remember_graph(task, graph)
+        self._emit_todos(task.id, graph, now)
+        return self._require(task.id)
 
-    def _stage_review(self, task: TaskRecord, now: datetime | None) -> TaskRecord:
+    def _run_review_node(
+        self,
+        task: TaskRecord,
+        graph: WorkGraph,
+        node: WorkNode,
+        now: datetime | None,
+    ) -> TaskRecord:
         state = self._state[task.id]
         memory = self._memory(task)
         last = state.last_validation
@@ -472,22 +617,30 @@ class WorkflowController:
         )
         if session.mode is not SessionMode.FRESH or session.session_id is not None:
             raise ControllerError("fresh review must start a new DSH session")
+        slice_text = render_node_handoff(graph, node.id, task_objective=task.objective)
+        if "transcript" in slice_text.lower():
+            raise ControllerError(
+                "review node handoff must not include an implementation transcript"
+            )
+        prompt = slice_text + session.prompt
         state.last_handoff = handoff
+        self._store.update_task(task.id, dsh_session_id=None, set_dsh_session_id=True, now=now)
         result = self._instruct(
             task,
             WorkflowStage.REVIEW,
             allow_writes=False,
-            prompt=session.prompt,
+            prompt=prompt,
             now=now,
             fresh_session=True,
             instruction_extra=WorkerInstruction(
                 stage=WorkflowStage.REVIEW,
                 effort=effort_for(WorkflowStage.REVIEW),
-                prompt=session.prompt,
+                prompt=prompt,
                 allow_writes=False,
                 fresh_session=True,
                 handoff=handoff,
                 session_plan=session,
+                node_id=node.id,
             ),
         )
         findings = list(result.findings)
@@ -501,20 +654,57 @@ class WorkflowController:
                 "blocking": len(blocking),
                 "findings": [item.message for item in findings],
                 "has_transcript": False,
+                "node_id": node.id,
             },
             now=now,
         )
         budgets = bind_budgets(task.manifest, self._policy)
         if state.block_after_review:
+            graph = self._commit_node(
+                graph,
+                node.model_copy(update={"status": NodeStatus.DONE, "summary": result.summary}),
+                cursor=node.id,
+                now=now,
+            )
+            self._remember_graph(task, graph)
             return self._finish_blocked(task, "no_progress", now)
         if blocking:
             if state.repair_cycles < budgets.max_repair_cycles and not self._skip_writes(task):
-                return self._transition(
-                    task, WorkflowStage.REPAIR, now=now, reason="review_blocking"
+                last_validate = _last_validate_id(graph)
+                graph = self._commit_node(
+                    graph,
+                    node.model_copy(
+                        update={"status": NodeStatus.PENDING, "summary": result.summary}
+                    ),
+                    cursor=node.id,
+                    now=now,
                 )
+                if last_validate is not None:
+                    graph = insert_repair(
+                        graph,
+                        failed_validate_id=last_validate,
+                        max_repair_cycles=budgets.max_repair_cycles,
+                        profile=task.execution_profile,
+                    )
+                    review = graph.node(node.id).model_copy(update={"status": NodeStatus.PENDING})
+                    graph = graph.replace_node(review)
+                    graph = self._store.commit_graph(graph, now=now)
+                self._remember_graph(task, graph)
+                self._emit_todos(task.id, graph, now)
+                return self._require(task.id)
             return self._finish_blocked(task, "review_blocking", now)
         if last is None or not last.passed:
             return self._finish_blocked(task, "validation_failed", now)
+        graph = self._commit_node(
+            graph,
+            node.model_copy(
+                update={"status": NodeStatus.DONE, "summary": result.summary or node.title}
+            ),
+            cursor=node.id,
+            now=now,
+        )
+        self._remember_graph(task, graph)
+        self._emit_todos(task.id, graph, now)
         return self._finish_complete(task, now)
 
     def _instruct(
@@ -527,6 +717,7 @@ class WorkflowController:
         now: datetime | None,
         fresh_session: bool = False,
         instruction_extra: WorkerInstruction | None = None,
+        node_id: str | None = None,
     ) -> WorkerPhaseResult:
         budgets = bind_budgets(task.manifest, self._policy)
         state = self._state[task.id]
@@ -539,6 +730,7 @@ class WorkflowController:
             prompt=prompt,
             allow_writes=writes,
             fresh_session=fresh_session,
+            node_id=node_id,
         )
         if self._skip_writes(task) and instruction.allow_writes:
             raise ReviewOnlyWriteError("review-only mode must not write the worktree")
@@ -668,6 +860,78 @@ class WorkflowController:
             dict(report.model_dump(mode="json")),
             now=now,
         )
+
+    def _commit_node(
+        self,
+        graph: WorkGraph,
+        node: WorkNode,
+        *,
+        cursor: str | None,
+        now: datetime | None,
+    ) -> WorkGraph:
+        updated = graph.replace_node(node)
+        if cursor is not None:
+            updated = updated.model_copy(update={"cursor_node_id": cursor})
+        return self._store.commit_graph(updated, now=now)
+
+    def _remember_graph(self, task: TaskRecord, graph: WorkGraph) -> None:
+        memory = self._memory(task)
+        cursor: WorkNode | None = None
+        if graph.cursor_node_id is not None:
+            try:
+                cursor = graph.node(graph.cursor_node_id)
+            except KeyError:
+                cursor = None
+        if cursor is not None:
+            memory.current_step = cursor.title
+        plan = self._state[task.id].last_plan
+        if plan:
+            memory.plan = plan
+        elif cursor is not None:
+            memory.plan = cursor.title
+        save_task_memory(memory, data_dir=self._data_dir)
+
+    def _emit_todos(self, task_id: str, graph: WorkGraph, now: datetime | None) -> None:
+        items = [item.model_dump(mode="json") for item in todos_from_graph(graph)]
+        self._store.append_event(task_id, EVENT_TODOS, {"items": items}, now=now)
+
+    def _bind_node_session(self, task: TaskRecord, node: WorkNode, now: datetime | None) -> None:
+        if node.fresh_session or not node.session_id:
+            self._store.update_task(task.id, dsh_session_id=None, set_dsh_session_id=True, now=now)
+            return
+        self._store.update_task(
+            task.id, dsh_session_id=node.session_id, set_dsh_session_id=True, now=now
+        )
+
+    def _apply_plan_proposal(
+        self,
+        task: TaskRecord,
+        graph: WorkGraph,
+        result: WorkerPhaseResult,
+    ) -> WorkGraph:
+        proposal = _proposal_from_result(result)
+        if proposal is None:
+            return graph
+        if not self._proposal_within_policy(task, proposal):
+            return graph
+        try:
+            return apply_proposal(graph, proposal, profile=task.execution_profile)
+        except (GraphProposalError, ValidationError):
+            return graph
+
+    def _proposal_within_policy(self, task: TaskRecord, proposal: GraphProposal) -> bool:
+        if self._skip_writes(task) and any(
+            item.kind in {NodeKind.IMPLEMENT, NodeKind.REPAIR} for item in proposal.nodes
+        ):
+            return False
+        allowed = list(task.manifest.allowed_paths)
+        if not allowed:
+            return True
+        for item in proposal.nodes:
+            for path in item.files_named:
+                if not any(path_matches(path, pattern) for pattern in allowed):
+                    return False
+        return True
 
     def _request_human(
         self,
@@ -949,6 +1213,34 @@ def _as_locator(locate: LocateFn | RepositoryLocator | None) -> LocateFn | None:
 
         return _from_callable
     raise ControllerError("locate_repository must be callable")
+
+
+def _proposal_from_result(result: WorkerPhaseResult) -> GraphProposal | None:
+    if result.graph_proposal is not None:
+        return result.graph_proposal
+    if result.graph_artifact is None:
+        return None
+    try:
+        return GraphProposal.model_validate(result.graph_artifact)
+    except ValidationError:
+        return None
+
+
+def _last_validate_id(graph: WorkGraph) -> str | None:
+    validates = [node for node in graph.nodes if node.kind is NodeKind.VALIDATE]
+    if not validates:
+        return None
+    return validates[-1].id
+
+
+_NODE_EXTRAS: dict[NodeKind, str] = {
+    NodeKind.INSPECT: "Inventory the repository. Do not modify files.",
+    NodeKind.PLAN: "Produce a bounded plan that names files, tests, and assumptions.",
+    NodeKind.IMPLEMENT: "Make small patches. Stay inside allowed_paths.",
+    NodeKind.REPAIR: (
+        "Diagnose the failing gates and apply a bounded repair. Model claims are not evidence."
+    ),
+}
 
 
 def _validation_from_payload(
