@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed additive design; no implementation in this change |
+| Status | Slice 1 implemented (threat model, capabilities, principal/scopes, errors, idempotency, ETags). Slices 2–5 proposed. |
 | Audience | CLI, first-party GUI/mobile, and future optional adapters |
 | Authority | [Architecture §6.3.H](architecture.md), [ADR 0015](adrs/0015-first-party-client-api.md) |
 | Existing contract | [B07](backlog/B07-control-api.md), `two.projection`, `/v1` |
@@ -141,9 +141,13 @@ Health is observed state, not a command channel to Ollama or Harness.
 
 ## 4. HTTP surface
 
-The table distinguishes the implemented B07 contract from proposed additive
-GUI resources. Exact Pydantic schemas land with implementation and contract
-tests; this document fixes resource responsibilities and security behavior.
+The table distinguishes the implemented B07 contract and B14 slice 1
+foundations from later additive GUI resources. Exact Pydantic schemas live in
+`two.projection` with contract tests. This document remains authoritative for
+resource responsibilities and security behavior. The implementation threat
+model is [client-threat-model.md](client-threat-model.md). OIDC/JWT libraries
+are selected in [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md) and are
+**not** added until that ADR is accepted.
 
 ### Tasks, conversation, and development-loop monitoring
 
@@ -203,12 +207,12 @@ secret reference where a future feature explicitly permits one.
 
 ### System health and capability discovery
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Existing shallow API/store liveness; loopback/service-manager use. |
-| `GET` | `/v1/system/health` | Authenticated aggregate component health and observation freshness. |
-| `GET` | `/v1/system/capabilities` | API versions and optional features available to this client. |
-| `GET` | `/v1/system/queue` | Redacted queue order, active slot, retry waits, and lease freshness. |
+| Method | Path | Status | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/health` | Existing | Shallow API/store liveness; loopback/service-manager use. |
+| `GET` | `/v1/system/health` | Proposed | Authenticated aggregate component health and observation freshness. |
+| `GET` | `/v1/system/capabilities` | Implemented (B14 slice 1) | API versions, auth method, scopes, and optional features available to this client. |
+| `GET` | `/v1/system/queue` | Proposed | Redacted queue order, active slot, retry waits, and lease freshness. |
 
 Clients feature-detect through capabilities; they do not infer support from
 server version strings. Health responses distinguish `healthy`, `degraded`,
@@ -217,20 +221,24 @@ health from stale cached observations.
 
 ## 5. Consistency, idempotency, and errors
 
-- Every mutable resource has a monotonic revision and `ETag`.
+Slice 1 implements the following on existing `/v1` mutations and task
+projections. CLI callers that omit the new headers keep working.
+
+- Every mutable task resource has a monotonic `revision` and `ETag`.
 - Config activation and other lost-update-sensitive writes require
-  `If-Match`; mismatch is `412 Precondition Failed`.
+  `If-Match`; mismatch is `412 Precondition Failed`. Existing B07
+  mutations accept optional `If-Match`; absence is not a precondition failure.
 - Every client mutation accepts `Idempotency-Key`. Reusing a key with the
   same principal and body returns the original result; reusing it with a
-  different body is `409 Conflict`.
+  different body is `409 Conflict` (`idempotency_conflict`).
 - Task event sequence remains ordered per task. No global total order is
   promised.
 - Creation acknowledges only after durable persistence.
 - Errors keep the B07 `error.code` envelope and add optional
   `correlation_id`, `field_errors`, and `retry_after_seconds`.
 - `401` means authentication is absent/invalid; `403` means the authenticated
-  principal lacks scope; `409` means lifecycle/digest conflict; `412` means
-  stale resource revision; `429` carries bounded retry guidance.
+  principal lacks scope; `409` means lifecycle/digest/idempotency conflict;
+  `412` means stale resource revision; `429` carries bounded retry guidance.
 
 ## 6. Authentication and authorization
 
@@ -244,12 +252,14 @@ health from stale cached observations.
   mechanism for trusted CLI/overlay use. It must not be copied into or
   embedded in the mobile app.
 
-Today that bearer is coarse authentication, not scoped authorization:
-existing request bodies can carry arbitrary `principal`/`actor` labels and
-the events route has no distinct audit scope. Treat the token as one trusted
-operator credential. Do not enable mobile access or grant it to mutually
-untrusted users until B14 slice 1 derives identity server-side and enforces
-route scopes.
+Today that bearer is coarse authentication, not multi-user authorization.
+B14 slice 1 derives the network principal as `token:operator` and attaches
+the full operator scope set. Request `principal`/`actor` fields cannot
+establish authority for authenticated network clients. They remain audit
+labels for trusted Unix/loopback callers. `/v1/tasks/{id}/events` requires
+`events:audit` (granted to local-trust and the shared operator token).
+Do not embed the token in a mobile app or grant it to mutually untrusted
+users.
 
 ### Mobile identity
 
@@ -283,9 +293,9 @@ Suggested scopes:
 | `admin` | Sensitive config and device/session administration; never implicit. |
 
 Target behavior: the server computes the effective principal and scopes.
-Existing request `actor`/`principal` fields are ignored or rejected for
-authenticated network clients and retained only for compatibility with
-trusted in-process/Unix callers until an additive migration is complete.
+Existing request `actor`/`principal` fields are ignored for authenticated
+network clients. Trusted in-process/Unix callers may still send those labels
+for CLI audit compatibility; scopes stay server-derived.
 
 Approval screens show action class, target, paths, digest, requesting stage,
 and consequences. Approval requires a fresh projection and cannot be queued
@@ -342,8 +352,9 @@ This design intentionally does not:
 - implement Slack. Slack may return later as an optional adapter using the
   same redacted resources and scoped identity model.
 
-Implementation should be sliced into: contract/auth foundations, read-only
-GUI projections and SSE, typed config candidates, then the separate native
-mobile client. Each slice needs offline contract tests; remote auth and
-mobile security require dedicated integration and threat-model review before
-promotion.
+Implementation should be sliced into: contract/auth foundations (slice 1,
+landed), read-only GUI projections and SSE, typed config candidates, then
+the separate native mobile client. Each slice needs offline contract tests;
+remote auth and mobile security require dedicated integration and
+threat-model review before promotion. Do not add PyJWT or TLS libraries
+until ADR 0016 is accepted.

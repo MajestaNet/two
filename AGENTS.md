@@ -75,10 +75,14 @@ listed in `config/repositories/two.yaml`.
   (git, rg, optional LSP; JSON under `TWO_DATA_DIR`).
   `src/two/store/` is the SQLite WAL store (tasks, events, leases). CLI
   does not open it at import time.
-  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
-  `two api` lazy-imports it so `two profiles` does not load the store.
-  `src/two/projection.py` is the /v1 JSON contract (no FastAPI). CLI and
-  adapters import it instead of inventing a second schema.
+ `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
+ `two api` lazy-imports it so `two profiles` does not load the store.
+ Additive B14 slice 1 routes include `GET /v1/system/capabilities`.
+ Principal/scope checks live in `two.api.principal`; correlation, ETag,
+ and idempotency helpers live in `two.api.contract`.
+ `src/two/projection.py` is the /v1 JSON contract (no FastAPI). CLI and
+ adapters import it instead of inventing a second schema. It includes
+ `SystemCapabilities` and additive `TaskProjection.revision`.
   `src/two/client.py` is the stdlib HTTP/Unix control-API client (B13).
   Task subcommands in `cli.py` / `cli_task.py` lazy-import it the same way
   `two api` lazy-imports the server. Tests inject FastAPI TestClient.

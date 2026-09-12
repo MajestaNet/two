@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -156,10 +156,32 @@ _V2_STATEMENTS = (
 # Version 3: ACP session resume (architecture §10.1, §12.5).
 _V3_STATEMENTS = ("ALTER TABLE tasks ADD COLUMN dsh_session_id TEXT",)
 
+# Version 4: B14 slice 1 resource revisions and mutation idempotency.
+_V4_STATEMENTS = (
+    "ALTER TABLE tasks ADD COLUMN revision INTEGER NOT NULL DEFAULT 1",
+    """
+    CREATE TABLE idempotency_records (
+        principal TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        method TEXT NOT NULL,
+        path TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        status_code INTEGER NOT NULL,
+        response_body TEXT NOT NULL,
+        response_headers_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (principal, idempotency_key),
+        CHECK (status_code >= 0 AND status_code < 600)
+    )
+    """,
+    "CREATE INDEX idx_idempotency_created ON idempotency_records (created_at)",
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1_STATEMENTS),
     (2, _V2_STATEMENTS),
     (3, _V3_STATEMENTS),
+    (4, _V4_STATEMENTS),
 )
 
 

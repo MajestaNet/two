@@ -48,6 +48,8 @@ from two.store.errors import (
     DuplicateQuestionError,
     DuplicateSourceEventError,
     DuplicateTaskError,
+    IdempotencyConflictError,
+    IdempotencyInFlightError,
     QuestionNotFoundError,
     StoreError,
     TaskNotFoundError,
@@ -58,6 +60,7 @@ from two.store.models import (
     ApprovalRecord,
     ChannelBinding,
     EventRecord,
+    IdempotencyRecord,
     LeaseRecord,
     QuestionRecord,
     TaskRecord,
@@ -282,6 +285,7 @@ class Store:
             values.append(dsh_session_id)
         if not assignments:
             raise StoreError("update_task requires at least one field")
+        assignments.append("revision = revision + 1")
         assignments.append("updated_at = ?")
         values.append(_iso(_utc(now)))
         values.append(task_id)
@@ -327,6 +331,14 @@ class Store:
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     (task_id, seq, type, body, stamp),
+                )
+                self._connection.execute(
+                    """
+                    UPDATE tasks
+                    SET revision = revision + 1, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (stamp, task_id),
                 )
                 event_id = cursor.lastrowid
         except sqlite3.IntegrityError as exc:
@@ -895,6 +907,96 @@ class Store:
                 approvals_out.append(approval)
         return questions_out, approvals_out
 
+    def get_idempotency(self, principal: str, key: str) -> IdempotencyRecord | None:
+        """Return the durable replay row for ``principal`` + key, if any."""
+        row = self._connection.execute(
+            """
+            SELECT * FROM idempotency_records
+            WHERE principal = ? AND idempotency_key = ?
+            """,
+            (principal, key),
+        ).fetchone()
+        if row is None:
+            return None
+        return _idempotency_from_row(row)
+
+    def begin_idempotency(
+        self,
+        principal: str,
+        key: str,
+        *,
+        method: str,
+        path: str,
+        request_hash: str,
+        now: datetime | None = None,
+    ) -> IdempotencyRecord | None:
+        """Reserve an idempotency key. ``None`` means this caller owns a new slot.
+
+        A completed matching row is returned so the API can replay it. A hash
+        mismatch raises ``IdempotencyConflictError``. A still-pending row
+        raises ``IdempotencyInFlightError``.
+        """
+        if not principal or not key:
+            raise StoreError("idempotency principal and key must be non-empty")
+        stamp = _iso(_utc(now))
+        try:
+            with self._txn():
+                self._connection.execute(
+                    """
+                    INSERT INTO idempotency_records (
+                        principal, idempotency_key, method, path, request_hash,
+                        status_code, response_body, response_headers_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, 0, '', '{}', ?)
+                    """,
+                    (principal, key, method, path, request_hash, stamp),
+                )
+        except sqlite3.IntegrityError as exc:
+            existing = self.get_idempotency(principal, key)
+            if existing is None:
+                raise StoreError("idempotency row missing after conflict") from exc
+            if existing.request_hash != request_hash:
+                raise IdempotencyConflictError(
+                    "idempotency key reused with a different request"
+                ) from exc
+            if existing.status_code == 0:
+                raise IdempotencyInFlightError("idempotency key is already in flight") from exc
+            return existing
+        return None
+
+    def complete_idempotency(
+        self,
+        principal: str,
+        key: str,
+        *,
+        status_code: int,
+        response_body: str,
+        response_headers: Mapping[str, str],
+    ) -> None:
+        """Persist the first completed response for a reserved key."""
+        headers = json.dumps(dict(response_headers), sort_keys=True)
+        with self._txn():
+            cursor = self._connection.execute(
+                """
+                UPDATE idempotency_records
+                SET status_code = ?, response_body = ?, response_headers_json = ?
+                WHERE principal = ? AND idempotency_key = ?
+                """,
+                (status_code, response_body, headers, principal, key),
+            )
+            if cursor.rowcount == 0:
+                raise StoreError("unknown idempotency key")
+
+    def clear_idempotency(self, principal: str, key: str) -> None:
+        """Drop a pending idempotency reservation after a 5xx failure."""
+        with self._txn():
+            self._connection.execute(
+                """
+                DELETE FROM idempotency_records
+                WHERE principal = ? AND idempotency_key = ? AND status_code = 0
+                """,
+                (principal, key),
+            )
+
     def _require_task(self, task_id: str) -> None:
         row = self._connection.execute(
             "SELECT 1 FROM tasks WHERE id = ?",
@@ -1030,6 +1132,26 @@ def _task_from_row(row: sqlite3.Row) -> TaskRecord:
         dsh_session_id=_optional_str(row["dsh_session_id"], "dsh_session_id")
         if "dsh_session_id" in row.keys()
         else None,
+        revision=(_as_int(row["revision"], "revision") if "revision" in row.keys() else 1),
+    )
+
+
+def _idempotency_from_row(row: sqlite3.Row) -> IdempotencyRecord:
+    headers_raw = _load_object(
+        _as_str(row["response_headers_json"], "response_headers_json"),
+        "response_headers_json",
+    )
+    headers = {str(key): str(value) for key, value in headers_raw.items()}
+    return IdempotencyRecord(
+        principal=_as_str(row["principal"], "principal"),
+        key=_as_str(row["idempotency_key"], "idempotency_key"),
+        method=_as_str(row["method"], "method"),
+        path=_as_str(row["path"], "path"),
+        request_hash=_as_str(row["request_hash"], "request_hash"),
+        status_code=_as_int(row["status_code"], "status_code"),
+        response_body=_as_str(row["response_body"], "response_body"),
+        response_headers=headers,
+        created_at=_parse_time(_as_str(row["created_at"], "created_at")),
     )
 
 
