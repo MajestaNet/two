@@ -53,12 +53,13 @@ from two.evals.materialize import (
 )
 from two.evals.models import ArchitectureCase, CaseOutcome, CaseResult, EvalTask
 from two.evals.paths import fake_acp_child
+from two.graph import compile_linear_graph, render_node_handoff
 from two.manifest import TaskManifest
 from two.recovery import LastActionClass, recover_startup
 from two.runtime.health import HealthState
 from two.scheduler import WorkerOutcome
 from two.store import ActionStatus, open_store
-from two.types import LifecycleState, WorkflowStage
+from two.types import LifecycleState, NodeKind, NodeStatus, WorkflowStage
 from two.validation import (
     RepositoryCommands,
     RepositoryProfile,
@@ -365,8 +366,26 @@ def run_compaction_resume(task: EvalTask, work_dir: Path, start: Path) -> CaseRe
         objective=task.objective,
         acceptance_criteria=list(task.acceptance_criteria),
         plan="resume from structured memory",
-        current_step="implement",
+        current_step="Implement change",
     )
+    graph = compile_linear_graph(
+        task.id,
+        objective=task.objective,
+        acceptance_criteria=list(task.acceptance_criteria),
+    )
+    inspect = graph.node(f"{task.id}:inspect")
+    plan = graph.node(f"{task.id}:plan")
+    implement = graph.node(f"{task.id}:implement")
+    graph = graph.replace_node(inspect.model_copy(update={"status": NodeStatus.DONE}))
+    graph = graph.replace_node(plan.model_copy(update={"status": NodeStatus.DONE}))
+    graph = graph.replace_node(
+        implement.model_copy(update={"status": NodeStatus.RUNNING, "summary": "in progress"})
+    )
+    slice_text = render_node_handoff(graph, implement.id, task_objective=task.objective)
+    if "transcript" in slice_text.lower():
+        return _fail(task, started, "graph slice included an implementation transcript")
+    if implement.id not in slice_text or NodeKind.IMPLEMENT.value not in slice_text:
+        return _fail(task, started, "graph slice omitted the current node")
     resumed = plan_session(
         task_id=task.id,
         stored_session_id="sess-live",
@@ -387,6 +406,8 @@ def run_compaction_resume(task: EvalTask, work_dir: Path, start: Path) -> CaseRe
         return _fail(task, started, "fresh handoff changed the task id")
     if task.id not in fresh.prompt:
         return _fail(task, started, "fresh prompt omitted the task id")
+    if "Work-graph node handoff" not in slice_text:
+        return _fail(task, started, "fresh-session case did not inject a graph slice")
     return _pass(task, started, resumed=True, accepted=True)
 
 

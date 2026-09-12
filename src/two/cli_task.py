@@ -30,6 +30,7 @@ from pydantic import ValidationError
 from two.client import ControlApiError, ControlClient
 from two.manifest import TaskManifest
 from two.projection import TaskProjection, TaskReport
+from two.types import NodeStatus
 
 
 def run_task(
@@ -87,6 +88,7 @@ def format_projection(view: TaskProjection) -> str:
             lines.append(f"  - [{mark}] {todo.id}: {todo.content} ({todo.status.value})")
     else:
         lines.append("  (none)")
+    lines.extend(_format_graph(view))
     diff = view.diff_summary
     lines.extend(
         [
@@ -223,6 +225,24 @@ def _dispatch(args: argparse.Namespace, client: ControlClient) -> int:
         print(format_report(client.get_report(args.task_id)), end="")
         return 0
     raise ValueError(f"unknown task command: {command}")
+
+
+def _format_graph(view: TaskProjection) -> list[str]:
+    graph = view.graph
+    if graph is None:
+        return ["graph: (none)"]
+    lines = [
+        "graph:",
+        f"  revision: {graph.revision}",
+        f"  cursor: {graph.cursor_node_id or '(none)'}",
+        "  ready:",
+    ]
+    ready = [node for node in graph.nodes if node.status is NodeStatus.READY]
+    if ready:
+        lines.extend(f"    - {node.id}: {node.title}" for node in ready)
+    else:
+        lines.append("    (none)")
+    return lines
 
 
 def _format_plan(plan: dict[str, Any] | None) -> str:

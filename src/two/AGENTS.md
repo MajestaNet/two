@@ -19,9 +19,10 @@ Python package for the Majesta Two control plane.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop.
-- `store/` is the SQLite WAL store (`open_store`). Do not open databases
-  from `cli.py` at import time. The `two api` subcommand lazy-imports
-  `two.api.server`.
+- `store/` is the SQLite WAL store (`open_store`). Schema v5 adds
+  `work_nodes` / `work_edges` (v4 is B14 idempotency). Do not open
+  databases from `cli.py` at import time. The `two api` subcommand
+  lazy-imports `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
   including AF_UNIX). CLI task subcommands lazy-import it. Parse bodies with
   `two.projection`. Accept an injectable request callable for in-process
@@ -55,16 +56,17 @@ Python package for the Majesta Two control plane.
   `TWO_DATA_DIR/tasks/<id>/memory.json` and builds bounded retrieval
   packets (git, `rg`, optional LSP). No embeddings, SQLite, or DSH/Ollama
   calls. Budget policy lives in `config/policies/context.yaml`.
-- `controller/` owns workflow stages, repair/no-progress budgets, fresh
-  review via `two.context.build_review_handoff` and `two.worker.plan_session`,
-  and terminal status. Inject a worker and validation in tests. Production
-  `two worker` drives this module (`two.recovery.drive`). It does not call
-  the model, import Slack, or import an Ollama client.
+- `controller/` owns workflow stages, the persisted work-graph walker,
+  repair/no-progress budgets, fresh review via `two.context.build_review_handoff`
+  and `two.worker.plan_session`, and terminal status. Inject a worker and
+  validation in tests. Production `two worker` drives this module
+  (`two.recovery.drive`). It does not call the model, import Slack, or
+  import an Ollama client.
 - `graph/` is the no-I/O work-graph contract (ADR 0014): nodes, typed
   edges, linear compile, proposal apply, walker, digest, and node-scoped
   harness handoff. It must not import the store, ACP worker, Slack, or an
-  Ollama client. SQLite persistence and controller wiring are B19. Do not
-  add LangGraph or a second agent runtime.
+  Ollama client. Persistence is `two.store` schema v5. Do not add
+  LangGraph or a second agent runtime.
 - `worker/` supervises ACP children, the action ledger, and session resume.
   Default pytest uses a JSONL fixture child (ADR 0011). It must not import
   Slack or set lifecycle `complete`. Local Qwen worker count is one.

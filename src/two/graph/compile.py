@@ -30,7 +30,7 @@ from two.graph.models import (
     WorkGraph,
     WorkNode,
 )
-from two.types import EdgeKind, ExecutionProfile, NodeKind, NodeStatus
+from two.types import EdgeKind, ExecutionProfile, NodeKind, NodeStatus, WorkflowStage
 
 _LINEAR_SEQUENCE: tuple[NodeKind, ...] = (
     NodeKind.INSPECT,
@@ -106,10 +106,12 @@ def compile_linear_graph(
     profile: ExecutionProfile = ExecutionProfile.STANDARD,
     objective: str = "",
     acceptance_criteria: list[str] | None = None,
+    from_stage: WorkflowStage | None = None,
 ) -> WorkGraph:
     """Return the current 8-stage pipeline as a DAG (intake/isolate stay host-only).
 
     Inspect is READY; later nodes stay PENDING until predecessors finish.
+    ``from_stage`` marks earlier nodes done so pre-graph rows keep working.
     """
     criteria = list(acceptance_criteria or ())
     turns = MAX_TURNS_PER_NODE[profile]
@@ -134,8 +136,66 @@ def compile_linear_graph(
     edges.append(edge(task_id, EdgeKind.REVIEWS, review.id, implement.id))
     graph = WorkGraph(task_id=task_id, nodes=nodes, edges=edges, cursor_node_id=nodes[0].id)
     graph = normalize_readiness(graph)
+    if from_stage is not None:
+        graph = advance_linear_graph(graph, from_stage)
     validate_graph(graph, profile=profile)
     return graph
+
+
+def advance_linear_graph(graph: WorkGraph, stage: WorkflowStage) -> WorkGraph:
+    """Mark linear predecessors of ``stage`` done. Host-only stages stay at inspect."""
+    target = _kind_for_stage(stage)
+    if target is None:
+        if stage in {WorkflowStage.COMPLETE, WorkflowStage.BLOCKED}:
+            nodes = [node.model_copy(update={"status": NodeStatus.DONE}) for node in graph.nodes]
+            cursor = nodes[-1].id if nodes else graph.cursor_node_id
+            updated = graph.model_copy(update={"nodes": nodes, "cursor_node_id": cursor})
+            return normalize_readiness(updated)
+        return graph
+    order = {kind: index for index, kind in enumerate(_LINEAR_SEQUENCE)}
+    target_index = order[target]
+    nodes: list[WorkNode] = []
+    cursor = graph.cursor_node_id
+    for node in graph.nodes:
+        index = order.get(node.kind)
+        if index is None:
+            nodes.append(node)
+            continue
+        if index < target_index:
+            nodes.append(node.model_copy(update={"status": NodeStatus.DONE}))
+        elif index == target_index:
+            nxt = (
+                NodeStatus.READY
+                if node.status in {NodeStatus.PENDING, NodeStatus.READY}
+                else node.status
+            )
+            nodes.append(node.model_copy(update={"status": nxt}))
+            cursor = node.id
+        else:
+            pending = (
+                NodeStatus.PENDING
+                if node.status in {NodeStatus.PENDING, NodeStatus.READY}
+                else node.status
+            )
+            nodes.append(node.model_copy(update={"status": pending}))
+    updated = graph.model_copy(update={"nodes": nodes, "cursor_node_id": cursor})
+    return normalize_readiness(updated)
+
+
+def _kind_for_stage(stage: WorkflowStage) -> NodeKind | None:
+    mapping: dict[WorkflowStage, NodeKind | None] = {
+        WorkflowStage.INTAKE: None,
+        WorkflowStage.ISOLATE: None,
+        WorkflowStage.INSPECT: NodeKind.INSPECT,
+        WorkflowStage.PLAN: NodeKind.PLAN,
+        WorkflowStage.IMPLEMENT: NodeKind.IMPLEMENT,
+        WorkflowStage.VALIDATE: NodeKind.VALIDATE,
+        WorkflowStage.REPAIR: NodeKind.VALIDATE,
+        WorkflowStage.REVIEW: NodeKind.REVIEW,
+        WorkflowStage.COMPLETE: None,
+        WorkflowStage.BLOCKED: None,
+    }
+    return mapping[stage]
 
 
 def apply_proposal(

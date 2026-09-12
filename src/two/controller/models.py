@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Protocol
 
 from two.context.handoff import ReviewHandoff
+from two.graph.models import GraphProposal
 from two.manifest import TaskManifest
 from two.types import ExecutionProfile, WorkflowStage
 from two.validation.policy import DefaultPolicy
@@ -93,6 +94,7 @@ class WorkerInstruction:
     fresh_session: bool = False
     handoff: ReviewHandoff | None = None
     session_plan: SessionPlan | None = None
+    node_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +116,8 @@ class WorkerPhaseResult:
     session_id: str | None = None
     infrastructure_error: bool = False
     cloud_attempted: bool = False
+    graph_proposal: GraphProposal | None = None
+    graph_artifact: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)

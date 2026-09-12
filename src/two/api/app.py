@@ -96,6 +96,7 @@ from two.approvals import (
     request_approval,
     resume_task,
 )
+from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
 from two.store import (
@@ -291,7 +292,7 @@ async def _get_capabilities(request: Request) -> SystemCapabilities:
             oidc_available=False,
             mobile_ready=False,
         ),
-        features=ClientFeatures(),
+        features=ClientFeatures(graph=True),
     )
 
 
@@ -662,6 +663,11 @@ def _project(store: Store, record: TaskRecord) -> TaskProjection:
     validation = _validation_from_events(events)
     diff = _diff_from_events(events)
     manifest = record.manifest
+    stored_graph = store.load_graph(record.id)
+    graph_view = to_graph_view(stored_graph) if stored_graph is not None else None
+    todo_items = (
+        todos_from_graph(stored_graph) if stored_graph is not None else _todos_from_items(todos)
+    )
     return TaskProjection(
         id=record.id,
         revision=record.revision,
@@ -684,7 +690,8 @@ def _project(store: Store, record: TaskRecord) -> TaskProjection:
             remaining_active_seconds=_remaining_active_seconds(record.time_budget_minutes),
         ),
         plan=plan,
-        todos=_todos_from_items(todos),
+        todos=todo_items,
+        graph=graph_view,
         diff_summary=diff,
         validation_summary=validation,
         blockers=blockers,
