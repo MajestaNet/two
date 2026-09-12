@@ -19,18 +19,36 @@
 from __future__ import annotations
 
 import asyncio
-import hmac
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import ValidationError
 
 from two import __version__
+from two.api.contract import (
+    CORRELATION_HEADER,
+    IdempotencyReplay,
+    begin_request_idempotency,
+    check_if_match,
+    complete_request_idempotency,
+    correlation_id_from,
+    error_response,
+    field_errors_from_validation,
+    format_etag,
+    resource_response,
+)
+from two.api.principal import (
+    action_principal,
+    authenticate_request,
+    claimed_actor,
+    operator_scope_values,
+    require_scope,
+)
 from two.api.schemas import (
     DEFAULT_EVENT_LIMIT,
     DEFAULT_LIST_LIMIT,
@@ -41,9 +59,9 @@ from two.api.schemas import (
     ApprovalDecideResponse,
     ApprovalRequest,
     ApprovalView,
+    AuthCapabilities,
+    ClientFeatures,
     DiffSummary,
-    ErrorBody,
-    ErrorResponse,
     EventListResponse,
     EventView,
     HealthResponse,
@@ -51,6 +69,7 @@ from two.api.schemas import (
     QuestionAnswerResponse,
     QuestionAskRequest,
     QuestionView,
+    SystemCapabilities,
     TaskBudgets,
     TaskControlRequest,
     TaskListResponse,
@@ -90,7 +109,7 @@ from two.store import (
     open_store,
 )
 from two.store.models import ApprovalRecord, EventRecord, QuestionRecord, TaskRecord
-from two.types import ErrorCode, EventType, LifecycleState
+from two.types import EventType, LifecycleState, Scope
 
 _PLAN_EVENT_TYPES = frozenset({EventType.TASK_PLAN.value, "plan"})
 _TODO_EVENT_TYPES = frozenset({EventType.TASK_TODOS.value, "todos"})
@@ -114,15 +133,19 @@ def create_app(
     store_path: Path | str | None = None,
     require_auth: bool = False,
     auth_token: str | None = None,
+    operator_scopes: Collection[Scope | str] | None = None,
 ) -> FastAPI:
     """Build the control API. Does not bind a socket and does not call Ollama.
 
     When ``store`` is omitted the factory opens ``store_path`` or
     ``{TWO_DATA_DIR}/two.sqlite`` and closes it on shutdown.
+    ``operator_scopes`` is a test hook; production token/local-trust callers
+    receive the full operator set. Request bodies cannot add scopes.
     """
     close_store = store is None
     opened = store if store is not None else open_store(store_path, check_same_thread=False)
     box = _StoreBox(opened)
+    scopes = operator_scope_values(operator_scopes)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -138,41 +161,70 @@ def create_app(
     app.state.box = box
     app.state.require_auth = require_auth
     app.state.auth_token = auth_token
+    app.state.operator_scopes = scopes
 
     @app.exception_handler(HTTPException)
-    async def _http_error(_request: Request, exc: HTTPException) -> JSONResponse:
-        message = _detail_message(exc.detail)
-        payload = ErrorResponse(
-            error=ErrorBody(code=_error_code(exc.status_code, message), message=message),
-            detail=exc.detail if isinstance(exc.detail, list) else message,
+    async def _http_error(request: Request, exc: HTTPException) -> JSONResponse:
+        return error_response(
+            status_code=exc.status_code,
+            detail=exc.detail,
+            correlation_id=correlation_id_from(request),
         )
-        return JSONResponse(status_code=exc.status_code, content=payload.model_dump(mode="json"))
 
     @app.exception_handler(RequestValidationError)
-    async def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
-        payload = ErrorResponse(
-            error=ErrorBody(
-                code=ErrorCode.VALIDATION_ERROR,
-                message="request validation failed",
-            ),
-            detail=list(exc.errors()),
+    async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+        errors = list(exc.errors())
+        return error_response(
+            status_code=422,
+            detail=errors,
+            message="request validation failed",
+            correlation_id=correlation_id_from(request),
+            field_errors=field_errors_from_validation(errors),
         )
-        return JSONResponse(status_code=422, content=payload.model_dump(mode="json"))
 
-    async def _require_token(request: Request) -> None:
-        if not bool(request.app.state.require_auth):
-            return
-        expected = request.app.state.auth_token
-        if not isinstance(expected, str) or expected == "":
-            raise HTTPException(status_code=401, detail="controller token is not configured")
-        header = request.headers.get("authorization", "")
-        scheme, _, offered = header.partition(" ")
-        if scheme.lower() != "bearer" or not offered:
-            raise HTTPException(status_code=401, detail="missing bearer token")
-        if not hmac.compare_digest(offered, expected):
-            raise HTTPException(status_code=401, detail="invalid token")
+    @app.exception_handler(IdempotencyReplay)
+    async def _idempotency_replay(_request: Request, exc: IdempotencyReplay) -> JSONResponse:
+        return JSONResponse(status_code=exc.status_code, content=exc.content, headers=exc.headers)
 
-    router = APIRouter(dependencies=[Depends(_require_token)])
+    @app.middleware("http")
+    async def _contract_middleware(request: Request, call_next: Any) -> Response:
+        cid = correlation_id_from(request)
+        response = await call_next(request)
+        chunks = [chunk async for chunk in response.body_iterator]
+        body = b"".join(chunks)
+        headers = {str(key): str(value) for key, value in response.headers.items()}
+        headers.pop(CORRELATION_HEADER, None)
+        headers.pop(CORRELATION_HEADER.lower(), None)
+        headers[CORRELATION_HEADER] = cid
+        if getattr(request.state, "idempotency_key", None):
+            async with box.lock:
+                complete_request_idempotency(
+                    request,
+                    box.store,
+                    status_code=int(response.status_code),
+                    body=body,
+                    headers=headers,
+                )
+        return Response(
+            content=body,
+            status_code=response.status_code,
+            headers=headers,
+            media_type=response.media_type,
+        )
+
+    async def _authenticate(request: Request) -> None:
+        principal = authenticate_request(
+            request,
+            require_auth=bool(request.app.state.require_auth),
+            auth_token=request.app.state.auth_token,
+            scopes=request.app.state.operator_scopes,
+        )
+        request.state.principal = principal
+        async with box.lock:
+            await begin_request_idempotency(request, box.store, principal.id)
+
+    router = APIRouter(dependencies=[Depends(_authenticate)])
+    router.add_api_route("/v1/system/capabilities", _get_capabilities, methods=["GET"])
     router.add_api_route("/v1/tasks", _create_task, methods=["POST"], status_code=201)
     router.add_api_route("/v1/tasks", _list_tasks, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}", _get_task, methods=["GET"])
@@ -229,7 +281,22 @@ def _box(request: Request) -> _StoreBox:
     return box
 
 
+async def _get_capabilities(request: Request) -> SystemCapabilities:
+    principal = require_scope(request, Scope.SYSTEM_READ)
+    return SystemCapabilities(
+        principal=principal.id,
+        scopes=sorted(principal.scopes),
+        auth=AuthCapabilities(
+            method=principal.method,
+            oidc_available=False,
+            mobile_ready=False,
+        ),
+        features=ClientFeatures(),
+    )
+
+
 async def _create_task(request: Request, manifest: TaskManifest) -> JSONResponse:
+    require_scope(request, Scope.TASKS_CONTROL)
     box = _box(request)
     async with box.lock:
         try:
@@ -241,10 +308,10 @@ async def _create_task(request: Request, manifest: TaskManifest) -> JSONResponse
             )
         except DuplicateTaskError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        projection = _project(box.store, record)
-    return JSONResponse(
+        projection = _require_projection(box.store, record.id)
+    return resource_response(
+        projection,
         status_code=201,
-        content=projection.model_dump(mode="json"),
         headers={"Location": f"/v1/tasks/{record.id}"},
     )
 
@@ -254,6 +321,7 @@ async def _list_tasks(
     lifecycle: LifecycleState | None = None,
     limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
 ) -> TaskListResponse:
+    require_scope(request, Scope.TASKS_READ)
     box = _box(request)
     async with box.lock:
         records = box.store.list_tasks(lifecycle=lifecycle)[:limit]
@@ -261,10 +329,12 @@ async def _list_tasks(
     return TaskListResponse(tasks=tasks, limit=limit)
 
 
-async def _get_task(request: Request, task_id: str) -> TaskProjection:
+async def _get_task(request: Request, task_id: str) -> JSONResponse:
+    require_scope(request, Scope.TASKS_READ)
     box = _box(request)
     async with box.lock:
-        return _require_projection(box.store, task_id)
+        projection = _require_projection(box.store, task_id)
+    return resource_response(projection)
 
 
 async def _list_events(
@@ -273,6 +343,7 @@ async def _list_events(
     after_seq: int = Query(default=0, ge=0),
     limit: int = Query(default=DEFAULT_EVENT_LIMIT, ge=1, le=MAX_EVENT_LIMIT),
 ) -> EventListResponse:
+    require_scope(request, Scope.EVENTS_AUDIT)
     box = _box(request)
     async with box.lock:
         _require_task(box.store, task_id)
@@ -293,71 +364,84 @@ async def _post_message(
     request: Request,
     task_id: str,
     message: TaskMessage,
-) -> TaskMessageReceipt:
+) -> JSONResponse:
+    require_scope(request, Scope.TASKS_MESSAGE)
     box = _box(request)
+    principal = action_principal(request, message.principal)
     async with box.lock:
-        _require_task(box.store, task_id)
-        payload: dict[str, object] = {"text": message.text}
+        record = _require_task(box.store, task_id)
+        check_if_match(request, record.revision)
+        payload: dict[str, object] = {"text": message.text, "principal": principal}
         if message.source is not None:
             payload["source"] = message.source
-        if message.principal is not None:
-            payload["principal"] = message.principal
         event_id = box.store.append_event(task_id, EventType.TASK_MESSAGE.value, payload)
-    return TaskMessageReceipt(task_id=task_id, event_id=event_id)
-
-
-def _principal(body: TaskControlRequest | None) -> str | None:
-    if body is None:
-        return None
-    return body.principal
+        updated = _require_task(box.store, task_id)
+    receipt = TaskMessageReceipt(task_id=task_id, event_id=event_id, revision=updated.revision)
+    return JSONResponse(
+        status_code=201,
+        content=receipt.model_dump(mode="json"),
+        headers={"ETag": format_etag(updated.revision)},
+    )
 
 
 async def _pause_task(
     request: Request,
     task_id: str,
     body: TaskControlRequest | None = None,
-) -> TaskProjection:
+) -> JSONResponse:
+    require_scope(request, Scope.TASKS_CONTROL)
     box = _box(request)
+    principal = action_principal(request, claimed_actor(body))
     async with box.lock:
+        record = _require_task(box.store, task_id)
+        check_if_match(request, record.revision)
         try:
-            record = pause_task(box.store, task_id, principal=_principal(body))
+            pause_task(box.store, task_id, principal=principal)
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except TerminalLifecycleError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _project(box.store, record)
+        return resource_response(_require_projection(box.store, task_id))
 
 
 async def _resume_task(
     request: Request,
     task_id: str,
     body: TaskControlRequest | None = None,
-) -> TaskProjection:
+) -> JSONResponse:
+    require_scope(request, Scope.TASKS_CONTROL)
     box = _box(request)
+    principal = action_principal(request, claimed_actor(body))
     async with box.lock:
+        record = _require_task(box.store, task_id)
+        check_if_match(request, record.revision)
         try:
-            record = resume_task(box.store, task_id, principal=_principal(body))
+            resume_task(box.store, task_id, principal=principal)
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except (TerminalLifecycleError, NotResumableError, OpenInputError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _project(box.store, record)
+        return resource_response(_require_projection(box.store, task_id))
 
 
 async def _cancel_task(
     request: Request,
     task_id: str,
     body: TaskControlRequest | None = None,
-) -> TaskProjection:
+) -> JSONResponse:
+    require_scope(request, Scope.TASKS_CONTROL)
     box = _box(request)
+    principal = action_principal(request, claimed_actor(body))
     async with box.lock:
+        record = _require_task(box.store, task_id)
+        check_if_match(request, record.revision)
         try:
-            record = cancel_task(box.store, task_id, principal=_principal(body))
+            cancel_task(box.store, task_id, principal=principal)
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except TerminalLifecycleError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return _project(box.store, record)
+        return resource_response(_require_projection(box.store, task_id))
 
 
 async def _ask_question(
@@ -365,8 +449,12 @@ async def _ask_question(
     task_id: str,
     body: QuestionAskRequest,
 ) -> JSONResponse:
+    require_scope(request, Scope.TASKS_CONTROL)
     box = _box(request)
+    actor = action_principal(request, body.actor)
     async with box.lock:
+        record = _require_task(box.store, task_id)
+        check_if_match(request, record.revision)
         try:
             ask_question(
                 box.store,
@@ -376,19 +464,18 @@ async def _ask_question(
                 options=body.options,
                 reason=body.reason,
                 recommendation=body.recommendation,
-                actor=body.actor,
+                actor=actor,
             )
-            record = _require_task(box.store, task_id)
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except DuplicateQuestionError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except TerminalLifecycleError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        projection = _project(box.store, record)
-    return JSONResponse(
+        projection = _require_projection(box.store, task_id)
+    return resource_response(
+        projection,
         status_code=201,
-        content=projection.model_dump(mode="json"),
         headers={"Location": f"/v1/tasks/{task_id}/questions/{body.id}"},
     )
 
@@ -398,30 +485,39 @@ async def _answer_question(
     task_id: str,
     question_id: str,
     body: QuestionAnswerRequest,
-) -> QuestionAnswerResponse:
+) -> JSONResponse:
+    require_scope(request, Scope.TASKS_MESSAGE)
     box = _box(request)
+    principal = action_principal(request, body.actor)
     async with box.lock:
+        record = _require_task(box.store, task_id)
+        check_if_match(request, record.revision)
         try:
             result = answer_question(
                 box.store,
                 task_id,
                 question_id,
                 answer=body.answer,
-                principal=body.actor,
+                principal=principal,
             )
+            updated = _require_task(box.store, task_id)
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except QuestionNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except TerminalLifecycleError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return QuestionAnswerResponse(
+    payload = QuestionAnswerResponse(
         task_id=task_id,
         question_id=question_id,
         ignored=result.ignored,
         event_id=result.event_id,
         principal=result.principal,
         status=result.question.status,
+    )
+    return JSONResponse(
+        content=payload.model_dump(mode="json"),
+        headers={"ETag": format_etag(updated.revision)},
     )
 
 
@@ -430,8 +526,11 @@ async def _request_approval(
     task_id: str,
     body: ApprovalRequest,
 ) -> JSONResponse:
+    require_scope(request, Scope.TASKS_CONTROL)
     box = _box(request)
     async with box.lock:
+        record = _require_task(box.store, task_id)
+        check_if_match(request, record.revision)
         try:
             request_approval(
                 box.store,
@@ -441,17 +540,16 @@ async def _request_approval(
                 action_digest=body.action_digest,
                 paths=body.paths,
             )
-            record = _require_task(box.store, task_id)
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except DuplicateApprovalError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except TerminalLifecycleError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        projection = _project(box.store, record)
-    return JSONResponse(
+        projection = _require_projection(box.store, task_id)
+    return resource_response(
+        projection,
         status_code=201,
-        content=projection.model_dump(mode="json"),
         headers={"Location": f"/v1/tasks/{task_id}/approvals/{body.id}"},
     )
 
@@ -461,19 +559,24 @@ async def _decide_approval(
     task_id: str,
     approval_id: str,
     body: ApprovalDecideRequest,
-) -> ApprovalDecideResponse:
+) -> JSONResponse:
+    require_scope(request, Scope.APPROVALS_DECIDE)
     box = _box(request)
+    principal = action_principal(request, body.actor)
     async with box.lock:
+        record = _require_task(box.store, task_id)
+        check_if_match(request, record.revision)
         try:
             result = decide_approval(
                 box.store,
                 task_id,
                 approval_id,
                 decision=body.decision,
-                principal=body.actor,
+                principal=principal,
                 action_digest=body.action_digest,
                 comment=body.comment,
             )
+            updated = _require_task(box.store, task_id)
         except TaskNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ApprovalNotFoundError as exc:
@@ -484,7 +587,7 @@ async def _decide_approval(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except StaleDigestError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return ApprovalDecideResponse(
+    payload = ApprovalDecideResponse(
         task_id=task_id,
         approval_id=approval_id,
         decision=result.decision,
@@ -493,9 +596,14 @@ async def _decide_approval(
         action_digest=result.approval.action_digest,
         principal=result.principal,
     )
+    return JSONResponse(
+        content=payload.model_dump(mode="json"),
+        headers={"ETag": format_etag(updated.revision)},
+    )
 
 
 async def _get_report(request: Request, task_id: str) -> TaskReport:
+    require_scope(request, Scope.TASKS_READ)
     box = _box(request)
     async with box.lock:
         projection = _require_projection(box.store, task_id)
@@ -556,6 +664,7 @@ def _project(store: Store, record: TaskRecord) -> TaskProjection:
     manifest = record.manifest
     return TaskProjection(
         id=record.id,
+        revision=record.revision,
         repository=record.repository,
         base_ref=record.base_ref,
         objective=record.objective,
@@ -742,34 +851,3 @@ def _gates_from_payload(payload: Mapping[str, object]) -> list[ValidationGateVie
             if isinstance(name, str) and isinstance(passed, bool):
                 gates.append(ValidationGateView(name=name, passed=passed))
     return gates
-
-
-def _detail_message(detail: object) -> str:
-    if isinstance(detail, str):
-        return detail
-    return str(detail)
-
-
-def _error_code(status: int, message: str) -> ErrorCode:
-    text = message.lower()
-    if status == 401:
-        return ErrorCode.UNAUTHORIZED
-    if status == 404:
-        if "task" in text:
-            return ErrorCode.TASK_NOT_FOUND
-        return ErrorCode.NOT_FOUND
-    if status == 409:
-        if "already exists" in text:
-            return ErrorCode.DUPLICATE_TASK
-        if "stale" in text:
-            return ErrorCode.STALE_DIGEST
-        if "open" in text:
-            return ErrorCode.OPEN_INPUT
-        if "resume" in text:
-            return ErrorCode.NOT_RESUMABLE
-        return ErrorCode.CONFLICT_LIFECYCLE
-    if status == 400:
-        return ErrorCode.DIGEST_REQUIRED
-    if status == 422:
-        return ErrorCode.VALIDATION_ERROR
-    return ErrorCode.INTERNAL

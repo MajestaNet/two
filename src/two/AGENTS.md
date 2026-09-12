@@ -31,7 +31,9 @@ Python package for the Majesta Two control plane.
 - `api/` maps HTTP to `two.store` and `two.approvals`. It must not import
   `two.workspace` git operations, `two.channels.slack`, or an Ollama
   client. Bind loopback or a Unix socket by default (ADR 0010). Request
-  and projection bodies live in `two.projection`.
+  and projection bodies live in `two.projection`. `two.api.principal`
+  derives identity and scopes; request bodies cannot elevate authority.
+  `two.api.contract` owns correlation, ETags, and idempotency-key replay.
 - `approvals/` owns question/approval resolution and pause/resume/cancel
   lifecycle policy. Silence is never approval. Digests are immutable.
   It does not import git, Slack, or the model.

@@ -3,6 +3,9 @@
 - `architecture.md` is the canonical product specification.
 - `client-api-design.md` is the detailed client/API design adopted by
   architecture §6.3.H and ADR 0015. Keep implementation status explicit.
+- `client-threat-model.md` is the B14 slice 1 implementation threat model.
+- `adrs/0016-oidc-jwt-tls-dependencies.md` selects PyJWT/Caddy and must be
+  accepted before those runtime pieces are added.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
 - `backlog/` holds dedicated implementation items (B01–B19). Status
