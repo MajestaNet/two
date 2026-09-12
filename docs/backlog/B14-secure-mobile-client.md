@@ -5,7 +5,7 @@
 | ID | B14 |
 | Phase | 6 — First-party conversational control |
 | Status | in_progress |
-| Depends on | B07, B11, B19 |
+| Depends on | B07, B11 (B19 only for a populated graph view) |
 | Blocks | Architecture §21 items 14–17 |
 | Architecture | §6.3.H, §8.3–8.5, §12.6, §15, ADR 0015 |
 | Design | [Client API design](../client-api-design.md) |
@@ -26,8 +26,11 @@ do not attempt the entire item in one PR.
 - B07 `/v1` tasks, events, messages, controls, approvals, report, and shallow
   API/store health are implemented.
 - B13 CLI consumes `two.projection`; no web UI was added.
-- `TaskProjection.graph` exists. B19 must persist and populate it before the
-  mobile development-loop view is complete. Slice 1 leaves `graph` null.
+- `TaskProjection.graph` already exists and may be `null`. B19 persists and
+  walks the graph. Do **not** stop B14 because B19 is still planned. Slices 1–3
+  and conversation/health/config work against the existing projection; the
+  Development-loop view shows an empty/linear graph until B19 fills it.
+  Slice 1 leaves `graph` null.
 - **Slice 1 landed:** threat model (`docs/client-threat-model.md`),
   `GET /v1/system/capabilities`, server-derived principals/scopes, correlation
   and `field_errors`, `Idempotency-Key`, task `revision`/`ETag`/`If-Match`.
@@ -164,8 +167,13 @@ unfinished slice, state it in the PR, and read:
 1. `AGENTS.md` and the relevant directory `AGENTS.md`
 2. `docs/architecture.md` §6.3.H, §8.3–8.5, §12.6, §15
 3. `docs/client-api-design.md` and ADR 0015
-4. B07, B11, B19, and this item
+4. B07, B11, and this item
 5. Existing `two.projection`, `two.api`, `two.client`, and store contracts
+
+B19 is **not** a start gate. If the graph is still `null`, project that
+honestly and continue. Do not implement B19 in a B14 PR. Do not wait for
+SQLite graph persistence before adding capabilities, auth, conversation,
+SSE, health, or repository/project resources.
 
 Keep `/v1` additive, use `two.projection` for public backend types, keep unit
 tests offline, and leave `make ci` green. Do not expose a public port, invent
