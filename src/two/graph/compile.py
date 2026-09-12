@@ -147,9 +147,11 @@ def advance_linear_graph(graph: WorkGraph, stage: WorkflowStage) -> WorkGraph:
     target = _kind_for_stage(stage)
     if target is None:
         if stage in {WorkflowStage.COMPLETE, WorkflowStage.BLOCKED}:
-            nodes = [node.model_copy(update={"status": NodeStatus.DONE}) for node in graph.nodes]
-            cursor = nodes[-1].id if nodes else graph.cursor_node_id
-            updated = graph.model_copy(update={"nodes": nodes, "cursor_node_id": cursor})
+            done_nodes = [
+                node.model_copy(update={"status": NodeStatus.DONE}) for node in graph.nodes
+            ]
+            cursor = done_nodes[-1].id if done_nodes else graph.cursor_node_id
+            updated = graph.model_copy(update={"nodes": done_nodes, "cursor_node_id": cursor})
             return normalize_readiness(updated)
         return graph
     order = {kind: index for index, kind in enumerate(_LINEAR_SEQUENCE)}
