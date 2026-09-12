@@ -69,3 +69,13 @@ def scan_files(root: Path, relative_paths: Iterable[str]) -> list[SecretHit]:
                     hits.append(SecretHit(path=rel, kind=kind, line=lineno))
                     break
     return hits
+
+
+def looks_like_secret_text(text: str) -> bool:
+    """True when ``text`` matches a built-in secret pattern. No I/O."""
+    if not text:
+        return False
+    for pattern, _kind in _PATTERNS:
+        if pattern.search(text):
+            return True
+    return False

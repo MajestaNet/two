@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Slice 1 implemented (threat model, capabilities, principal/scopes, errors, idempotency, ETags). Slices 2–5 proposed. |
+| Status | Slice 1 implemented (threat model, capabilities, principal/scopes, errors, idempotency, ETags). Slice 2 implemented (conversation, SSE, health/queue, repo/project reads, diffs/artifacts). Slice 3 implemented (persisted projects, immutable config candidates, digest-scoped activation). Slices 4–5 proposed. |
 | Audience | CLI, first-party GUI/mobile, and future optional adapters |
 | Authority | [Architecture §6.3.H](architecture.md), [ADR 0015](adrs/0015-first-party-client-api.md) |
 | Existing contract | [B07](backlog/B07-control-api.md), `two.projection`, `/v1` |
@@ -141,7 +141,7 @@ Health is observed state, not a command channel to Ollama or Harness.
 
 ## 4. HTTP surface
 
-The table distinguishes implemented B07 / B14 slice 1–2 routes from later
+The table distinguishes implemented B07 / B14 slice 1–3 routes from later
 additive GUI resources. Exact Pydantic schemas live in `two.projection` with
 contract tests. This document remains authoritative for resource
 responsibilities and security behavior. The implementation threat model is
@@ -184,13 +184,13 @@ reloads snapshots.
 | --- | --- | --- | --- |
 | `GET` | `/v1/repositories` | Implemented (B14 slice 2) | List authorized repository summaries and readiness. |
 | `GET` | `/v1/repositories/{id}` | Implemented (B14 slice 2) | Fetch active, redacted configuration. |
-| `POST` | `/v1/repositories/{id}/config-candidates` | Proposed (slice 3) | Validate an immutable candidate and return field-level errors, risk class, digest, and redacted diff. |
-| `POST` | `/v1/repositories/{id}/config-candidates/{revision}/activate` | Proposed (slice 3) | Activate the exact candidate immediately or create a required approval. |
-| `GET` | `/v1/projects` | Implemented (B14 slice 2; empty until slice 3 persists rows) | List authorized projects and aggregate task counts. |
-| `POST` | `/v1/projects` | Proposed (slice 3) | Create a project from typed, non-secret fields. |
-| `GET` | `/v1/projects/{id}` | Implemented (B14 slice 2; 404 until slice 3) | Fetch project defaults, repository membership, and revision. |
-| `POST` | `/v1/projects/{id}/config-candidates` | Proposed (slice 3) | Validate an immutable project candidate. |
-| `POST` | `/v1/projects/{id}/config-candidates/{revision}/activate` | Proposed (slice 3) | Activate the exact candidate subject to policy. |
+| `POST` | `/v1/repositories/{id}/config-candidates` | Implemented (B14 slice 3) | Validate an immutable candidate and return field-level errors, risk class, digest, and redacted diff. |
+| `POST` | `/v1/repositories/{id}/config-candidates/{revision}/activate` | Implemented (B14 slice 3) | Activate the exact candidate immediately or create a required approval. |
+| `GET` | `/v1/projects` | Implemented (B14 slice 3; persisted rows) | List authorized projects and aggregate task counts. |
+| `POST` | `/v1/projects` | Implemented (B14 slice 3) | Create a project from typed, non-secret fields. |
+| `GET` | `/v1/projects/{id}` | Implemented (B14 slice 3; persisted rows) | Fetch project defaults, repository membership, and revision. |
+| `POST` | `/v1/projects/{id}/config-candidates` | Implemented (B14 slice 3) | Validate an immutable project candidate. |
+| `POST` | `/v1/projects/{id}/config-candidates/{revision}/activate` | Implemented (B14 slice 3) | Activate the exact candidate subject to policy. |
 
 Configuration uses immutable candidates rather than allowing a GUI to edit
 host YAML or arbitrary paths. Candidate activation uses optimistic
@@ -357,7 +357,7 @@ This design intentionally does not:
 
 Implementation should be sliced into: contract/auth foundations (slice 1,
 landed), read-only GUI projections and SSE (slice 2, landed), typed config
-candidates (slice 3), then the separate native mobile client. B19 is
+candidates (slice 3, landed), then the separate native mobile client. B19 is
 parallel work; it is not a start gate for those API slices. Each slice
 needs offline contract tests; remote auth and mobile security require
 dedicated integration and threat-model review before promotion. Do not add

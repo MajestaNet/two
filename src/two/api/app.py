@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -31,6 +31,27 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
 
 from two import __version__
+from two.api.config import (
+    CONFIG_ACTION_CLASS,
+    PROJECT_CAPABILITY_FIELDS,
+    REPO_CAPABILITY_FIELDS,
+    active_task_count,
+    approval_id_for,
+    candidate_digest,
+    candidate_view_from_record,
+    collect_forbidden_errors,
+    create_request_errors,
+    empty_candidate_error,
+    load_merged_repository_views,
+    new_project_id,
+    project_current_fields,
+    project_view_from_record,
+    redacted_diff,
+    repository_current_fields,
+    risk_class_for,
+    typed_payload,
+    validate_project_id,
+)
 from two.api.contract import (
     CORRELATION_HEADER,
     IdempotencyReplay,
@@ -39,8 +60,10 @@ from two.api.contract import (
     complete_request_idempotency,
     correlation_id_from,
     error_response,
+    etag_json_response,
     field_errors_from_validation,
     format_etag,
+    require_if_match,
     resource_response,
 )
 from two.api.conversation import (
@@ -69,6 +92,7 @@ from two.api.principal import (
     authenticate_request,
     claimed_actor,
     operator_scope_values,
+    principal_from_request,
     require_scope,
 )
 from two.api.schemas import (
@@ -89,17 +113,24 @@ from two.api.schemas import (
     ArtifactListResponse,
     AuthCapabilities,
     ClientFeatures,
+    ConfigActivateRequest,
+    ConfigActivateResponse,
+    ConfigApprovalView,
     ConversationPage,
     DiffSummary,
     EventListResponse,
     EventView,
     HealthObservation,
     HealthResponse,
+    ProjectConfigCandidateRequest,
+    ProjectCreateRequest,
     ProjectListResponse,
+    ProjectSummary,
     QuestionAnswerRequest,
     QuestionAnswerResponse,
     QuestionAskRequest,
     QuestionView,
+    RepositoryConfigCandidateRequest,
     RepositoryListResponse,
     SystemCapabilities,
     SystemHealth,
@@ -136,15 +167,24 @@ from two.manifest import TaskManifest
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
 from two.store import (
     ApprovalNotFoundError,
+    ConfigCandidateNotFoundError,
     DuplicateApprovalError,
+    DuplicateProjectError,
     DuplicateQuestionError,
     DuplicateTaskError,
     QuestionNotFoundError,
     Store,
+    StoreError,
     TaskNotFoundError,
     open_store,
 )
-from two.store.models import ApprovalRecord, EventRecord, QuestionRecord, TaskRecord
+from two.store.models import (
+    ApprovalRecord,
+    ConfigApprovalRecord,
+    EventRecord,
+    QuestionRecord,
+    TaskRecord,
+)
 from two.types import EventType, LifecycleState, Scope
 
 _PLAN_EVENT_TYPES = frozenset({EventType.TASK_PLAN.value, "plan"})
@@ -303,8 +343,31 @@ def create_app(
     )
     router.add_api_route("/v1/repositories", _list_repositories, methods=["GET"])
     router.add_api_route("/v1/repositories/{repository_id}", _get_repository, methods=["GET"])
+    router.add_api_route(
+        "/v1/repositories/{repository_id}/config-candidates",
+        _create_repository_candidate,
+        methods=["POST"],
+        status_code=201,
+    )
+    router.add_api_route(
+        "/v1/repositories/{repository_id}/config-candidates/{revision}/activate",
+        _activate_repository_candidate,
+        methods=["POST"],
+    )
+    router.add_api_route("/v1/projects", _create_project, methods=["POST"], status_code=201)
     router.add_api_route("/v1/projects", _list_projects, methods=["GET"])
     router.add_api_route("/v1/projects/{project_id}", _get_project, methods=["GET"])
+    router.add_api_route(
+        "/v1/projects/{project_id}/config-candidates",
+        _create_project_candidate,
+        methods=["POST"],
+        status_code=201,
+    )
+    router.add_api_route(
+        "/v1/projects/{project_id}/config-candidates/{revision}/activate",
+        _activate_project_candidate,
+        methods=["POST"],
+    )
     router.add_api_route(
         "/v1/tasks/{task_id}/messages",
         _post_message,
@@ -892,20 +955,26 @@ async def _list_repositories(
     limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
 ) -> RepositoryListResponse:
     require_scope(request, Scope.CONFIG_READ)
+    box = _box(request)
     directory = resolve_repositories_dir(request.app.state.repositories_dir)
-    views = load_repository_views(directory)
+    async with box.lock:
+        states = box.store.list_repository_config_states()
+    views = load_merged_repository_views(directory, states)
     summaries = [project_repository_summary(view) for view in views.values()][:limit]
     return RepositoryListResponse(repositories=summaries, limit=limit)
 
 
 async def _get_repository(request: Request, repository_id: str) -> JSONResponse:
     require_scope(request, Scope.CONFIG_READ)
+    box = _box(request)
     directory = resolve_repositories_dir(request.app.state.repositories_dir)
-    views = load_repository_views(directory)
+    async with box.lock:
+        states = box.store.list_repository_config_states()
+    views = load_merged_repository_views(directory, states)
     view = views.get(repository_id)
     if view is None:
         raise HTTPException(status_code=404, detail=f"unknown repository: {repository_id}")
-    return JSONResponse(content=view.model_dump(mode="json"))
+    return etag_json_response(view, revision=view.revision)
 
 
 async def _list_projects(
@@ -913,14 +982,390 @@ async def _list_projects(
     limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
 ) -> ProjectListResponse:
     require_scope(request, Scope.CONFIG_READ)
-    return ProjectListResponse(projects=[], limit=limit)
+    box = _box(request)
+    async with box.lock:
+        records = box.store.list_projects()[:limit]
+        tasks = box.store.list_tasks()
+    projects = [
+        ProjectSummary(
+            id=record.id,
+            display_name=record.display_name,
+            repository_ids=list(record.repository_ids),
+            active_task_count=active_task_count(record.repository_ids, tasks),
+            revision=record.revision,
+        )
+        for record in records
+    ]
+    return ProjectListResponse(projects=projects, limit=limit)
 
 
 async def _get_project(request: Request, project_id: str) -> JSONResponse:
     require_scope(request, Scope.CONFIG_READ)
-    raise HTTPException(
-        status_code=404,
-        detail=f"unknown project: {project_id}",
+    box = _box(request)
+    async with box.lock:
+        record = box.store.get_project(project_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"unknown project: {project_id}")
+    view = project_view_from_record(record)
+    return etag_json_response(view, revision=view.revision)
+
+
+async def _create_project(request: Request, body: ProjectCreateRequest) -> JSONResponse:
+    require_scope(request, Scope.CONFIG_WRITE)
+    box = _box(request)
+    directory = resolve_repositories_dir(request.app.state.repositories_dir)
+    async with box.lock:
+        states = box.store.list_repository_config_states()
+    known = list(load_merged_repository_views(directory, states).keys())
+    errors = create_request_errors(body, known_repository_ids=known)
+    if errors:
+        return error_response(
+            status_code=422,
+            detail="request validation failed",
+            message="request validation failed",
+            correlation_id=correlation_id_from(request),
+            field_errors=errors,
+        )
+    project_id = new_project_id(body.id)
+    identity = validate_project_id(project_id)
+    if identity is not None:
+        return error_response(
+            status_code=422,
+            detail="request validation failed",
+            message="request validation failed",
+            correlation_id=correlation_id_from(request),
+            field_errors=[identity],
+        )
+    async with box.lock:
+        try:
+            record = box.store.insert_project(
+                project_id=project_id,
+                display_name=body.display_name,
+                description=body.description,
+                repository_ids=body.repository_ids,
+                default_repository=body.default_repository,
+                default_base_ref=body.default_base_ref,
+                default_mode=body.default_mode.value if body.default_mode is not None else None,
+                default_execution_profile=(
+                    body.default_execution_profile.value
+                    if body.default_execution_profile is not None
+                    else None
+                ),
+                labels=body.labels,
+                acceptance_criteria_templates=body.acceptance_criteria_templates,
+            )
+        except DuplicateProjectError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    view = project_view_from_record(record)
+    return etag_json_response(
+        view,
+        revision=view.revision,
+        status_code=201,
+        headers={"Location": f"/v1/projects/{record.id}"},
+    )
+
+
+async def _create_repository_candidate(
+    request: Request,
+    repository_id: str,
+    body: RepositoryConfigCandidateRequest,
+) -> JSONResponse:
+    require_scope(request, Scope.CONFIG_WRITE)
+    return await _create_candidate(request, "repository", repository_id, body)
+
+
+async def _create_project_candidate(
+    request: Request,
+    project_id: str,
+    body: ProjectConfigCandidateRequest,
+) -> JSONResponse:
+    require_scope(request, Scope.CONFIG_WRITE)
+    return await _create_candidate(request, "project", project_id, body)
+
+
+async def _activate_repository_candidate(
+    request: Request,
+    repository_id: str,
+    revision: int,
+    body: ConfigActivateRequest | None = None,
+) -> JSONResponse:
+    require_scope(request, Scope.CONFIG_WRITE)
+    return await _activate_candidate(request, "repository", repository_id, revision, body)
+
+
+async def _activate_project_candidate(
+    request: Request,
+    project_id: str,
+    revision: int,
+    body: ConfigActivateRequest | None = None,
+) -> JSONResponse:
+    require_scope(request, Scope.CONFIG_WRITE)
+    return await _activate_candidate(request, "project", project_id, revision, body)
+
+
+async def _create_candidate(
+    request: Request,
+    subject_kind: str,
+    subject_id: str,
+    body: object,
+) -> JSONResponse:
+    box = _box(request)
+    directory = resolve_repositories_dir(request.app.state.repositories_dir)
+    payload = typed_payload(body)
+    if not payload:
+        return error_response(
+            status_code=422,
+            detail="request validation failed",
+            message="request validation failed",
+            correlation_id=correlation_id_from(request),
+            field_errors=[empty_candidate_error()],
+        )
+    principal = action_principal(request, None)
+    async with box.lock:
+        states = box.store.list_repository_config_states()
+        views = load_merged_repository_views(directory, states)
+        if subject_kind == "repository":
+            view = views.get(subject_id)
+            if view is None:
+                raise HTTPException(status_code=404, detail=f"unknown repository: {subject_id}")
+            host_views = load_repository_views(directory)
+            host = host_views.get(subject_id)
+            known_gates = list(host.gate_names) if host is not None else list(view.gate_names)
+            errors = collect_forbidden_errors(
+                payload,
+                known_gate_names=known_gates,
+                known_repository_ids=list(views.keys()),
+            )
+            if errors:
+                return error_response(
+                    status_code=422,
+                    detail="request validation failed",
+                    message="request validation failed",
+                    correlation_id=correlation_id_from(request),
+                    field_errors=errors,
+                )
+            current = repository_current_fields(view)
+            risk = risk_class_for(payload, current, capability_fields=REPO_CAPABILITY_FIELDS)
+            box.store.ensure_repository_config_state(subject_id)
+        else:
+            record = box.store.get_project(subject_id)
+            if record is None:
+                raise HTTPException(status_code=404, detail=f"unknown project: {subject_id}")
+            errors = collect_forbidden_errors(
+                payload,
+                known_repository_ids=list(views.keys()),
+            )
+            if errors:
+                return error_response(
+                    status_code=422,
+                    detail="request validation failed",
+                    message="request validation failed",
+                    correlation_id=correlation_id_from(request),
+                    field_errors=errors,
+                )
+            current = project_current_fields(record)
+            risk = risk_class_for(payload, current, capability_fields=PROJECT_CAPABILITY_FIELDS)
+        digest = candidate_digest(payload)
+        diff = [item.model_dump(mode="json") for item in redacted_diff(payload, current)]
+        stored = box.store.insert_config_candidate(
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            digest=digest,
+            risk_class=risk,
+            payload=payload,
+            redacted_diff=diff,
+            created_by=principal,
+        )
+    return etag_json_response(
+        candidate_view_from_record(stored),
+        revision=stored.revision,
+        status_code=201,
+        headers={
+            "Location": (
+                f"/v1/{'repositories' if subject_kind == 'repository' else 'projects'}"
+                f"/{subject_id}/config-candidates/{stored.revision}"
+            )
+        },
+    )
+
+
+async def _activate_candidate(
+    request: Request,
+    subject_kind: str,
+    subject_id: str,
+    revision: int,
+    body: ConfigActivateRequest | None,
+) -> JSONResponse:
+    box = _box(request)
+    principal = action_principal(request, claimed_actor(body))
+    offered_digest = body.action_digest if body is not None else None
+    decision = body.decision if body is not None else None
+    caller = principal_from_request(request)
+    async with box.lock:
+        candidate = box.store.get_config_candidate(subject_kind, subject_id, revision)
+        if candidate is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"unknown config candidate: {subject_kind}/{subject_id}@{revision}",
+            )
+        if subject_kind == "repository":
+            state = box.store.ensure_repository_config_state(subject_id)
+            require_if_match(request, state.revision)
+            resource_revision = state.revision
+            overlay = dict(state.overlay)
+            overlay.update(candidate.payload)
+        else:
+            record = box.store.get_project(subject_id)
+            if record is None:
+                raise HTTPException(status_code=404, detail=f"unknown project: {subject_id}")
+            require_if_match(request, record.revision)
+            resource_revision = record.revision
+            overlay = dict(candidate.payload)
+        if candidate.risk_class == "capability":
+            if Scope.ADMIN.value not in caller.scopes:
+                raise HTTPException(status_code=403, detail="missing scope: admin")
+            approval = box.store.get_config_approval(subject_kind, subject_id, revision)
+            if approval is None or approval.status != "approved":
+                result = _capability_approval_step(
+                    request,
+                    box.store,
+                    candidate=candidate,
+                    approval=approval,
+                    offered_digest=offered_digest,
+                    decision=decision,
+                    principal=principal,
+                    caller_scopes=caller.scopes,
+                    resource_revision=resource_revision,
+                )
+                if result is not None:
+                    return result
+            elif offered_digest is not None and offered_digest != candidate.digest:
+                raise HTTPException(status_code=409, detail="stale action digest")
+        try:
+            updated, new_revision = box.store.activate_config_candidate(
+                subject_kind=subject_kind,
+                subject_id=subject_id,
+                revision=revision,
+                overlay=overlay,
+                expected_resource_revision=resource_revision,
+            )
+        except ConfigCandidateNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except StoreError as exc:
+            if "revision mismatch" in str(exc):
+                raise HTTPException(status_code=412, detail="resource revision mismatch") from exc
+            raise
+        approval = box.store.get_config_approval(subject_kind, subject_id, revision)
+    payload = ConfigActivateResponse(
+        activated=True,
+        approval_required=False,
+        subject_kind="project" if subject_kind == "project" else "repository",
+        subject_id=subject_id,
+        candidate_revision=updated.revision,
+        resource_revision=new_revision,
+        digest=updated.digest,
+        risk_class="capability" if updated.risk_class == "capability" else "display",
+        approval=_config_approval_view(approval),
+    )
+    return etag_json_response(payload, revision=new_revision)
+
+
+def _capability_approval_step(
+    request: Request,
+    store: Store,
+    *,
+    candidate: object,
+    approval: ConfigApprovalRecord | None,
+    offered_digest: str | None,
+    decision: str | None,
+    principal: str,
+    caller_scopes: frozenset[str],
+    resource_revision: int,
+) -> JSONResponse | None:
+    from two.store.models import ConfigCandidateRecord
+
+    if not isinstance(candidate, ConfigCandidateRecord):
+        raise TypeError("expected ConfigCandidateRecord")
+    if offered_digest is not None and offered_digest != candidate.digest:
+        raise HTTPException(status_code=409, detail="stale action digest")
+    if approval is None:
+        created = store.insert_config_approval(
+            approval_id=approval_id_for(
+                candidate.subject_kind, candidate.subject_id, candidate.revision
+            ),
+            subject_kind=candidate.subject_kind,
+            subject_id=candidate.subject_id,
+            candidate_revision=candidate.revision,
+            action_digest=candidate.digest,
+        )
+        approval = created
+    if decision == "approve":
+        if Scope.APPROVALS_DECIDE.value not in caller_scopes:
+            raise HTTPException(status_code=403, detail="missing scope: approvals:decide")
+        if offered_digest is None:
+            raise HTTPException(status_code=400, detail="action digest is required")
+        record, _first = store.resolve_config_approval(
+            approval.id,
+            status="approved",
+            resolver=principal,
+        )
+        if record.action_digest != candidate.digest:
+            raise HTTPException(status_code=409, detail="stale action digest")
+        if record.status != "approved":
+            raise HTTPException(status_code=409, detail="stale action digest")
+        return None
+    if decision == "reject":
+        if Scope.APPROVALS_DECIDE.value not in caller_scopes:
+            raise HTTPException(status_code=403, detail="missing scope: approvals:decide")
+        if offered_digest is None:
+            raise HTTPException(status_code=400, detail="action digest is required")
+        store.resolve_config_approval(approval.id, status="rejected", resolver=principal)
+        payload = ConfigActivateResponse(
+            activated=False,
+            approval_required=True,
+            subject_kind="project" if candidate.subject_kind == "project" else "repository",
+            subject_id=candidate.subject_id,
+            candidate_revision=candidate.revision,
+            resource_revision=resource_revision,
+            digest=candidate.digest,
+            risk_class="capability",
+            approval=_config_approval_view(
+                store.get_config_approval(
+                    candidate.subject_kind, candidate.subject_id, candidate.revision
+                )
+            ),
+        )
+        return etag_json_response(payload, revision=resource_revision)
+    payload = ConfigActivateResponse(
+        activated=False,
+        approval_required=True,
+        subject_kind="project" if candidate.subject_kind == "project" else "repository",
+        subject_id=candidate.subject_id,
+        candidate_revision=candidate.revision,
+        resource_revision=resource_revision,
+        digest=candidate.digest,
+        risk_class="capability",
+        approval=_config_approval_view(approval),
+    )
+    return etag_json_response(payload, revision=resource_revision)
+
+
+def _config_approval_view(record: ConfigApprovalRecord | None) -> ConfigApprovalView | None:
+    if record is None:
+        return None
+    status: Literal["open", "approved", "rejected"]
+    if record.status == "approved":
+        status = "approved"
+    elif record.status == "rejected":
+        status = "rejected"
+    else:
+        status = "open"
+    return ConfigApprovalView(
+        id=record.id,
+        action_class=record.action_class or CONFIG_ACTION_CLASS,
+        action_digest=record.action_digest,
+        status=status,
+        created_at=record.created_at,
     )
 
 

@@ -124,6 +124,8 @@ A device may be on coffee-shop Wi-Fi or a hostile LAN.
   API.
 - Config candidates (slice 3) must not accept secrets, arbitrary host paths,
   YAML blobs, or unrestricted command strings from an ordinary client.
+  Candidates are immutable SQLite rows. Activation uses `If-Match`.
+  Capability-expanding changes require `admin` and a digest-scoped approval.
 
 ## Fail-closed summary
 
@@ -142,6 +144,6 @@ A device may be on coffee-shop Wi-Fi or a hostile LAN.
 
 - Implementing OIDC, PKCE, or TLS libraries
 - Building the native mobile app
-- Project/config stores and candidate activation (B14 slice 3)
-- Persisting the work graph (B19)
+- Native-client push/promotion (B14 slices 4–5)
+- Persisting the work graph (B19; already a parallel item)
 - Slack or any messenger adapter

@@ -42,18 +42,32 @@ from two.graph.errors import GraphInvariantError
 from two.graph.invariants import validate_graph
 from two.graph.models import WorkGraph
 from two.manifest import TaskManifest
+from two.store.config import (
+    approval_from_row as _config_approval_from_row,
+)
+from two.store.config import (
+    candidate_from_row,
+    project_from_row,
+    repository_state_from_row,
+)
+from two.store.config import (
+    dump_json as _config_dump_json,
+)
 from two.store.engine import prepare_database
 from two.store.errors import (
     ActionNotFoundError,
     ApprovalNotFoundError,
+    ConfigCandidateNotFoundError,
     DuplicateActionError,
     DuplicateApprovalError,
+    DuplicateProjectError,
     DuplicateQuestionError,
     DuplicateSourceEventError,
     DuplicateTaskError,
     GraphCommitError,
     IdempotencyConflictError,
     IdempotencyInFlightError,
+    ProjectNotFoundError,
     QuestionNotFoundError,
     StoreError,
     TaskNotFoundError,
@@ -64,10 +78,14 @@ from two.store.models import (
     ActionStatus,
     ApprovalRecord,
     ChannelBinding,
+    ConfigApprovalRecord,
+    ConfigCandidateRecord,
     EventRecord,
     IdempotencyRecord,
     LeaseRecord,
+    ProjectRecord,
     QuestionRecord,
+    RepositoryConfigState,
     TaskRecord,
 )
 from two.store.schema import SCHEMA_VERSION, current_schema_version
@@ -1047,6 +1065,452 @@ class Store:
                 (principal, key),
             )
 
+    def insert_project(
+        self,
+        *,
+        project_id: str,
+        display_name: str,
+        description: str = "",
+        repository_ids: Sequence[str] = (),
+        default_repository: str | None = None,
+        default_base_ref: str | None = None,
+        default_mode: str | None = None,
+        default_execution_profile: str | None = None,
+        labels: Sequence[str] = (),
+        acceptance_criteria_templates: Sequence[str] = (),
+        now: datetime | None = None,
+    ) -> ProjectRecord:
+        """Insert a project row and commit before returning."""
+        if not project_id or not display_name:
+            raise StoreError("project id and display_name must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        try:
+            with self._txn():
+                self._connection.execute(
+                    """
+                    INSERT INTO projects (
+                        id, display_name, description, repository_ids_json,
+                        default_repository, default_base_ref, default_mode,
+                        default_execution_profile, labels_json, acceptance_json,
+                        overlay_json, active_candidate_revision, revision,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', NULL, 1, ?, ?)
+                    """,
+                    (
+                        project_id,
+                        display_name,
+                        description,
+                        _config_dump_json(list(repository_ids)),
+                        default_repository,
+                        default_base_ref,
+                        default_mode,
+                        default_execution_profile,
+                        _config_dump_json(list(labels)),
+                        _config_dump_json(list(acceptance_criteria_templates)),
+                        stamp,
+                        stamp,
+                    ),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise DuplicateProjectError(f"project already exists: {project_id}") from exc
+        record = self.get_project(project_id)
+        if record is None:
+            raise StoreError(f"project {project_id} missing after insert")
+        return record
+
+    def get_project(self, project_id: str) -> ProjectRecord | None:
+        row = self._connection.execute(
+            "SELECT * FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return project_from_row(row)
+
+    def list_projects(self) -> list[ProjectRecord]:
+        rows = self._connection.execute(
+            "SELECT * FROM projects ORDER BY created_at ASC, id ASC"
+        ).fetchall()
+        return [project_from_row(row) for row in rows]
+
+    def ensure_repository_config_state(
+        self,
+        repository_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> RepositoryConfigState:
+        """Create revision-1 overlay state for a host YAML repository if missing."""
+        existing = self.get_repository_config_state(repository_id)
+        if existing is not None:
+            return existing
+        stamp = _iso(_utc(now))
+        with self._txn():
+            self._connection.execute(
+                """
+                INSERT INTO repository_config_state (
+                    repository_id, overlay_json, active_candidate_revision,
+                    revision, updated_at
+                ) VALUES (?, '{}', NULL, 1, ?)
+                ON CONFLICT(repository_id) DO NOTHING
+                """,
+                (repository_id, stamp),
+            )
+        record = self.get_repository_config_state(repository_id)
+        if record is None:
+            raise StoreError(f"repository config state missing after insert: {repository_id}")
+        return record
+
+    def get_repository_config_state(self, repository_id: str) -> RepositoryConfigState | None:
+        row = self._connection.execute(
+            "SELECT * FROM repository_config_state WHERE repository_id = ?",
+            (repository_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return repository_state_from_row(row)
+
+    def list_repository_config_states(self) -> dict[str, RepositoryConfigState]:
+        rows = self._connection.execute("SELECT * FROM repository_config_state").fetchall()
+        states = [repository_state_from_row(row) for row in rows]
+        return {state.repository_id: state for state in states}
+
+    def next_config_candidate_revision(self, subject_kind: str, subject_id: str) -> int:
+        row = self._connection.execute(
+            """
+            SELECT COALESCE(MAX(revision), 0) FROM config_candidates
+            WHERE subject_kind = ? AND subject_id = ?
+            """,
+            (subject_kind, subject_id),
+        ).fetchone()
+        current = int(row[0]) if row is not None else 0
+        return current + 1
+
+    def insert_config_candidate(
+        self,
+        *,
+        subject_kind: str,
+        subject_id: str,
+        digest: str,
+        risk_class: str,
+        payload: Mapping[str, object],
+        field_errors: Sequence[Mapping[str, object]] = (),
+        redacted_diff: Sequence[Mapping[str, object]] = (),
+        created_by: str,
+        now: datetime | None = None,
+    ) -> ConfigCandidateRecord:
+        """Append an immutable candidate and commit. Never activates."""
+        if subject_kind not in {"repository", "project"}:
+            raise StoreError("subject_kind must be repository or project")
+        if risk_class not in {"display", "capability"}:
+            raise StoreError("risk_class must be display or capability")
+        if not subject_id or not digest or not created_by:
+            raise StoreError("subject_id, digest, and created_by must be non-empty")
+        stamp = _iso(_utc(now))
+        with self._txn():
+            revision = self.next_config_candidate_revision(subject_kind, subject_id)
+            self._connection.execute(
+                """
+                INSERT INTO config_candidates (
+                    subject_kind, subject_id, revision, digest, risk_class, status,
+                    payload_json, field_errors_json, redacted_diff_json,
+                    created_at, created_by
+                ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
+                """,
+                (
+                    subject_kind,
+                    subject_id,
+                    revision,
+                    digest,
+                    risk_class,
+                    _config_dump_json(dict(payload)),
+                    _config_dump_json(list(field_errors)),
+                    _config_dump_json(list(redacted_diff)),
+                    stamp,
+                    created_by,
+                ),
+            )
+        record = self.get_config_candidate(subject_kind, subject_id, revision)
+        if record is None:
+            raise StoreError("config candidate missing after insert")
+        return record
+
+    def get_config_candidate(
+        self,
+        subject_kind: str,
+        subject_id: str,
+        revision: int,
+    ) -> ConfigCandidateRecord | None:
+        row = self._connection.execute(
+            """
+            SELECT * FROM config_candidates
+            WHERE subject_kind = ? AND subject_id = ? AND revision = ?
+            """,
+            (subject_kind, subject_id, revision),
+        ).fetchone()
+        if row is None:
+            return None
+        return candidate_from_row(row)
+
+    def get_config_approval(
+        self,
+        subject_kind: str,
+        subject_id: str,
+        candidate_revision: int,
+    ) -> ConfigApprovalRecord | None:
+        row = self._connection.execute(
+            """
+            SELECT * FROM config_approvals
+            WHERE subject_kind = ? AND subject_id = ? AND candidate_revision = ?
+            """,
+            (subject_kind, subject_id, candidate_revision),
+        ).fetchone()
+        if row is None:
+            return None
+        return _config_approval_from_row(row)
+
+    def insert_config_approval(
+        self,
+        *,
+        approval_id: str,
+        subject_kind: str,
+        subject_id: str,
+        candidate_revision: int,
+        action_digest: str,
+        now: datetime | None = None,
+    ) -> ConfigApprovalRecord:
+        """Insert an open digest-scoped config approval. Duplicate id is ignored as existing."""
+        stamp = _iso(_utc(now))
+        try:
+            with self._txn():
+                self._connection.execute(
+                    """
+                    INSERT INTO config_approvals (
+                        id, subject_kind, subject_id, candidate_revision,
+                        action_class, action_digest, status, created_at,
+                        resolved_at, resolver
+                    ) VALUES (?, ?, ?, ?, 'config.activate', ?, 'open', ?, NULL, NULL)
+                    """,
+                    (
+                        approval_id,
+                        subject_kind,
+                        subject_id,
+                        candidate_revision,
+                        action_digest,
+                        stamp,
+                    ),
+                )
+        except sqlite3.IntegrityError:
+            existing = self.get_config_approval(subject_kind, subject_id, candidate_revision)
+            if existing is None:
+                raise DuplicateApprovalError(
+                    f"config approval already exists: {approval_id}"
+                ) from None
+            return existing
+        record = self.get_config_approval(subject_kind, subject_id, candidate_revision)
+        if record is None:
+            raise StoreError("config approval missing after insert")
+        return record
+
+    def resolve_config_approval(
+        self,
+        approval_id: str,
+        *,
+        status: str,
+        resolver: str,
+        now: datetime | None = None,
+    ) -> tuple[ConfigApprovalRecord, bool]:
+        """First-writer-wins status change. Later callers receive ``False``."""
+        if status not in {"approved", "rejected"}:
+            raise StoreError("config approval status must be approved or rejected")
+        if not resolver:
+            raise StoreError("resolver must be non-empty")
+        stamp = _iso(_utc(now))
+        with self._txn():
+            existing = self._connection.execute(
+                "SELECT * FROM config_approvals WHERE id = ?",
+                (approval_id,),
+            ).fetchone()
+            if existing is None:
+                raise ApprovalNotFoundError(f"unknown config approval: {approval_id}")
+            cursor = self._connection.execute(
+                """
+                UPDATE config_approvals
+                SET status = ?, resolved_at = ?, resolver = ?
+                WHERE id = ? AND status = 'open'
+                """,
+                (status, stamp, resolver, approval_id),
+            )
+            first = cursor.rowcount == 1
+        row = self._connection.execute(
+            "SELECT * FROM config_approvals WHERE id = ?",
+            (approval_id,),
+        ).fetchone()
+        if row is None:
+            raise ApprovalNotFoundError(f"unknown config approval: {approval_id}")
+        return _config_approval_from_row(row), first
+
+    def activate_config_candidate(
+        self,
+        *,
+        subject_kind: str,
+        subject_id: str,
+        revision: int,
+        overlay: Mapping[str, object],
+        expected_resource_revision: int,
+        now: datetime | None = None,
+    ) -> tuple[ConfigCandidateRecord, int]:
+        """Mark a pending candidate active and bump the subject resource revision.
+
+        Returns the candidate and the new resource revision. Raises
+        ``ConfigCandidateNotFoundError`` when the candidate is missing, and
+        ``StoreError`` when ``If-Match`` lost the race.
+        """
+        stamp = _iso(_utc(now))
+        patch = dict(overlay)
+        with self._txn():
+            candidate_row = self._connection.execute(
+                """
+                SELECT * FROM config_candidates
+                WHERE subject_kind = ? AND subject_id = ? AND revision = ?
+                """,
+                (subject_kind, subject_id, revision),
+            ).fetchone()
+            if candidate_row is None:
+                raise ConfigCandidateNotFoundError(
+                    f"unknown config candidate: {subject_kind}/{subject_id}@{revision}"
+                )
+            current = candidate_from_row(candidate_row)
+            if current.status == "activated":
+                return current, self._subject_revision_locked(subject_kind, subject_id)
+            marked = self._connection.execute(
+                """
+                UPDATE config_candidates SET status = 'activated'
+                WHERE subject_kind = ? AND subject_id = ? AND revision = ?
+                  AND status = 'pending'
+                """,
+                (subject_kind, subject_id, revision),
+            )
+            if marked.rowcount != 1:
+                raise StoreError("config candidate is not pending")
+            if subject_kind == "project":
+                self._apply_project_overlay_locked(
+                    subject_id,
+                    patch,
+                    candidate_revision=revision,
+                    expected_revision=expected_resource_revision,
+                    stamp=stamp,
+                )
+            else:
+                cursor = self._connection.execute(
+                    """
+                    UPDATE repository_config_state
+                    SET overlay_json = ?, active_candidate_revision = ?,
+                        revision = revision + 1, updated_at = ?
+                    WHERE repository_id = ? AND revision = ?
+                    """,
+                    (
+                        _config_dump_json(patch),
+                        revision,
+                        stamp,
+                        subject_id,
+                        expected_resource_revision,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise StoreError("resource revision mismatch")
+            resource_revision = self._subject_revision_locked(subject_kind, subject_id)
+        updated = self.get_config_candidate(subject_kind, subject_id, revision)
+        if updated is None:
+            raise ConfigCandidateNotFoundError(
+                f"unknown config candidate: {subject_kind}/{subject_id}@{revision}"
+            )
+        return updated, resource_revision
+
+    def _subject_revision_locked(self, subject_kind: str, subject_id: str) -> int:
+        if subject_kind == "project":
+            row = self._connection.execute(
+                "SELECT revision FROM projects WHERE id = ?",
+                (subject_id,),
+            ).fetchone()
+            if row is None:
+                raise ProjectNotFoundError(f"unknown project: {subject_id}")
+            return int(row[0])
+        row = self._connection.execute(
+            "SELECT revision FROM repository_config_state WHERE repository_id = ?",
+            (subject_id,),
+        ).fetchone()
+        if row is None:
+            raise StoreError(f"repository config state missing: {subject_id}")
+        return int(row[0])
+
+    def _apply_project_overlay_locked(
+        self,
+        project_id: str,
+        patch: Mapping[str, object],
+        *,
+        candidate_revision: int,
+        expected_revision: int,
+        stamp: str,
+    ) -> None:
+        row = self._connection.execute(
+            "SELECT * FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if row is None:
+            raise ProjectNotFoundError(f"unknown project: {project_id}")
+        current = project_from_row(row)
+        if current.revision != expected_revision:
+            raise StoreError("resource revision mismatch")
+        merged = dict(current.overlay)
+        merged.update(patch)
+        display_name = _overlay_str(patch, "display_name", current.display_name)
+        description = _overlay_str(patch, "description", current.description)
+        repository_ids = _overlay_str_list(patch, "repository_ids", current.repository_ids)
+        default_repository = _overlay_optional_str(
+            patch, "default_repository", current.default_repository
+        )
+        default_base_ref = _overlay_optional_str(
+            patch, "default_base_ref", current.default_base_ref
+        )
+        default_mode = _overlay_optional_str(patch, "default_mode", current.default_mode)
+        default_execution_profile = _overlay_optional_str(
+            patch, "default_execution_profile", current.default_execution_profile
+        )
+        labels = _overlay_str_list(patch, "labels", current.labels)
+        templates = _overlay_str_list(
+            patch, "acceptance_criteria_templates", current.acceptance_criteria_templates
+        )
+        cursor = self._connection.execute(
+            """
+            UPDATE projects
+            SET display_name = ?, description = ?, repository_ids_json = ?,
+                default_repository = ?, default_base_ref = ?, default_mode = ?,
+                default_execution_profile = ?, labels_json = ?, acceptance_json = ?,
+                overlay_json = ?, active_candidate_revision = ?,
+                revision = revision + 1, updated_at = ?
+            WHERE id = ? AND revision = ?
+            """,
+            (
+                display_name,
+                description,
+                _config_dump_json(repository_ids),
+                default_repository,
+                default_base_ref,
+                default_mode,
+                default_execution_profile,
+                _config_dump_json(labels),
+                _config_dump_json(templates),
+                _config_dump_json(merged),
+                candidate_revision,
+                stamp,
+                project_id,
+                expected_revision,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise StoreError("resource revision mismatch")
+
     def _require_task(self, task_id: str) -> None:
         row = self._connection.execute(
             "SELECT 1 FROM tasks WHERE id = ?",
@@ -1375,3 +1839,37 @@ def _approval_from_row(row: sqlite3.Row) -> ApprovalRecord:
             _parse_time(_as_str(resolved_raw, "resolved_at")) if resolved_raw is not None else None
         ),
     )
+
+
+def _overlay_str(patch: Mapping[str, object], key: str, current: str) -> str:
+    if key not in patch:
+        return current
+    raw = patch[key]
+    if not isinstance(raw, str):
+        raise StoreError(f"{key} must be a string")
+    return raw
+
+
+def _overlay_optional_str(patch: Mapping[str, object], key: str, current: str | None) -> str | None:
+    if key not in patch:
+        return current
+    raw = patch[key]
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise StoreError(f"{key} must be a string")
+    return raw
+
+
+def _overlay_str_list(patch: Mapping[str, object], key: str, current: list[str]) -> list[str]:
+    if key not in patch:
+        return current
+    raw = patch[key]
+    if not isinstance(raw, list):
+        raise StoreError(f"{key} must be a list of strings")
+    items: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            raise StoreError(f"{key} must be a list of strings")
+        items.append(item)
+    return items
