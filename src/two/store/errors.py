@@ -57,3 +57,11 @@ class QuestionNotFoundError(StoreError):
 
 class ApprovalNotFoundError(StoreError):
     """The referenced approval id is not in the store."""
+
+
+class IdempotencyConflictError(StoreError):
+    """The same Idempotency-Key was reused with a different request body."""
+
+
+class IdempotencyInFlightError(StoreError):
+    """The same Idempotency-Key is currently executing."""

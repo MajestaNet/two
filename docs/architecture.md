@@ -1048,6 +1048,7 @@ two/
 │   ├── local-16k.md
 │   ├── channels.md
 │   ├── client-api-design.md
+│   ├── client-threat-model.md
 │   ├── remote-access.md
 │   ├── architecture.md
 │   ├── operations.md
@@ -1218,6 +1219,8 @@ implemented and promoted.
 - [DeepSeek Harness Ralph workflow](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/workflow/tool-ralph/README.md)
 - [Majesta Two work graph (ADR 0014)](adrs/0014-persisted-work-graph.md)
 - [Majesta Two first-party client API (ADR 0015)](adrs/0015-first-party-client-api.md)
+- [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
+- [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)
 - [OAuth 2.0 Authorization Server Issuer Identification (RFC 9207)](https://www.rfc-editor.org/rfc/rfc9207)
 - [Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html)

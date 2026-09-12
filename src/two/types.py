@@ -142,13 +142,34 @@ class ErrorCode(StrEnum):
     TASK_NOT_FOUND = "task_not_found"
     NOT_FOUND = "not_found"
     UNAUTHORIZED = "unauthorized"
+    FORBIDDEN = "forbidden"
     VALIDATION_ERROR = "validation_error"
     CONFLICT_LIFECYCLE = "conflict_lifecycle"
     STALE_DIGEST = "stale_digest"
+    STALE_REVISION = "stale_revision"
+    IDEMPOTENCY_CONFLICT = "idempotency_conflict"
     DIGEST_REQUIRED = "digest_required"
     OPEN_INPUT = "open_input"
     NOT_RESUMABLE = "not_resumable"
     INTERNAL = "internal"
+
+
+class Scope(StrEnum):
+    """Server-derived authorization scopes (ADR 0015 / B14). Additive only."""
+
+    TASKS_READ = "tasks:read"
+    TASKS_MESSAGE = "tasks:message"
+    TASKS_CONTROL = "tasks:control"
+    APPROVALS_DECIDE = "approvals:decide"
+    SOURCE_READ = "source:read"
+    EVENTS_AUDIT = "events:audit"
+    CONFIG_READ = "config:read"
+    CONFIG_WRITE = "config:write"
+    SYSTEM_READ = "system:read"
+    ADMIN = "admin"
+
+
+OPERATOR_SCOPES: frozenset[Scope] = frozenset(Scope)
 
 
 class EventType(StrEnum):

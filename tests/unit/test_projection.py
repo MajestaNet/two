@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from two.manifest import TaskManifest
 from two.projection import (
     PROJECTION_SCHEMA_VERSION,
+    SystemCapabilities,
     TaskMessage,
     TaskProjection,
 )
@@ -64,6 +65,7 @@ def test_projection_defaults_are_additive_v1() -> None:
     assert view.plan is None
     assert view.todos == []
     assert view.graph is None
+    assert view.revision == 1
     assert view.diff_summary.placeholder is True
     assert view.diff_summary.paths == []
     assert view.validation_summary.passed is None
@@ -122,6 +124,22 @@ def test_event_type_catalog_covers_gateway_and_aliases() -> None:
     assert "plan" in EVENT_TYPE_ALIASES
     assert not is_known_event_type("invented.event")
     assert ErrorCode.DUPLICATE_TASK == "duplicate_task"
+    assert ErrorCode.FORBIDDEN == "forbidden"
+    assert ErrorCode.STALE_REVISION == "stale_revision"
+    assert ErrorCode.IDEMPOTENCY_CONFLICT == "idempotency_conflict"
+
+
+def test_capabilities_contract_defaults() -> None:
+    view = SystemCapabilities(
+        principal="local",
+        scopes=["tasks:read"],
+        auth={"method": "local_trust"},
+    )
+    dumped = view.model_dump(mode="json")
+    assert dumped["api_versions"] == ["v1"]
+    assert dumped["auth"]["oidc_available"] is False
+    assert dumped["features"]["graph"] is False
+    assert dumped["features"]["idempotency_keys"] is True
 
 
 def test_projection_module_does_not_import_fastapi() -> None:
