@@ -19,14 +19,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Collection, Mapping
+from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
 
 from two import __version__
@@ -42,6 +43,27 @@ from two.api.contract import (
     format_etag,
     resource_response,
 )
+from two.api.conversation import (
+    conversation_items,
+    is_safe_artifact_id,
+    looks_like_host_path,
+    parse_task_cursor,
+    redact_mapping,
+    sse_chunks_for_global,
+    sse_chunks_for_task,
+)
+from two.api.gui import (
+    list_artifact_metadata,
+    load_repository_views,
+    project_repository_summary,
+    project_system_health,
+    project_system_queue,
+    project_task_diff,
+    read_artifact_file,
+    relative_path_pattern,
+    resolve_repositories_dir,
+    utcnow,
+)
 from two.api.principal import (
     action_principal,
     authenticate_request,
@@ -50,8 +72,12 @@ from two.api.principal import (
     require_scope,
 )
 from two.api.schemas import (
+    DEFAULT_CONVERSATION_LIMIT,
     DEFAULT_EVENT_LIMIT,
+    DEFAULT_HEALTH_STALE_AFTER_MS,
     DEFAULT_LIST_LIMIT,
+    DEFAULT_STREAM_BACKLOG,
+    MAX_CONVERSATION_LIMIT,
     MAX_DIFF_PATHS,
     MAX_EVENT_LIMIT,
     MAX_LIST_LIMIT,
@@ -59,19 +85,28 @@ from two.api.schemas import (
     ApprovalDecideResponse,
     ApprovalRequest,
     ApprovalView,
+    ArtifactContent,
+    ArtifactListResponse,
     AuthCapabilities,
     ClientFeatures,
+    ConversationPage,
     DiffSummary,
     EventListResponse,
     EventView,
+    HealthObservation,
     HealthResponse,
+    ProjectListResponse,
     QuestionAnswerRequest,
     QuestionAnswerResponse,
     QuestionAskRequest,
     QuestionView,
+    RepositoryListResponse,
     SystemCapabilities,
+    SystemHealth,
+    SystemQueue,
     TaskBudgets,
     TaskControlRequest,
+    TaskDiffView,
     TaskListResponse,
     TaskMessage,
     TaskMessageReceipt,
@@ -134,6 +169,13 @@ def create_app(
     require_auth: bool = False,
     auth_token: str | None = None,
     operator_scopes: Collection[Scope | str] | None = None,
+    repositories_dir: Path | str | None = None,
+    data_dir: Path | str | None = None,
+    health_observations: Mapping[str, HealthObservation] | None = None,
+    stream_backlog_limit: int = DEFAULT_STREAM_BACKLOG,
+    stream_min_seq: int = 0,
+    health_stale_after_ms: int = DEFAULT_HEALTH_STALE_AFTER_MS,
+    clock: Callable[[], datetime] | None = None,
 ) -> FastAPI:
     """Build the control API. Does not bind a socket and does not call Ollama.
 
@@ -141,6 +183,7 @@ def create_app(
     ``{TWO_DATA_DIR}/two.sqlite`` and closes it on shutdown.
     ``operator_scopes`` is a test hook; production token/local-trust callers
     receive the full operator set. Request bodies cannot add scopes.
+    Health observations are injected; the API never probes Ollama or the Mac.
     """
     close_store = store is None
     opened = store if store is not None else open_store(store_path, check_same_thread=False)
@@ -162,6 +205,13 @@ def create_app(
     app.state.require_auth = require_auth
     app.state.auth_token = auth_token
     app.state.operator_scopes = scopes
+    app.state.repositories_dir = Path(repositories_dir) if repositories_dir is not None else None
+    app.state.data_dir = Path(data_dir) if data_dir is not None else None
+    app.state.health_observations = dict(health_observations or {})
+    app.state.stream_backlog_limit = stream_backlog_limit
+    app.state.stream_min_seq = stream_min_seq
+    app.state.health_stale_after_ms = health_stale_after_ms
+    app.state.clock = clock if clock is not None else utcnow
 
     @app.exception_handler(HTTPException)
     async def _http_error(request: Request, exc: HTTPException) -> JSONResponse:
@@ -190,6 +240,15 @@ def create_app(
     async def _contract_middleware(request: Request, call_next: Any) -> Response:
         cid = correlation_id_from(request)
         response = await call_next(request)
+        media = (response.media_type or "").split(";", 1)[0].strip().lower()
+        content_type = (
+            str(response.headers.get("content-type", "")).split(";", 1)[0].strip().lower()
+        )
+        if media == "text/event-stream" or content_type == "text/event-stream":
+            if not isinstance(response, Response):
+                raise TypeError("streaming response is not a Response")
+            response.headers[CORRELATION_HEADER] = cid
+            return response
         chunks = [chunk async for chunk in response.body_iterator]
         body = b"".join(chunks)
         headers = {str(key): str(value) for key, value in response.headers.items()}
@@ -225,10 +284,26 @@ def create_app(
 
     router = APIRouter(dependencies=[Depends(_authenticate)])
     router.add_api_route("/v1/system/capabilities", _get_capabilities, methods=["GET"])
+    router.add_api_route("/v1/system/health", _get_system_health, methods=["GET"])
+    router.add_api_route("/v1/system/queue", _get_system_queue, methods=["GET"])
     router.add_api_route("/v1/tasks", _create_task, methods=["POST"], status_code=201)
     router.add_api_route("/v1/tasks", _list_tasks, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}", _get_task, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}/events", _list_events, methods=["GET"])
+    router.add_api_route("/v1/tasks/{task_id}/conversation", _get_conversation, methods=["GET"])
+    router.add_api_route("/v1/tasks/{task_id}/stream", _stream_task, methods=["GET"])
+    router.add_api_route("/v1/stream", _stream_system, methods=["GET"])
+    router.add_api_route("/v1/tasks/{task_id}/diff", _get_diff, methods=["GET"])
+    router.add_api_route("/v1/tasks/{task_id}/artifacts", _list_artifacts, methods=["GET"])
+    router.add_api_route(
+        "/v1/tasks/{task_id}/artifacts/{artifact_id}",
+        _get_artifact,
+        methods=["GET"],
+    )
+    router.add_api_route("/v1/repositories", _list_repositories, methods=["GET"])
+    router.add_api_route("/v1/repositories/{repository_id}", _get_repository, methods=["GET"])
+    router.add_api_route("/v1/projects", _list_projects, methods=["GET"])
+    router.add_api_route("/v1/projects/{project_id}", _get_project, methods=["GET"])
     router.add_api_route(
         "/v1/tasks/{task_id}/messages",
         _post_message,
@@ -291,7 +366,15 @@ async def _get_capabilities(request: Request) -> SystemCapabilities:
             oidc_available=False,
             mobile_ready=False,
         ),
-        features=ClientFeatures(),
+        features=ClientFeatures(
+            conversation=True,
+            sse=True,
+            projects=True,
+            repositories=True,
+            aggregate_health=True,
+            queue=True,
+            graph=False,
+        ),
     )
 
 
@@ -343,7 +426,7 @@ async def _list_events(
     after_seq: int = Query(default=0, ge=0),
     limit: int = Query(default=DEFAULT_EVENT_LIMIT, ge=1, le=MAX_EVENT_LIMIT),
 ) -> EventListResponse:
-    require_scope(request, Scope.EVENTS_AUDIT)
+    principal = require_scope(request, Scope.EVENTS_AUDIT)
     box = _box(request)
     async with box.lock:
         _require_task(box.store, task_id)
@@ -351,7 +434,11 @@ async def _list_events(
             EventView(
                 seq=event.seq,
                 type=event.type,
-                payload=dict(event.payload),
+                payload=(
+                    dict(event.payload)
+                    if principal.method == "local_trust"
+                    else redact_mapping(event.payload)
+                ),
                 created_at=event.created_at,
             )
             for event in box.store.list_events(task_id)
@@ -637,6 +724,228 @@ async def _get_report(request: Request, task_id: str) -> TaskReport:
         validation_summary=projection.validation_summary,
         assembled=True,
         notes=format_final_report(assembled),
+    )
+
+
+async def _get_system_health(request: Request) -> SystemHealth:
+    require_scope(request, Scope.SYSTEM_READ)
+    box = _box(request)
+    clock = request.app.state.clock
+    now = clock() if callable(clock) else utcnow()
+    try:
+        async with box.lock:
+            box.store.schema_version()
+        store_ok = True
+    except Exception:
+        store_ok = False
+    return project_system_health(
+        now=now,
+        store_ok=store_ok,
+        observations=request.app.state.health_observations,
+        stale_after_ms=int(request.app.state.health_stale_after_ms),
+    )
+
+
+async def _get_system_queue(request: Request) -> SystemQueue:
+    require_scope(request, Scope.SYSTEM_READ)
+    box = _box(request)
+    clock = request.app.state.clock
+    now = clock() if callable(clock) else utcnow()
+    async with box.lock:
+        tasks = box.store.list_tasks()
+        leases = {}
+        for record in tasks:
+            lease = box.store.get_lease(record.id)
+            if lease is not None:
+                leases[record.id] = lease
+    return project_system_queue(tasks, leases, now=now)
+
+
+async def _get_conversation(
+    request: Request,
+    task_id: str,
+    after: str | None = Query(default=None),
+    limit: int = Query(default=DEFAULT_CONVERSATION_LIMIT, ge=1, le=MAX_CONVERSATION_LIMIT),
+) -> ConversationPage:
+    require_scope(request, Scope.TASKS_READ)
+    box = _box(request)
+    after_seq = 0
+    if after is not None and after.strip() != "":
+        parsed = parse_task_cursor(after)
+        if parsed is None:
+            raise HTTPException(status_code=400, detail="invalid conversation cursor")
+        after_seq = parsed
+    async with box.lock:
+        record = _require_task(box.store, task_id)
+        items = conversation_items(
+            task_id,
+            box.store.list_events(task_id),
+            revision=record.revision,
+        )
+    page = [item for item in items if item.seq > after_seq][:limit]
+    next_cursor = page[-1].cursor if len(page) == limit else None
+    return ConversationPage(task_id=task_id, items=page, next_cursor=next_cursor, limit=limit)
+
+
+async def _stream_task(request: Request, task_id: str) -> StreamingResponse:
+    require_scope(request, Scope.TASKS_READ)
+    box = _box(request)
+    last_event_id = _stream_cursor(request)
+    async with box.lock:
+        record = _require_task(box.store, task_id)
+        items = conversation_items(
+            task_id,
+            box.store.list_events(task_id),
+            revision=record.revision,
+        )
+    chunks = sse_chunks_for_task(
+        items,
+        last_event_id=last_event_id,
+        min_seq=int(request.app.state.stream_min_seq),
+        backlog_limit=int(request.app.state.stream_backlog_limit),
+    )
+    return _sse_response(chunks)
+
+
+async def _stream_system(request: Request) -> StreamingResponse:
+    require_scope(request, Scope.TASKS_READ)
+    box = _box(request)
+    last_event_id = _stream_cursor(request)
+    async with box.lock:
+        items = []
+        for record in box.store.list_tasks():
+            items.extend(
+                conversation_items(
+                    record.id,
+                    box.store.list_events(record.id),
+                    revision=record.revision,
+                    global_stream=True,
+                )
+            )
+    chunks = sse_chunks_for_global(
+        items,
+        last_event_id=last_event_id,
+        min_seq=int(request.app.state.stream_min_seq),
+        backlog_limit=int(request.app.state.stream_backlog_limit),
+    )
+    return _sse_response(chunks)
+
+
+async def _get_diff(
+    request: Request,
+    task_id: str,
+    path: str | None = Query(default=None),
+) -> TaskDiffView:
+    principal = require_scope(request, Scope.TASKS_READ)
+    source_read = Scope.SOURCE_READ.value in principal.scopes
+    path_filter: str | None = None
+    if path is not None:
+        if looks_like_host_path(path):
+            raise HTTPException(status_code=400, detail="host filesystem paths are not accepted")
+        path_filter = relative_path_pattern(path)
+        if path_filter is None:
+            raise HTTPException(status_code=400, detail="host filesystem paths are not accepted")
+    box = _box(request)
+    async with box.lock:
+        _require_task(box.store, task_id)
+        events = box.store.list_events(task_id)
+    return project_task_diff(task_id, events, source_read=source_read, path_filter=path_filter)
+
+
+async def _list_artifacts(request: Request, task_id: str) -> ArtifactListResponse:
+    require_scope(request, Scope.TASKS_READ)
+    if request.query_params.get("path") is not None:
+        raise HTTPException(status_code=400, detail="artifacts are addressed by server ids")
+    box = _box(request)
+    async with box.lock:
+        _require_task(box.store, task_id)
+    artifacts = list_artifact_metadata(task_id, request.app.state.data_dir)
+    return ArtifactListResponse(task_id=task_id, artifacts=artifacts)
+
+
+async def _get_artifact(request: Request, task_id: str, artifact_id: str) -> ArtifactContent:
+    principal = require_scope(request, Scope.TASKS_READ)
+    if request.query_params.get("path") is not None:
+        raise HTTPException(status_code=400, detail="artifacts are addressed by server ids")
+    if looks_like_host_path(artifact_id) or not is_safe_artifact_id(artifact_id):
+        raise HTTPException(status_code=400, detail="artifacts are addressed by server ids")
+    box = _box(request)
+    async with box.lock:
+        _require_task(box.store, task_id)
+    loaded = read_artifact_file(task_id, artifact_id, request.app.state.data_dir)
+    if loaded is None:
+        raise HTTPException(status_code=404, detail=f"unknown artifact: {artifact_id}")
+    metadata, content, truncated = loaded
+    source_read = Scope.SOURCE_READ.value in principal.scopes
+    return ArtifactContent(
+        task_id=task_id,
+        artifact=metadata,
+        content=content if source_read else None,
+        truncated=truncated if source_read else False,
+        source_included=source_read,
+    )
+
+
+async def _list_repositories(
+    request: Request,
+    limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
+) -> RepositoryListResponse:
+    require_scope(request, Scope.CONFIG_READ)
+    directory = resolve_repositories_dir(request.app.state.repositories_dir)
+    views = load_repository_views(directory)
+    summaries = [project_repository_summary(view) for view in views.values()][:limit]
+    return RepositoryListResponse(repositories=summaries, limit=limit)
+
+
+async def _get_repository(request: Request, repository_id: str) -> JSONResponse:
+    require_scope(request, Scope.CONFIG_READ)
+    directory = resolve_repositories_dir(request.app.state.repositories_dir)
+    views = load_repository_views(directory)
+    view = views.get(repository_id)
+    if view is None:
+        raise HTTPException(status_code=404, detail=f"unknown repository: {repository_id}")
+    return JSONResponse(content=view.model_dump(mode="json"))
+
+
+async def _list_projects(
+    request: Request,
+    limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
+) -> ProjectListResponse:
+    require_scope(request, Scope.CONFIG_READ)
+    return ProjectListResponse(projects=[], limit=limit)
+
+
+async def _get_project(request: Request, project_id: str) -> JSONResponse:
+    require_scope(request, Scope.CONFIG_READ)
+    raise HTTPException(
+        status_code=404,
+        detail=f"unknown project: {project_id}",
+    )
+
+
+def _stream_cursor(request: Request) -> str | None:
+    header = request.headers.get("last-event-id") or request.headers.get("Last-Event-ID")
+    if header is not None and header.strip() != "":
+        return header.strip()
+    offered = request.query_params.get("cursor") or request.query_params.get("after")
+    if offered is not None and offered.strip() != "":
+        return offered.strip()
+    return None
+
+
+def _sse_response(chunks: list[str]) -> StreamingResponse:
+    async def generate() -> AsyncIterator[str]:
+        for chunk in chunks:
+            yield chunk
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

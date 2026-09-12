@@ -50,6 +50,33 @@ MAX_LIST_LIMIT = 100
 DEFAULT_EVENT_LIMIT = 100
 MAX_EVENT_LIMIT = 500
 MAX_DIFF_PATHS = 50
+DEFAULT_CONVERSATION_LIMIT = 50
+MAX_CONVERSATION_LIMIT = 100
+MAX_CONVERSATION_SUMMARY_CHARS = 1000
+MAX_PATCH_CHARS = 8000
+DEFAULT_STREAM_BACKLOG = 64
+DEFAULT_HEALTH_STALE_AFTER_MS = 60_000
+HEALTH_COMPONENT_NAMES: tuple[str, ...] = (
+    "api",
+    "store",
+    "scheduler",
+    "worker",
+    "harness",
+    "inference",
+    "disk",
+)
+ConversationKind = Literal[
+    "user_message",
+    "agent_summary",
+    "stage_change",
+    "graph_change",
+    "question",
+    "approval",
+    "validation_summary",
+    "completion_report",
+    "system_notice",
+]
+HealthStatus = Literal["healthy", "degraded", "unavailable", "unknown"]
 
 
 class TaskBudgets(BaseModel):
@@ -440,3 +467,225 @@ class SystemCapabilities(BaseModel):
     scopes: list[str]
     auth: AuthCapabilities
     features: ClientFeatures = Field(default_factory=ClientFeatures)
+
+
+class ConversationItem(BaseModel):
+    """One client-safe conversation row. Never a raw Harness trajectory."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cursor: str
+    seq: int
+    kind: ConversationKind
+    created_at: datetime
+    summary: str
+    task_id: str
+    revision: int | None = None
+    resource_id: str | None = None
+    stage: str | None = None
+    status: str | None = None
+
+
+class ConversationPage(BaseModel):
+    """``GET /v1/tasks/{id}/conversation``. Durable cursor pagination."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    task_id: str
+    items: list[ConversationItem]
+    next_cursor: str | None = None
+    limit: int
+
+
+class StreamChange(BaseModel):
+    """One SSE payload. Clients refetch snapshots; this is not token streaming."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cursor: str
+    task_id: str | None = None
+    kind: str
+    revision: int | None = None
+    summary: str
+    created_at: datetime | None = None
+
+
+class HealthObservation(BaseModel):
+    """Injected observed component state. Missing observations stay ``unknown``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: HealthStatus
+    observed_at: datetime
+    detail: str | None = None
+
+
+class ComponentHealth(BaseModel):
+    """One aggregate-health component. Stale observations are never ``healthy``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    status: HealthStatus
+    observed_at: datetime | None = None
+    observation_age_ms: int | None = None
+    stale: bool = False
+    detail: str | None = None
+
+
+class SystemHealth(BaseModel):
+    """``GET /v1/system/health``. Authenticated aggregate health, not ``/health``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    status: HealthStatus
+    observed_at: datetime
+    stale: bool = False
+    components: list[ComponentHealth]
+
+
+class QueueSlotView(BaseModel):
+    """One redacted queue row. No objective, worktree, or host path."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str
+    lifecycle: LifecycleState
+    stage: WorkflowStage
+    retry_count: int = 0
+    next_attempt_at: datetime | None = None
+    lease_age_ms: int | None = None
+    lease_fresh: bool | None = None
+
+
+class SystemQueue(BaseModel):
+    """``GET /v1/system/queue``. Slot occupancy without source-bearing fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    depth: int
+    active_task_id: str | None = None
+    items: list[QueueSlotView]
+    observed_at: datetime
+
+
+class RepositoryNetworkView(BaseModel):
+    """Redacted network flags. No remotes, credentials, or bind addresses."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    allow_package_downloads: bool
+    allow_external_mutations: bool
+
+
+class RepositorySummary(BaseModel):
+    """``GET /v1/repositories`` row. Commands and host paths are omitted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    display_name: str
+    language: str
+    validation_profile: str
+    readiness: Literal["configured", "unknown"] = "configured"
+    secret_scan: bool = False
+    gate_names: list[str] = Field(default_factory=list)
+    config_digest: str | None = None
+
+
+class RepositoryView(BaseModel):
+    """``GET /v1/repositories/{id}``. Repo-relative patterns only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    display_name: str
+    language: str
+    validation_profile: str
+    secret_scan: bool = False
+    network: RepositoryNetworkView
+    gate_names: list[str] = Field(default_factory=list)
+    allowed_path_patterns: list[str] = Field(default_factory=list)
+    forbidden_path_patterns: list[str] = Field(default_factory=list)
+    config_digest: str
+    readiness: Literal["configured", "unknown"] = "configured"
+
+
+class RepositoryListResponse(BaseModel):
+    """``GET /v1/repositories``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    repositories: list[RepositorySummary]
+    limit: int
+
+
+class ProjectSummary(BaseModel):
+    """One project row. Persistence is Slice 3; Slice 2 may return none."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    display_name: str
+    repository_ids: list[str] = Field(default_factory=list)
+    active_task_count: int = 0
+    revision: int = 1
+
+
+class ProjectListResponse(BaseModel):
+    """``GET /v1/projects``. Empty until Slice 3 persists projects."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    projects: list[ProjectSummary]
+    limit: int
+
+
+class TaskDiffView(BaseModel):
+    """Bounded diff projection. Paths and patch require ``source:read``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str
+    summary: DiffSummary
+    patch: str | None = None
+    source_included: bool = False
+
+
+class ArtifactMetadata(BaseModel):
+    """Safe artifact descriptor addressed by a server id, never a host path."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    kind: str
+    filename: str
+    size_bytes: int
+
+
+class ArtifactListResponse(BaseModel):
+    """``GET /v1/tasks/{id}/artifacts``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    task_id: str
+    artifacts: list[ArtifactMetadata]
+
+
+class ArtifactContent(BaseModel):
+    """``GET /v1/tasks/{id}/artifacts/{artifact_id}``. Content is optional."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    task_id: str
+    artifact: ArtifactMetadata
+    content: str | None = None
+    truncated: bool = False
+    source_included: bool = False
