@@ -302,7 +302,7 @@ def test_schema_migrates_from_v1_through_current(tmp_path: Path) -> None:
 
     with open_store(path) as opened:
         assert opened.schema_version() == SCHEMA_VERSION
-        assert SCHEMA_VERSION == 3
+        assert SCHEMA_VERSION == 4
         loaded = opened.get_task("task-123")
         assert loaded is not None
         assert loaded.worktree_path == "/tmp/wt"
@@ -310,6 +310,7 @@ def test_schema_migrates_from_v1_through_current(tmp_path: Path) -> None:
         assert loaded.retry_count == 0
         assert loaded.active_elapsed_ms == 0
         assert loaded.dsh_session_id is None
+        assert loaded.revision == 1
         updated = opened.update_task(
             "task-123",
             next_attempt_at=T0 + timedelta(seconds=4),
@@ -322,6 +323,8 @@ def test_schema_migrates_from_v1_through_current(tmp_path: Path) -> None:
         assert updated.retry_count == 1
         assert updated.next_attempt_at == T0 + timedelta(seconds=4)
         assert updated.dsh_session_id == "sess-1"
+        assert updated.revision >= 2
+        assert opened.get_idempotency("local", "missing") is None
 
 
 def test_obtain_lease_refuses_unexpired(store: Store) -> None:
@@ -541,3 +544,64 @@ def test_complete_action_rejects_recorded(store: Store) -> None:
     store.record_action("act-1", "task-123", {"tool": "x"}, now=T0)
     with pytest.raises(StoreError):
         store.complete_action("act-1", status=ActionStatus.RECORDED)
+
+
+def test_revision_bumps_on_update_and_event(store: Store) -> None:
+    created = store.insert_task(_manifest(), now=T0)
+    assert created.revision == 1
+    store.append_event("task-123", "task.created", {"ok": True}, now=T0)
+    after_event = store.get_task("task-123")
+    assert after_event is not None
+    assert after_event.revision == 2
+    updated = store.update_task("task-123", lifecycle=LifecycleState.PAUSED, now=T0)
+    assert updated.revision == 3
+
+
+def test_idempotency_reserve_replay_and_conflict(store: Store) -> None:
+    from two.store import IdempotencyConflictError, IdempotencyInFlightError
+
+    first = store.begin_idempotency(
+        "token:operator",
+        "key-1",
+        method="POST",
+        path="/v1/tasks/task-123/pause",
+        request_hash="abc",
+        now=T0,
+    )
+    assert first is None
+    with pytest.raises(IdempotencyInFlightError):
+        store.begin_idempotency(
+            "token:operator",
+            "key-1",
+            method="POST",
+            path="/v1/tasks/task-123/pause",
+            request_hash="abc",
+            now=T0,
+        )
+    store.complete_idempotency(
+        "token:operator",
+        "key-1",
+        status_code=200,
+        response_body='{"ok":true}',
+        response_headers={"ETag": '"3"'},
+    )
+    replay = store.begin_idempotency(
+        "token:operator",
+        "key-1",
+        method="POST",
+        path="/v1/tasks/task-123/pause",
+        request_hash="abc",
+        now=T0,
+    )
+    assert replay is not None
+    assert replay.status_code == 200
+    assert replay.response_headers["ETag"] == '"3"'
+    with pytest.raises(IdempotencyConflictError):
+        store.begin_idempotency(
+            "token:operator",
+            "key-1",
+            method="POST",
+            path="/v1/tasks/task-123/pause",
+            request_hash="different",
+            now=T0,
+        )

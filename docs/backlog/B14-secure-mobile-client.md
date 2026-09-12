@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B14 |
 | Phase | 6 — First-party conversational control |
-| Status | planned |
+| Status | in_progress |
 | Depends on | B07, B11 (B19 only for a populated graph view) |
 | Blocks | Architecture §21 items 14–17 |
 | Architecture | §6.3.H, §8.3–8.5, §12.6, §15, ADR 0015 |
@@ -30,21 +30,27 @@ do not attempt the entire item in one PR.
   walks the graph. Do **not** stop B14 because B19 is still planned. Slices 1–3
   and conversation/health/config work against the existing projection; the
   Development-loop view shows an empty/linear graph until B19 fills it.
-- Remote API bind supports a shared bearer token. That token is not suitable
-  for embedding in a mobile app. It is coarse authentication only: current
-  network callers can supply `principal`/`actor` labels, and `/events` has no
-  separate audit scope. Treat it as one trusted operator credential until
-  Slice 1 lands.
+  Slice 1 leaves `graph` null.
+- **Slice 1 landed:** threat model (`docs/client-threat-model.md`),
+  `GET /v1/system/capabilities`, server-derived principals/scopes, correlation
+  and `field_errors`, `Idempotency-Key`, task `revision`/`ETag`/`If-Match`.
+  Network bodies cannot elevate authority. OIDC/JWT libraries are selected in
+  ADR 0016 and are not added yet.
+- Shared `TWO_API_TOKEN` remains a coarse trusted-operator credential. It is
+  not a mobile embedding. Remote callers map to `token:operator` with operator
+  scopes. Unix/loopback CLI labels remain for audit compatibility.
 - Repository profiles exist as host configuration, but there are no
   repository/project API resources or project store.
-- There is no client-safe conversation feed, SSE change stream, aggregate
-  system health projection, OIDC identity, or scoped authorization.
+- There is no client-safe conversation feed, SSE change stream, or aggregate
+  system health projection.
 - Slack stubs may remain for compatibility, but Slack implementation is not
   part of B14.
 
 ## Required delivery slices
 
 ### Slice 1 — Threat model and contract foundations
+
+Status: **implemented** (this item remains `in_progress` until later slices).
 
 - Write the implementation threat model for a phone on an untrusted network,
   lost/revoked devices, token theft, malicious repository content, stale
@@ -125,17 +131,17 @@ do not attempt the entire item in one PR.
 
 ## Acceptance criteria
 
-- [ ] API/CLI continue to work without a mobile client or OIDC issuer.
+- [x] Slice 1: API/CLI continue to work without a mobile client or OIDC issuer.
+- [x] Slice 1: principal and scopes are server-derived; request bodies cannot
+      elevate authority; unauthenticated remote `/v1` is `401`.
 - [ ] Mobile access is HTTPS over a private overlay and fails closed without
       trusted authentication.
-- [ ] Principal and scopes are server-derived; unauthorized identities cannot
-      read source or control tasks.
 - [ ] Snapshots plus SSE reconstruct conversation, graph, validation, and
       health after disconnect without token streaming.
 - [ ] Repository/project edits are typed, revisioned, validated, auditable,
       and digest-scoped where approval is required.
-- [ ] Duplicate mutation retries do not double-apply; stale ETags and stale
-      approval digests fail.
+- [x] Slice 1: duplicate mutation retries do not double-apply; stale ETags
+      fail (`412`). Stale approval digests remain `409` (B11).
 - [ ] Push, lock-screen UI, caches, and client logs do not disclose source,
       objectives, approval details, secrets, or raw host paths.
 - [ ] The app contains no shared API token, client secret, model endpoint,
