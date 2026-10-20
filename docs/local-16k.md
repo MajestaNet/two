@@ -92,7 +92,9 @@ The scheduler owns **one** local-model slot. Overnight means a sequence
 of bounded tasks, not parallel Qwen workers.
 
 Copy [config/examples/task.example.yaml](../config/examples/task.example.yaml)
-to a private path. Do not commit a real checkout path or hostname.
+to a private path. For this installation set `repository` to this checkout
+and `validation_profile` to `two`. Do not commit a real checkout path or
+hostname.
 
 ## Overnight starter workflows
 
