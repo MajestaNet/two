@@ -13,10 +13,11 @@ version of itself from a worktree and adopts that version only at a process
 restart. Do not add a product that develops unrelated repositories. Do not
 let the agent loop write the executing tree.
 
-A Mac mini serves the model. This scaffold and DeepSeek Harness run together
-on any Mac (ADR 0018). Later device chat uses that model only through the
-controller, one inference at a time. Do not give an adapter its own Ollama
-client or a second loaded model.
+The Mac mini is the always-on host for Ollama, this scaffold, and DeepSeek
+Harness (ADR 0019). The installer selects the model profile. Later device
+and chat requests resume a persisted harness profile and do not receive the
+self-build tools. Do not give an adapter its own Ollama client, a second
+loaded model, or a second agent loop.
 
 If an implementation would disagree with the spec, stop and add an ADR under
 `docs/adrs/` instead of rewriting `docs/architecture.md` to match the code.

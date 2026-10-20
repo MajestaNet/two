@@ -34,9 +34,11 @@ Prefer another focused model turn over stuffing more source into one
 prompt. Time is cheap on the `overnight` profile (480 minutes, 30 model
 turns, 6 repair cycles). RAM is not.
 
-Stay on `topology: split`. Do not colocate Majesta Two, DeepSeek Harness,
-and Ollama on a 24 GB Mini (model plus builds will swap). See
-[ADR 0006](adrs/0006-logical-split-physical-colocation.md).
+The Mac mini is the always-on host, so the control plane runs there
+([ADR 0019](adrs/0019-mini-resident-control-plane.md)). 16K remains the
+reference profile because an 18 GB model plus the harness is tight. If
+the mini swaps, select a smaller profile. Do not move the control plane
+onto a machine that sleeps.
 
 `m24-qwen38-32k` is the same host with a larger window. Soak it before
 unattended use; it is not a quality upgrade you can assume.

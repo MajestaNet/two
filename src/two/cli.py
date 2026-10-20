@@ -47,12 +47,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers.add_parser(
         "topology",
-        help="List deployment topologies (split default; colocated optional)",
+        help="List deployment topologies (colocated default; split optional)",
     )
     setup_cmd = subparsers.add_parser(
         "setup",
         help=(
-            "Print or apply the default two-Mac LAN setup (ADR 0013). "
+            "Print or apply the Mac mini setup (ADR 0019). "
             "Apply writes env and data dirs; it does not start processes"
         ),
     )
@@ -96,7 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup_cmd.add_argument(
         "--topology",
         default=None,
-        help="split (default) or colocated",
+        help="colocated (default, Mac mini) or split",
     )
     doctor_cmd = subparsers.add_parser(
         "doctor",
@@ -211,6 +211,7 @@ def _run_setup(args: argparse.Namespace) -> int:
 
     from two.operator.hostenv import PublicOllamaUrlError, canonical_ollama_url
     from two.setup import (
+        DEFAULT_TOPOLOGY,
         PublicOllamaHostError,
         current_lan_plan,
         format_plan,
@@ -238,7 +239,7 @@ def _run_setup(args: argparse.Namespace) -> int:
                 url,
                 data_dir=Path(args.data_dir) if args.data_dir else None,
                 workspace_root=Path(args.workspace_root) if args.workspace_root else None,
-                topology=args.topology or "split",
+                topology=args.topology or DEFAULT_TOPOLOGY,
             )
         except (PublicOllamaHostError, PublicOllamaUrlError, ValueError) as exc:
             print(f"two setup: {exc}", file=sys.stderr)

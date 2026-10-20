@@ -7,7 +7,7 @@ Python package for the Majesta Two control plane.
   FastAPI). CLI and `channels.*` import it.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
-- `setup.py` is the default two-Mac LAN plan (ADR 0013). No I/O, no
+- `setup.py` is the Mac mini plan (ADR 0019). `two setup --current` prints the optional split list (ADR 0013). No I/O, no
   network, no store. `two setup --plan` prints it. Apply I/O lives in
   `operator/`. CLI lazy-imports `two.operator` (not `two.runtime`).
 - `runtime/` parses `models.lock`, emits the Ollama env contract, renders

@@ -58,10 +58,11 @@ def apply_lan_setup(
 ) -> SetupApplyResult:
     """Create mode-0700 dirs and write ``env`` at mode 0600. Idempotent."""
 
+    checked = canonical_ollama_url(ollama_url)
     if topology == DeploymentTopologyId.COLOCATED:
         url = "http://127.0.0.1:11434/v1"
     else:
-        url = canonical_ollama_url(ollama_url)
+        url = checked
     resolved_data = data_dir if data_dir is not None else default_data_dir(home=home, system=system)
     resolved_work = (
         workspace_root if workspace_root is not None else default_workspace_root(resolved_data)

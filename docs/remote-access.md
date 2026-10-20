@@ -59,8 +59,8 @@ A naked `docker -p 8741:8741` on a public IP is forbidden.
 
 | Option | Use when | Do not use when |
 | --- | --- | --- |
-| Native `uv` on a laptop | Interactive development, contributing; default first-run is a Mac laptop on the same LAN as the inference Mac ([ADR 0013](adrs/0013-streamline-default-lan-setup.md)) | You need overnight isolation |
-| Compose on a Linux host | Always-on control plane | Running Ollama on the Mac |
+| Native `uv` on the Mac mini | Default always-on install: Ollama plus the control plane ([ADR 0019](adrs/0019-mini-resident-control-plane.md)) | You want the control plane on a different kernel |
+| Compose on a Linux host | Optional `split` control plane that stays powered on | Running Ollama in the container |
 | Full Linux VM | You want a separate kernel from the laptop | You only needed a public URL |
 
 Compose packages the backend. It does not require a mobile or messenger

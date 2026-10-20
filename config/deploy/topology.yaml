@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Physical placement. The logical split (Ollama vs Majesta Two/DSH) never collapses.
-# See docs/adrs/0006-logical-split-physical-colocation.md.
+# See docs/adrs/0006-logical-split-physical-colocation.md and
+# docs/adrs/0019-mini-resident-control-plane.md.
 
-default: split
+default: colocated
 
 topologies:
   split:
@@ -12,16 +13,16 @@ topologies:
     ollama_bind: private-lan-or-overlay
     harness_host: development-host
     notes: >-
-      Default. A Mac mini serves Qwen (ADR 0018). Majesta Two and DeepSeek
-      Harness run together on any other Mac on the same private LAN.
-      Interactive first-run remains the ADR 0013 laptop plan. Linux Compose
-      remains the unattended packaging (ADR 0005). Use this on a 24 GB Mini.
+      Optional. Use when a second machine stays powered on. The Mac mini
+      serves Qwen. Majesta Two and DeepSeek Harness run on that other
+      host. Linux Compose is this packaging (ADR 0005).
 
   colocated:
-    recommended_min_unified_memory_gb: 48
+    recommended_min_unified_memory_gb: 24
     ollama_bind: "127.0.0.1"
     harness_host: same-as-ollama
     notes: >-
-      Optional. One larger Mac runs native Ollama plus Majesta Two/DSH as
-      separate processes. Bind Ollama to loopback only. Disable sleep.
-      Not recommended on 24 GB: the model plus builds will swap.
+      Default (ADR 0019). The Mac mini is the always-on host. Native
+      Ollama, Majesta Two, and DeepSeek Harness are separate processes.
+      Bind Ollama to loopback. Disable sleep. The installer selects the
+      inference profile that fits beside the control plane.

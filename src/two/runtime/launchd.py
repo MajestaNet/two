@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Render config/mac/ollama.launchd.plist.template",
     )
     parser.add_argument("--profile", default=DEFAULT_PROFILE_ID)
-    parser.add_argument("--topology", default=DeploymentTopologyId.SPLIT.value)
+    parser.add_argument("--topology", default=DeploymentTopologyId.COLOCATED.value)
     parser.add_argument("--bind", default=None)
     parser.add_argument("--template", default=None)
     parser.add_argument("--output", default=None)

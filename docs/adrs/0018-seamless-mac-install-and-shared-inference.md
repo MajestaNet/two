@@ -2,8 +2,14 @@
 
 ## Status
 
-Accepted (install roles and inference sharing). No installer, scheduler,
-or voice adapter is implemented by this ADR.
+Accepted, and amended by
+[ADR 0019](0019-mini-resident-control-plane.md). The Mac mini is the
+always-on host for the model, the control plane, and DeepSeek Harness.
+Installer-selected model quality replaces the "any other Mac" scaffold
+placement. No voice adapter is implemented by either ADR.
+
+Decision 2 below is superseded by ADR 0019. The scaffold and DeepSeek
+Harness run on the Mac mini by default, not on a second Mac.
 
 ## Context
 

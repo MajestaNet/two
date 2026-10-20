@@ -8,11 +8,11 @@ plan printer: `two setup --plan`. Later slices may apply files, supervise
 processes, and check health. This ADR does **not** rewrite
 [architecture.md](../architecture.md); it amends the interactive operator
 path in front of the existing logical split.
-[ADR 0018](0018-seamless-mac-install-and-shared-inference.md) generalizes
-the development Mac from "laptop" to any Mac that runs the scaffold and
-DeepSeek Harness together, and it reserves the served model for later
-local chat clients. The printed plan from this ADR stays in force until
-that slice changes it.
+[ADR 0018](0018-seamless-mac-install-and-shared-inference.md) reserved the
+served model for later local clients.
+[ADR 0019](0019-mini-resident-control-plane.md) moves the printed default
+onto the Mac mini (`colocated`). This ADR's two-Mac command list remains
+`two setup --current` and the optional `split` topology.
 
 ## Context
 

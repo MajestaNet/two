@@ -41,11 +41,13 @@ the self-building installation
 [architecture.md](architecture.md) §5.2). They are not messengers, not a
 second agent, and not implemented. They default off, stay on the private
 network, and cannot reach shell, git, or secrets. They do not open Ollama.
-A later wearable voice adapter may submit text turns through the control
-API so the same served Qwen answers them as chat
-([ADR 0018](adrs/0018-seamless-mac-install-and-shared-inference.md),
-architecture §5.3). Those turns have no worktree. The first concrete
-device protocol, including speech, needs its own ADR.
+A later wearable adapter submits text turns through the control API.
+The controller resumes a persisted DeepSeek Harness profile
+([ADR 0019](adrs/0019-mini-resident-control-plane.md),
+architecture §5.4): `chat` has no tools, and `home-action` may request a
+typed device tool such as a temperature change. Neither profile is
+`self-build`. The adapter does not open Ollama. The first device
+protocol, including speech, needs its own ADR.
 
 ## Adapters (optional, deferred)
 

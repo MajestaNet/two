@@ -56,7 +56,7 @@ def test_render_matches_architectural_template_keys() -> None:
     assert provider["displayName"] == "Mac mini Qwen 3.8"
     assert provider["apiKeyEnv"] == "MAC_QWEN_API_KEY"
     assert provider["api"] == "openai-completions"
-    assert provider["baseURL"] == PLACEHOLDER_BASE_URL
+    assert provider["baseURL"] == COLOCATED_BASE_URL
     compat = provider["compat"]
     assert isinstance(compat, dict)
     assert compat["supportsDeveloperRole"] is False

@@ -17,10 +17,14 @@ from two.topology import load_catalog
 from two.types import DeploymentTopologyId
 
 
-def test_default_topology_is_split() -> None:
+def test_default_topology_is_colocated() -> None:
     catalog = load_catalog()
-    assert catalog.default == DeploymentTopologyId.SPLIT
-    split = catalog.default_topology()
+    assert catalog.default == DeploymentTopologyId.COLOCATED
+    colocated = catalog.default_topology()
+    assert colocated.harness_host == "same-as-ollama"
+    assert colocated.ollama_bind == "127.0.0.1"
+    assert colocated.recommended_min_unified_memory_gb == 24
+    split = catalog.require(DeploymentTopologyId.SPLIT)
     assert split.harness_host == "development-host"
     assert split.ollama_bind != "127.0.0.1"
 
@@ -29,7 +33,7 @@ def test_colocated_is_loopback_and_same_host() -> None:
     colocated = load_catalog().require(DeploymentTopologyId.COLOCATED)
     assert colocated.ollama_bind == "127.0.0.1"
     assert colocated.harness_host == "same-as-ollama"
-    assert colocated.recommended_min_unified_memory_gb >= 48
+    assert colocated.recommended_min_unified_memory_gb == 24
 
 
 def test_topology_command(capsys: pytest.CaptureFixture[str]) -> None:

@@ -9,10 +9,11 @@
 - `adrs/0017-local-self-building-system.md` is the product subject: one
   local installation builds itself; device adapters accrue in this repo.
   Point at architecture §5.2. Do not paste that ADR here.
-- `adrs/0018-seamless-mac-install-and-shared-inference.md` names install
-  roles and shared inference: a Mac mini serves Qwen; the scaffold and
-  DeepSeek Harness share any Mac; later voice chat uses the controller
-  slot. Point at architecture §5.3. Do not paste that ADR here.
+- `adrs/0018-seamless-mac-install-and-shared-inference.md` shares one
+  served model with later local clients. Amended by ADR 0019.
+- `adrs/0019-mini-resident-control-plane.md` puts the control plane and
+  DeepSeek Harness on the Mac mini and defines persisted harness profiles.
+  Point at architecture §5.3 and §5.4. Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
 - `backlog/` holds dedicated implementation items (B01–B19). Status
@@ -29,8 +30,8 @@
   first-party mobile client over the same API, not a second agent runtime.
   Slack is deferred. The running installation is the development client
   (ADR 0017); home and wearable adapters are a later in-repo slot, not a
-  second agent. Seamless install roles are ADR 0018. The printed two-Mac
-  LAN path remains ADR 0013 / B18.
+  second agent. The Mac mini is the default always-on host (ADR 0019).
+  The optional two-Mac list remains ADR 0013 / B18 (`two setup --current`).
 - Behavior changes that disagree with the spec need a new ADR in `adrs/`.
 - The public product name is Majesta Two (ADR 0008). Do not revive
   working names such as DevFlow.
