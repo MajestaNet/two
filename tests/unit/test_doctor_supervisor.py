@@ -16,7 +16,7 @@ import pytest
 
 from two.cli import main
 from two.operator.apply import apply_lan_setup
-from two.operator.doctor import format_report, run_doctor
+from two.operator.doctor import doctor_exit_code, format_report, run_doctor
 from two.operator.supervisor import format_up_plan, run_down, run_up
 from two.runtime.health import HealthState
 
@@ -91,6 +91,24 @@ def test_doctor_not_ready_when_api_down(tmp_path: Path) -> None:
     assert report.exit_code == 1
 
 
+def test_doctor_unavailable_mac_exits_2(tmp_path: Path) -> None:
+    apply_lan_setup(
+        "http://192.168.50.20:11434/v1",
+        data_dir=tmp_path / "data",
+        workspace_root=tmp_path / "trees",
+    )
+    report = run_doctor(
+        environ={"TWO_DATA_DIR": str(tmp_path / "data")},
+        api_probe=lambda _bind, _port: (True, "http://127.0.0.1:8741/health HTTP 200"),
+        mac_probe=lambda: HealthState.UNAVAILABLE,
+        which=lambda _name: None,
+    )
+    assert report.ready is False
+    assert report.checks[-1].detail.startswith("state Unavailable")
+    assert "Cold is retryable" in report.checks[-1].detail
+    assert doctor_exit_code(report) == 2
+
+
 def test_doctor_cli_offline(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     apply_lan_setup(
         "http://mac-mini.local:11434/v1",
@@ -99,7 +117,7 @@ def test_doctor_cli_offline(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     )
     assert main(["doctor", "--offline", "--data-dir", str(tmp_path / "data")]) == 0
     out = capsys.readouterr().out
-    assert "ready: yes" in out
+    assert "ready: yes (offline checks passed; API and Mac were not probed)" in out
     assert "offline" in out
 
 
