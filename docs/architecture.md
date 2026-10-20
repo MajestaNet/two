@@ -5,9 +5,9 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Proposed architecture for implementation |
-| Version | 0.9 |
-| Date | 11 September 2026 |
+| Status | Accepted product subject (ADR 0017); implementation of adoption and device adapters follows |
+| Version | 0.10 |
+| Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
@@ -22,8 +22,10 @@ The system will separate **inference** from **software-development execution**. 
 - They call Ollama through an OpenAI-compatible HTTP endpoint. The model process never mounts the repository and never executes commands, even if Ollama and the harness share one Mac (`topology: colocated`, intended for ~48 GB+ and no sleep).
 - Colocation is a bind-address change (`127.0.0.1` instead of a LAN name), not a second architecture. See ADR 0006 and `two topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
-- A channel-neutral interaction gateway exposes the same task through the control API. This repository is the backend (API and CLI now; a secure first-party mobile GUI later). Messaging clients remain possible optional adapters, but Slack is no longer the planned MVP. Every client is a control surface over one durable task record, not a separate agent session.
+- A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface. Optional in-repo adapters — home devices, wearables, and a possible mobile surface — are further control surfaces over the same installation. Messaging clients remain possible optional adapters, but Slack is no longer the planned MVP. Every client is a control surface over one durable task record, not a separate agent session.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
+
+**Product subject (ADR 0017).** Majesta Two is a fully local, self-building system. The operator runs one installation of this repository. That installation is the development client and the only development subject: tasks change this tree, not unrelated projects. DeepSeek Harness stays the inner model/tool loop; its workspace is a worktree of this same repository. The executing tree is adopted from that worktree only after validation, fresh review, and an explicit approval, and only at a process restart. The open-source tree grows optional adapters for private local endpoints (home devices, wearables, and later similar devices) by that same loop.
 
 The MVP deliberately uses one model and one inference request at a time. It does not use SSD streaming, macOS swap as working memory, automatic production deployment, or concurrent local subagents.
 
@@ -33,7 +35,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 
 1. Serve an official Qwen3.8 model continuously from an Apple Silicon Mac. The default profile targets 24 GB unified memory; larger hosts may select a larger context or official checkpoint.
 2. Give DeepSeek Harness reliable access to model thinking, streaming, and function/tool calling.
-3. Let the harness autonomously inspect and modify software in isolated git worktrees.
+3. Let the harness autonomously inspect and modify this repository in isolated git worktrees.
 4. Support large repositories through repository discovery, lexical search, symbol navigation, bounded code excerpts, task memory, and context compaction.
 5. Automate the normal development loop:
    - understand the task;
@@ -47,7 +49,10 @@ The MVP deliberately uses one model and one inference request at a time. It does
 6. Allow optional paid specialist models later without coupling the workflow to any one provider.
 7. Persist enough evidence to replay or audit what an automated task did.
 8. Run bounded unattended jobs for several hours or overnight, surviving model, harness, channel, and development-host process restarts without losing repository work or blindly repeating side effects.
-9. Provide a task-scoped, conversational development experience with visible plans, progress, diffs, commands, validation results, questions, approvals, and final reports through the control API (CLI first; secure first-party mobile GUI later; optional messaging adapters remain possible).
+9. Provide a task-scoped, conversational development experience with visible plans, progress, diffs, commands, validation results, questions, approvals, and final reports through the control API (the local installation's CLI first; optional in-repo device and mobile surfaces later; optional messaging adapters remain possible).
+10. Use this local installation as the development client and as the only development subject. Tasks, worktrees, reviews, and reports refer to this repository.
+11. Build the next version of itself on an isolated worktree and adopt it only through validation, fresh review, and an approval of the candidate commit, applied at a process restart.
+12. Grow optional in-repository adapters for private local endpoints — home devices, wearables, and later similar devices — under the control API, off until the operator enables them on that installation.
 
 ### 2.2 Non-functional goals
 
@@ -60,6 +65,8 @@ The MVP deliberately uses one model and one inference request at a time. It does
 - **Unattended durability:** queued and running tasks are persisted outside the Harness process, use recoverable leases and checkpoints, and do not depend on an attached terminal or browser.
 - **Interaction parity:** every supported UI calls the same controller operations and projects the same authoritative task state.
 - **Bounded autonomy:** every long-running loop has explicit completion criteria, hard ceilings, no-progress detection, and a safe paused or blocked state.
+- **Self-safe:** the executing installation changes only by adopting a reviewed worktree at a process restart. A candidate cannot relax gates, binds, credentials, or adapter permissions until that adoption, and the approval names those changes.
+- **One local copy:** inference, source, prompts, task state, and device adapters stay on the operator's machines and private network unless a task already has an explicit cloud permission.
 
 ## 3. Non-goals for the MVP
 
@@ -75,6 +82,17 @@ The MVP deliberately uses one model and one inference request at a time. It does
 - Treating an unbounded prompt loop as a substitute for a durable workflow state machine.
 - Sending complete source files, raw shell logs, secrets, or full model trajectories to a messaging service by default.
 
+### 3.1 Product boundaries (ADR 0017)
+
+These bounds stay in force after the original MVP:
+
+- Developing unrelated repositories as the product. The development subject is this installation.
+- Writing the executing tree from inside an agent turn. Self-changes are prepared on a worktree and adopted at a process restart.
+- Reimplementing the DeepSeek Harness model/tool loop inside this repository.
+- A second agent runtime inside a home, wearable, or other device adapter.
+- Binding a device adapter to a public interface, or enabling an adapter merely because its code landed in the tree.
+- Choosing a device radio, bus, or vendor SDK in this specification. The first concrete adapter gets its own ADR.
+
 ## 4. Assumptions
 
 1. “Original Qwen3.8-27B” means the official post-trained Qwen model rather than an abliterated, uncensored, merged, or task-specific derivative. The default 24 GB profile requires a 4-bit runtime representation. Larger unified memory may use a higher-quality official quant or a larger official Qwen tag after soak tests. One local model remains loaded at a time.
@@ -88,6 +106,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 6. Only one automated development task actively uses the local model at a time.
 7. The development host or VM remains powered on for overnight work and runs Majesta Two under an operating-system service manager rather than an interactive shell.
 8. A remote client or messaging adapter, if enabled, is an external control and notification channel. Its outage must not stop a running job. Remote output is governed by disclosure policy. The planned remote GUI is the first-party mobile client in ADR 0015; Slack is deferred.
+9. The operator's local checkout of this repository is the installation under change. Self-build tasks use worktrees of that checkout. Adoption updates the running copy only through the ADR 0017 gate.
 
 ## 5. Architecture overview
 
@@ -125,6 +144,31 @@ The model produces intentions and tool calls. The development host decides wheth
 | Client credentials | No | API verifier/configuration only | Device secure storage or service-managed identity |
 
 This separation keeps the Mac simple and ensures a model cannot directly act outside the development host’s policy boundary.
+
+### 5.2 Self-building installation
+
+ADR 0017. The operator has one local copy of this repository. That copy is the system they run and the client they use to change it. DeepSeek Harness remains the inner loop; the product around it is this installation.
+
+```mermaid
+flowchart LR
+    LIVE["Running installation\n(dev client, live tree)"]
+    WT["Worktree agent/task-id\nof this same repo"]
+    GATES["Validation, fresh review,\nadoption approval"]
+    LIVE -->|"task targets only this repo"| WT
+    WT --> GATES
+    GATES -->|"adoption at process restart"| LIVE
+    LIVE --> ADAPT["In-repo adapters\nhome, wearable, later devices"]
+```
+
+Rules:
+
+- A task targets only the configured root of this repository.
+- The agent writes only the task worktree. The executing tree stays outside that worktree.
+- Completion of a self-build task produces a candidate commit. It does not install that commit.
+- Adoption is a controller operation. It runs only after required validation, a fresh review with no blocking finding, and an approval whose digest is the candidate commit. It takes effect when the installation's processes restart onto that commit.
+- A candidate that changes gates, bind addresses, credential policy, or adapter permissions names those changes in the adoption approval. They stay inactive in the running process that produced the candidate.
+- Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. Merging adapter code into the tree does not enable it; the operator enables it in local configuration.
+- The first concrete device protocol is a later ADR. This section defines the slot, the trust limit, and the growth path.
 
 ## 6. Component architecture
 
@@ -313,12 +357,14 @@ worktree: <workspace-root>/<repo-id>/<task-id>
 
 Rules:
 
-- Never edit the canonical/base checkout.
+- Never edit the canonical/base checkout from the agent loop.
 - Never run two tasks in the same worktree.
 - Retain failed and blocked worktrees for diagnosis.
 - Do not delete a successful worktree until its branch and report have been handed off.
 - Do not push, merge, rebase shared branches, or deploy in the MVP.
 - Eventual GitHub export is a separate adapter (ADR 0012, §12.7), not a workspace-manager method and not a local git forge.
+
+For this product the base checkout is the running installation of this repository (ADR 0017, §5.2). The agent loop still does not edit it. Adoption of a finished worktree is a separate controller operation and applies at process restart. Until subject pinning is implemented, workspace code can still open another repository; new tasks follow §5.2.
 
 For large repositories, use a local bare mirror or canonical clone plus worktrees so task creation does not duplicate the complete repository.
 
@@ -406,7 +452,7 @@ The overnight profile increases time for investigation, builds, and tests; it do
 
 #### H. Interaction gateway and channel adapters
 
-The interaction gateway presents one controller contract to every UI:
+The running installation is the development client (ADR 0017, §5.2). The interaction gateway presents one controller contract to every UI of that installation:
 
 - create or schedule a task;
 - add a message or answer to an existing task;
@@ -656,6 +702,8 @@ The output includes:
 - remaining risks or manual steps;
 - session/trajectory references;
 - local and optional cloud usage metrics.
+
+A self-build task ends this stage as a **candidate**. Stage 8 does not copy the worktree onto the executing installation. Adoption is the separate operation in §5.2.
 
 ### 8.3 Developer interaction contract
 
@@ -943,6 +991,9 @@ Default policy:
 - GitHub App tokens, when export is enabled, follow the same rule (ADR 0012). They are not ambient credentials for the agent loop.
 - Approval records are scoped to one task and one immutable action digest; broad conversational agreement is not executable authorization.
 - Channel-output policy redacts secrets and suppresses raw source, full trajectories, and verbose logs by default.
+- Self-build writes stay inside the task worktree of this repository. The path of the executing installation is outside workspace-write for that task.
+- Adoption consumes an approval bound to the candidate commit. A changed tree, a changed adoption digest, or a policy delta that the approval does not name fails closed.
+- Home, wearable, and later device adapters are denied model credentials, shell, git, and secret environment values. They cannot enable themselves by writing local configuration from inside the agent turn that added them.
 
 ## 16. Key architecture decisions
 
@@ -964,6 +1015,8 @@ Default policy:
 | Long-term task memory | Structured external state plus a persisted work graph (ADR 0014) | Survives compaction without replaying long reasoning traces; longer loops keep node/edge alignment |
 | Completion authority | Controller validation | Models cannot self-certify tests or acceptance criteria |
 | Large-repo retrieval | Git + `rg` + LSP first | Lower complexity than premature vector infrastructure |
+| Product subject | One local installation of this repository (ADR 0017) | The running copy is the development client and builds the next version of itself |
+| Self-modification | Worktree candidate, then adoption at process restart | The executing tree and its privilege boundary change only by a named approval |
 
 ## 17. Risks and mitigations
 
@@ -984,6 +1037,8 @@ Default policy:
 | Mobile device is lost or compromised | Unauthorized task/source access | Short-lived scoped tokens, rotating secure-storage refresh credentials, server-side revocation, bounded encrypted cache |
 | Repository or secrets leak through client/push | Privacy or credential exposure | On-demand source scope, redaction, minimal opaque notifications, no raw trajectories or environment values |
 | Unauthorized or stale client action controls a task | Unsafe pause, cancellation, config, or approval | Server-derived scopes, idempotency, ETags, recent-auth policy, immutable action digests, complete audit events |
+| Self-build writes the live tree or widens its own privileges | The system can disable the gates that constrain it | Worktree-only writes, adoption at restart, approval digest over the candidate commit, policy changes named in that approval |
+| A device adapter becomes a second agent or a public endpoint | Lost privacy boundary or a tool loop outside the controller | In-repo adapters, default off, private network only, no shell, git, model, or secrets |
 
 ## 18. Evaluation and promotion gates
 
@@ -1004,7 +1059,8 @@ Before unattended use, create a representative evaluation corpus containing:
 - uncertain command-result reconciliation without duplicate execution;
 - mobile disconnect/reconnect, stale SSE cursor, and duplicate mutation retry;
 - an overnight task that pauses for a question and resumes hours later from another channel;
-- cancellation during a long-running build or test.
+- cancellation during a long-running build or test;
+- a self-build candidate that changes only a worktree of this repository and leaves the executing tree unchanged until adoption.
 
 Compare at least:
 
@@ -1181,10 +1237,11 @@ invent a second architecture.
 
 The first repository implementation is complete when:
 
-Items 13–17 are future full-product gates: the current CLI/B07 baseline does
+Items 13–19 are future full-product gates. The current CLI/B07 baseline does
 not satisfy the first-party mobile, scoped-identity, or remote-disclosure
-parts. They remain open until B14's API and native-client slices are
-implemented and promoted.
+parts (13–17), or subject pinning and adoption (18–19). Items 13–17 remain
+open until B14's API and native-client slices are implemented and promoted.
+Items 18–19 remain open until the ADR 0017 slice is implemented and promoted.
 
 1. The Mac automatically starts Ollama, loads the expected Qwen model, and serves it on the private network.
 2. The model remains resident and the Mac shows no sustained swap-out growth or unrecovered failure during the 24-hour promotion soak.
@@ -1203,6 +1260,8 @@ implemented and promoted.
 15. Closing or disconnecting every UI leaves an unattended task running; an adapter outage affects notifications only.
 16. Unauthorized client identities, duplicate mutations, stale resource revisions, stale approvals, and altered action digests cannot control or authorize a task.
 17. Remote client and notification output suppresses secrets, environment values, full trajectories, source, approval details, and raw verbose logs by default.
+18. A task prepares a change to this installation only in an isolated worktree of this repository, and the executing tree stays unchanged until an explicit adoption at a process restart.
+19. An in-repo device adapter, when present, stays off until locally enabled, reaches only the private network, and cannot call the model, shell, or git, or read secrets.
 
 ## 22. References
 
@@ -1219,6 +1278,7 @@ implemented and promoted.
 - [DeepSeek Harness Ralph workflow](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/workflow/tool-ralph/README.md)
 - [Majesta Two work graph (ADR 0014)](adrs/0014-persisted-work-graph.md)
 - [Majesta Two first-party client API (ADR 0015)](adrs/0015-first-party-client-api.md)
+- [Majesta Two local self-building installation (ADR 0017)](adrs/0017-local-self-building-system.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

@@ -6,6 +6,9 @@
 - `client-threat-model.md` is the B14 implementation threat model (slices 1–3).
 - `adrs/0016-oidc-jwt-tls-dependencies.md` selects PyJWT/Caddy and must be
   accepted before those runtime pieces are added.
+- `adrs/0017-local-self-building-system.md` is the product subject: one
+  local installation builds itself; device adapters accrue in this repo.
+  Point at architecture §5.2. Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
 - `backlog/` holds dedicated implementation items (B01–B19). Status
@@ -20,7 +23,9 @@
   workflows). `work-graph.md` points at ADR 0014 (persisted nodes/edges
   around DeepSeek Harness). This repo is the backend; B14 is a secure
   first-party mobile client over the same API, not a second agent runtime.
-  Slack is deferred. Default two-Mac LAN operator path: ADR 0013 / B18.
+  Slack is deferred. The running installation is the development client
+  (ADR 0017); home and wearable adapters are a later in-repo slot, not a
+  second agent. Default two-Mac LAN operator path: ADR 0013 / B18.
 - Behavior changes that disagree with the spec need a new ADR in `adrs/`.
 - The public product name is Majesta Two (ADR 0008). Do not revive
   working names such as DevFlow.

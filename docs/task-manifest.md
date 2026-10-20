@@ -1,8 +1,12 @@
 # Task manifest
 
 The reproducible task request is specified in [architecture.md](architecture.md)
-section 8.1. Field names in `two.manifest.TaskManifest` must stay aligned
-with that example. Operator copy: [config/examples/task.example.yaml](../config/examples/task.example.yaml)
+section 8.1. The product subject is this local installation
+([ADR 0017](adrs/0017-local-self-building-system.md), architecture §5.2):
+a task prepares a worktree of this repository and does not adopt it onto
+the executing tree. Field names in `two.manifest.TaskManifest` must stay aligned
+with that example. Subject pinning is not implemented yet; do not add a
+manifest field for it without an ADR. Operator copy: [config/examples/task.example.yaml](../config/examples/task.example.yaml)
 (placeholders only; do not commit a real checkout path). Keep
 `cloud_allowed: false` unless paid routes are enabled and intended.
 

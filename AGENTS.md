@@ -2,10 +2,15 @@
 
 ## Overview
 
-Majesta Two is the durable **backend** around DeepSeek Harness. Qwen 3.8 stays on
-a dedicated Mac inference host. This repository is not a Slack (or other
-messenger) product. The CLI is first-party today; ADR 0015/B14 plans a secure
-first-party mobile client over the same API. The SQLite WAL store (`two.store`)
+Majesta Two is a fully local, self-building system (ADR 0017). One local
+installation of this repository is the development client and the only
+development subject. DeepSeek Harness remains the pinned inner model/tool
+loop and is not reimplemented here. Qwen 3.8 stays on a dedicated Mac
+inference host. This repository is not a Slack (or other messenger) product
+and it does not develop unrelated repositories. The CLI is the local surface
+today; ADR 0015/B14 plans a secure first-party mobile client over the same
+API. In-repo home and wearable adapters are specified and not implemented.
+The SQLite WAL store (`two.store`)
 persists tasks, events, leases, the work graph (schema v5), and
 projects/config candidates (schema v6).
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
@@ -160,7 +165,10 @@ listed in `config/repositories/two.yaml`.
 
 - Treat worktree isolation as the design (`two.workspace`). Run
   validation in the worktree (`two.validation`), never the canonical
-  checkout. Retrieval and task memory live in `two.context` (git, `rg`,
+  checkout. The development subject is this installation (ADR 0017);
+  adoption of a worktree onto the executing tree is a separate
+  controller operation at process restart, and it is not implemented.
+  Retrieval and task memory live in `two.context` (git, `rg`,
   optional LSP; no embeddings).
 - Add or update deterministic tests for code you change.
 - Update this file in the same PR as command or layout changes.
@@ -173,6 +181,8 @@ listed in `config/repositories/two.yaml`.
 - New runtime dependency
 - Cloud provider or paid-model route
 - New messaging adapter or Slack scope changes
+- A concrete home, wearable, or other device adapter (the protocol needs
+  its own ADR under ADR 0017)
 - GitHub App, source-control export, or a local git forge (ADR 0012)
 - Task-manifest field changes
 - Changing the *default* inference profile or default topology
