@@ -323,6 +323,8 @@ def _error_code(status: int, message: str) -> ErrorCode:
             return ErrorCode.OPEN_INPUT
         if "resume" in text:
             return ErrorCode.NOT_RESUMABLE
+        if "not executable" in text:
+            return ErrorCode.PROFILE_NOT_EXECUTABLE
         return ErrorCode.CONFLICT_LIFECYCLE
     if status == 400:
         if "idempotency" in text:

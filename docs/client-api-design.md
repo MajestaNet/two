@@ -303,6 +303,14 @@ and consequences. Approval requires a fresh projection and cannot be queued
 offline. High-risk policy may require recent authentication or local
 operator confirmation. Silence and notification taps are never approval.
 
+### Watch edge
+
+ADR 0020 adds a device gate in front of this API. Caddy on a private
+address terminates mutual TLS and proxies to loopback. The watch
+principal is `client:watch`. It cannot submit `self-build`. The native
+app contract is [watch-client.md](watch-client.md). The app does not
+embed `TWO_API_TOKEN`. OIDC stays deferred until ADR 0016 is accepted.
+
 ## 7. Data minimization and mobile behavior
 
 - Task lists omit objective text by default when the device is locked or the

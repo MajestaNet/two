@@ -81,6 +81,7 @@ from two.projection import (
     TodoItem,
     ValidationGateView,
     ValidationSummary,
+    VoiceTurnRequest,
 )
 
 __all__ = [
@@ -144,4 +145,5 @@ __all__ = [
     "TodoItem",
     "ValidationGateView",
     "ValidationSummary",
+    "VoiceTurnRequest",
 ]

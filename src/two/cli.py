@@ -134,6 +134,38 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Unix socket path (overrides host/port)",
     )
+    edge = subparsers.add_parser(
+        "edge",
+        help="Private CA and Caddy mutual TLS in front of the loopback API",
+    )
+    edge_sub = edge.add_subparsers(dest="edge_command", required=True)
+    edge_plan = edge_sub.add_parser("plan", help="Print the edge plan and write nothing")
+    edge_issue = edge_sub.add_parser(
+        "issue",
+        help="Write a private CA, watch client certificate, and Caddyfile",
+    )
+    for edge_cmd in (edge_plan, edge_issue):
+        edge_cmd.add_argument(
+            "--listen",
+            required=True,
+            help="Private LAN address or overlay hostname for Caddy",
+        )
+        edge_cmd.add_argument("--port", type=int, default=8443, help="Caddy listen port")
+        edge_cmd.add_argument(
+            "--api",
+            default="127.0.0.1:8741",
+            help="Loopback control API upstream",
+        )
+        edge_cmd.add_argument(
+            "--data-dir",
+            default=None,
+            help="Directory for the CA and Caddyfile (default: $TWO_DATA_DIR/edge)",
+        )
+    edge_issue.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing edge CA",
+    )
     subparsers.add_parser(
         "scheduler",
         help="Run the durable scheduler (startup recovery, then tick loop)",
@@ -175,6 +207,8 @@ def main(
         from two.api.server import serve
 
         return serve(bind=args.bind, port=args.port, socket=args.socket)
+    if args.command == "edge":
+        return _run_edge(args)
     if args.command == "scheduler":
         _load_host_env()
         from two.recovery.boot import run_scheduler
@@ -201,6 +235,49 @@ def _load_host_env() -> None:
     from two.operator.hostenv import load_data_dir_env
 
     load_data_dir_env()
+
+
+def _run_edge(args: argparse.Namespace) -> int:
+    """Print or issue the watch edge. Lazy-imports; no store."""
+
+    import os
+    from pathlib import Path
+
+    from two.edge import (
+        EdgeIssueError,
+        EdgeListenError,
+        build_edge_plan,
+        format_edge_plan,
+        issue_edge,
+        resolve_edge_data_dir,
+    )
+
+    data_dir = resolve_edge_data_dir(args.data_dir, env=os.environ, home=Path.home())
+    try:
+        plan = build_edge_plan(
+            listen=args.listen,
+            port=args.port,
+            api=args.api,
+            data_dir=data_dir,
+        )
+    except EdgeListenError as exc:
+        print(f"two edge: {exc}", file=sys.stderr)
+        return 1
+    if args.edge_command == "plan":
+        print(format_edge_plan(plan))
+        return 0
+    try:
+        issue_edge(plan, force=bool(args.force))
+    except EdgeIssueError as exc:
+        print(f"two edge: {exc}", file=sys.stderr)
+        return 1
+    print(format_edge_plan(plan))
+    print(
+        f"wrote {plan.data_dir} (mode 0700). "
+        f"Export TWO_EDGE_TOKEN from {plan.data_dir / 'edge.env'} "
+        "for both caddy and two api. The API process stays on loopback."
+    )
+    return 0
 
 
 def _run_setup(args: argparse.Namespace) -> int:

@@ -51,6 +51,8 @@ uv run two up
 uv run two down
 uv run two doctor
 uv run two api
+uv run two edge plan --listen PRIVATE-LAN-IP
+uv run two edge issue --listen PRIVATE-LAN-IP
 uv run two scheduler
 uv run two worker
 uv run two task --help
@@ -98,6 +100,11 @@ listed in `config/repositories/two.yaml`.
  and idempotency helpers live in `two.api.contract`. Conversation and
  SSE mapping live in `two.api.conversation`; health/queue/repo/diff/artifact
  builders live in `two.api.gui`.
+ `src/two/edge.py` is the watch edge plan (ADR 0020): private CA,
+ Caddy mutual TLS, loopback upstream. `two edge plan` writes nothing.
+ `two edge issue` writes under `$TWO_DATA_DIR/edge`. The watch principal
+ `client:watch` cannot submit `self-build`. The native app spec is
+ `docs/watch-client.md` and is not an Xcode project in this repo.
  `src/two/projection.py` is the /v1 JSON contract (no FastAPI). CLI and
  adapters import it instead of inventing a second schema. It includes
  `SystemCapabilities`, additive `TaskProjection.revision`, and slice 2

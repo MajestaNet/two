@@ -435,9 +435,10 @@ class AuthCapabilities(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    method: Literal["local_trust", "bearer_token"]
+    method: Literal["local_trust", "bearer_token", "edge_client"]
     oidc_available: bool = False
     mobile_ready: bool = False
+    edge_available: bool = False
 
 
 class ClientFeatures(BaseModel):
@@ -465,8 +466,23 @@ class SystemCapabilities(BaseModel):
     api_versions: list[str] = Field(default_factory=lambda: ["v1"])
     principal: str
     scopes: list[str]
+    allowed_harness_profiles: list[str] = Field(default_factory=list)
     auth: AuthCapabilities
     features: ClientFeatures = Field(default_factory=ClientFeatures)
+
+
+class VoiceTurnRequest(BaseModel):
+    """One spoken turn from the watch client. Text only. No audio.
+
+    ``self-build`` is accepted by the schema so a stolen or confused client
+    is rejected by authorization (403) rather than by a 422. The server
+    does not execute ``chat`` or ``home-action`` until that profile exists.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=4_000)
+    profile: Literal["self-build", "home-action", "chat"]
 
 
 class ConversationItem(BaseModel):

@@ -35,6 +35,7 @@ from two.api.bind import (
     BindTarget,
     resolve_bind,
 )
+from two.edge import ENV_EDGE_TOKEN
 
 
 def serve(
@@ -66,6 +67,7 @@ def serve(
         return 1
 
     token = environ.get(ENV_TOKEN, "").strip() or None
+    edge_token = environ.get(ENV_EDGE_TOKEN, "").strip() or None
     if target.requires_auth and token is None:
         print(
             "non-loopback control API bind requires TWO_API_TOKEN",
@@ -76,7 +78,11 @@ def serve(
     if target.is_local_trust:
         print(LOOPBACK_TRUST_WARNING, file=sys.stderr)
 
-    app = create_app(require_auth=target.requires_auth, auth_token=token)
+    app = create_app(
+        require_auth=target.requires_auth,
+        auth_token=token,
+        edge_token=edge_token,
+    )
     _announce(target)
     _run_server(app, target, run=run)
     return 0
