@@ -23,6 +23,7 @@ the spec.
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
+| Mac mini default install | Specified ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). Catalog default is `colocated`. `two setup --plan` prints the mini path. The installer selects the inference profile. Device-profile preload is not implemented |
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
@@ -36,9 +37,10 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 12 September 2026 (B14 slice 3 persisted projects and typed
-config candidates, schema v6; B19 work graph remains schema v5; OIDC libraries
-not added, ADR 0016).
+Last updated: 20 October 2026 (ADR 0019: the Mac mini is the default
+always-on host for Ollama, the control plane, and DeepSeek Harness.
+`two setup --plan` prints that path. ADR 0017 adoption and harness-profile
+preload are specified and not implemented.)
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -46,7 +48,7 @@ Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
 ## How to use this guide
 
-**CLI on the development host is enough.** You do not need a mobile app,
+**CLI on the Mac mini is enough.** You do not need a mobile app,
 messenger, or public hostname. Remote clients are optional
 ([channels.md](channels.md)).
 
@@ -55,10 +57,14 @@ Two tracks:
 | Track | Goal | Mac required? |
 | --- | --- | --- |
 | **Contributor** | Clone, `make ci`, read the spec | No |
-| **Operator (default LAN)** | Inference Mac + Mac laptop on the same private network | Yes for model work |
-| **Operator (reference)** | Overlay, Compose, and soaks — [full walkthrough](#step-by-step-get-it-running-full-reference) | Yes for model work; no for CLI-against-API smoke |
+| **Operator (default)** | Mac mini runs Ollama, Majesta Two, and DeepSeek Harness | Yes |
+| **Operator (optional split)** | A second always-on host runs the control plane — [full walkthrough](#step-by-step-get-it-running-full-reference) | Yes for the model; the second host must stay on |
 
-The default interactive layout is **two Macs, `topology: split`, one LAN**.
+The default layout is **one Mac mini, `topology: colocated`**
+([ADR 0019](adrs/0019-mini-resident-control-plane.md)). The installer
+selects the inference profile (`two profiles`). A wearable or device
+request later resumes a persisted harness profile on that mini. `split`
+remains optional.
 Print the recipe (no files written):
 
 ```bash
@@ -67,46 +73,39 @@ uv run two setup --plan --ollama-host YOUR-PRIVATE-MAC-NAME
 uv run two setup --current   # today's longer command list
 ```
 
-Proposals and designs: [ADR 0013](adrs/0013-streamline-default-lan-setup.md).
-Implementation tracker: [B18](backlog/B18-streamlined-lan-setup.md).
+Proposals and designs: [ADR 0019](adrs/0019-mini-resident-control-plane.md).
+The optional two-Mac list is [ADR 0013](adrs/0013-streamline-default-lan-setup.md)
+(`two setup --current`).
 
 Follow **Privacy and network**, then **Config you must fill**, then either
-the [default LAN path](#default-layout-two-macs-on-one-lan) or the numbered
+the [Mac mini path](#default-layout-mac-mini) or the numbered
 reference steps. Reference tables (profiles, Mac flags, Compose) sit after
 the walkthrough. After the Mac is serving Qwen, queue bounded overnight
 work from [local-16k.md](local-16k.md) rather than a whole-repo prompt.
 
 ---
 
-## Default layout: two Macs on one LAN
+## Default layout: Mac mini
 
-This is the interactive operator default ([ADR 0013](adrs/0013-streamline-default-lan-setup.md)).
-It does not change the catalog topology (`split`) or the 24 GB inference
-profile. Linux Compose remains the unattended overnight packaging.
+This is the operator default ([ADR 0019](adrs/0019-mini-resident-control-plane.md)).
+The catalog topology is `colocated`. The reference inference profile is
+still 16K; the installer may select another. Optional `split` keeps the
+control plane on a second host that stays powered on. Linux Compose is
+that optional packaging.
 
-| Machine | Role | Sleep? |
+| Process on the Mac mini | Role | Sleep? |
 | --- | --- | --- |
-| Apple Silicon Mac | Native Ollama only. No git, no builds, no harness. | Disable while it is the inference node |
-| Separate Mac laptop | Majesta Two + DeepSeek Harness + worktrees + CLI | Fine for interactive use; poor overnight host |
-| Same private LAN | Laptop calls `http://<private-mac-name>:11434/v1` | No Tailscale required on this path |
+| Native Ollama | Serves Qwen on `127.0.0.1`. No git and no shell. | Disable sleep on the mini |
+| Majesta Two + DeepSeek Harness | Control plane, worktrees, and persisted profiles | Same mini; this is the always-on host |
 
-**Target path after clone** (six commands):
-
-**Inference Mac (once).** Install [uv](https://github.com/astral-sh/uv/)
-first (same as the laptop). `bootstrap-mac.sh` uses `uv run`, which
-installs PyYAML; macOS `python3` is not enough.
+**Target path after clone** (six commands, all on the mini). Install
+[uv](https://github.com/astral-sh/uv/) first. `bootstrap-mac.sh` uses
+`uv run`, which installs PyYAML; macOS `python3` is not enough.
 
 ```bash
-./scripts/bootstrap-mac.sh
-# split, default 24 GB profile. Omit --bind on Darwin: private .local or
-# RFC1918. Prints a pairing card. Never --bind 0.0.0.0.
-```
-
-**Development Mac laptop:**
-
-```bash
+./scripts/bootstrap-mac.sh --topology colocated --bind 127.0.0.1
 uv sync --dev
-uv run two setup --ollama-url http://YOUR-PRIVATE-MAC-NAME:11434/v1
+uv run two setup --ollama-url http://127.0.0.1:11434/v1
 uv run two up
 uv run two doctor
 uv run two task submit config/examples/task.example.yaml
@@ -119,8 +118,8 @@ does not stop the supervisor. The Majesta Two API stays on
 
 Print the recipe without writing files: `uv run two setup --plan`.
 
-The only machine-specific value on this path is the inference Mac’s
-**private** hostname or RFC1918 address. Do not put that name in git.
+On this path Ollama and the API are both loopback. Do not put a LAN
+hostname in git. Optional `split` is the place for a private hostname.
 
 ---
 
@@ -143,10 +142,10 @@ routes are [B16](backlog/B16-paid-model-routes.md) and default **off**).
 > webhooks are the wrong default. Scripts refuse obvious public binds;
 > that is not a substitute for checking the host firewall.
 
-> **Privacy.** The Mac must not mount git repos, hold messenger tokens, or
-> run builds. The development host holds source, SQLite, worktrees, and
-> (optional) adapter tokens. Messenger tokens and GitHub App tokens must
-> never reach DeepSeek Harness, Qwen, or a target worktree.
+> **Privacy.** The Ollama process must not mount git repos, hold tokens, or
+> run builds. The Majesta Two processes on the mini hold source, SQLite,
+> and worktrees. Messenger tokens and GitHub App tokens must never reach
+> DeepSeek Harness, Qwen, or a target worktree.
 
 Allowed ways to reach the backend:
 
@@ -176,7 +175,7 @@ or a real Mac address ([public-repo.md](public-repo.md)).
 | API token | `TWO_API_TOKEN` | Overlay CLI | Generate a random bearer secret | Never commit. Send `Authorization: Bearer` from the CLI `--token` |
 | Ollama URL | `MAC_QWEN_BASE_URL` | Scheduler health + DSH | Replace `mac-inference.internal` with your **private** hostname | Must be LAN, Tailscale, or `127.0.0.1`. Not a public DNS name |
 | Ollama bind (Mac) | `bootstrap-mac.sh --bind` | Live Mac | Private hostname (`split`) or `127.0.0.1` (`colocated`) | Refuses `0.0.0.0`. Disable Mac sleep |
-| Topology | `TWO_TOPOLOGY` / `two topology` | Layout | `split` (default) or `colocated` | Colocation is loopback Ollama, not “merge into Docker” |
+| Topology | `TWO_TOPOLOGY` / `two topology` | Layout | `colocated` (default) or `split` | Colocation is loopback Ollama, not “merge into Docker” |
 | Inference profile | `TWO_INFERENCE_PROFILE` / `two profiles` | Mac alias | Default `m24-qwen38-16k` | One local model at a time |
 | Data dirs | `TWO_DATA_DIR`, `TWO_WORKSPACE_ROOT` | Store + worktrees | Keep **outside** target repos | Created mode `0700` by `bootstrap-dev-host.sh` |
 | Runtime lock | `config/runtime/models.lock` from `models.lock.example` | After soaks | Record real Ollama/model digests | Do not invent digests. Do not commit real hostnames |
@@ -194,22 +193,23 @@ catalogs. Do not put a real LAN hostname in those committed files.
 
 ## Step-by-step: get it running (full reference)
 
-The [default two-Mac LAN path](#default-layout-two-macs-on-one-lan) is
-the interactive first-run. This section is the complete reference:
+The [Mac mini path](#default-layout-mac-mini) is the default. This section
+is the complete reference, including optional `split`:
 contributor CI, catalog lookups, overlay CLI, Compose, soaks, and
 every flag. Compare the two lists with `uv run two setup --current`.
 
 ### 0. Machines and prerequisites
 
-**Default layout (`split`)** — dedicated Apple Silicon Mac as the
-inference appliance + a separate Mac laptop on the **same private LAN**
-running Majesta Two and DeepSeek Harness ([ADR 0013](adrs/0013-streamline-default-lan-setup.md)).
-A Linux workstation or VM is the unattended overnight host (Compose).
+**Default layout (`colocated`)** — one Mac mini that does not sleep.
+Ollama, Majesta Two, and DeepSeek Harness are **separate processes**.
+Ollama binds `127.0.0.1` only. The installer selects the model profile
+that fits ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). Do not
+put Ollama in Docker.
 
-**Optional (`colocated`)** — one ~48 GB+ Mac that does not sleep. Ollama
-and Majesta Two remain **separate processes**; Ollama binds `127.0.0.1`
-only. Do not colocate on 24 GB (model plus builds will swap). Do not put
-Ollama in Docker.
+**Optional (`split`)** — the mini serves Qwen, and a second host that
+stays powered on runs Majesta Two and DeepSeek Harness
+([ADR 0013](adrs/0013-streamline-default-lan-setup.md)). Linux Compose is
+this packaging. A laptop that sleeps is not that host.
 
 Development host needs Python 3.12+, [uv](https://github.com/astral-sh/uv/),
 git, and [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) for
@@ -245,7 +245,7 @@ uv run two topology
 uv run two topology
 ```
 
-> **Config.** Set `TWO_TOPOLOGY=split` or `colocated` in `.env` (next step).
+> **Config.** The example env uses `TWO_TOPOLOGY=colocated`. Set `split` only for the optional second host.
 > Changing the *repository default* needs an ADR; picking a profile on one
 > host is configuration.
 
@@ -294,9 +294,9 @@ Edit at least:
 
 ```bash
 TWO_INFERENCE_PROFILE=m24-qwen38-16k
-TWO_TOPOLOGY=split
+TWO_TOPOLOGY=colocated
 MAC_QWEN_API_KEY=ollama
-MAC_QWEN_BASE_URL=http://YOUR-PRIVATE-MAC-NAME:11434/v1
+MAC_QWEN_BASE_URL=http://127.0.0.1:11434/v1
 TWO_API_BIND=127.0.0.1
 TWO_API_PORT=8741
 TWO_DATA_DIR=./var/two
@@ -335,11 +335,11 @@ If you see `No module named 'yaml'`, the script ran with system Python:
 install uv and retry (do not `PYTHONPATH=src python3 …`).
 
 ```bash
-# split: private LAN or overlay hostname (example is a placeholder)
-./scripts/bootstrap-mac.sh --profile m24-qwen38-16k --topology split --bind YOUR-PRIVATE-MAC-NAME
-
-# colocated (~48 GB+): loopback only
+# default: Mac mini, loopback. Pick the profile that fits.
 ./scripts/bootstrap-mac.sh --profile m24-qwen38-16k --topology colocated --bind 127.0.0.1
+
+# optional split: private LAN or overlay hostname (example is a placeholder)
+./scripts/bootstrap-mac.sh --profile m24-qwen38-16k --topology split --bind YOUR-PRIVATE-MAC-NAME
 ```
 
 `bootstrap-mac.sh` pulls the profile upstream tag and `qwen3.8:27b`

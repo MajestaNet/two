@@ -94,7 +94,7 @@ def format_plan(values: dict[str, str], *, rendered_plist: str) -> str:
         f"# or: curl -sS http://{bind}:11434/api/generate -d "
         f'\'{{"model":"{alias}","prompt":"","keep_alive":-1}}\'',
         "",
-        "# Pairing card (development Mac laptop):",
+        "# Pairing card (on this Mac mini):",
         f"#   uv run two setup --ollama-url http://{_pairing_host(bind)}:11434/v1",
         "#   uv run two up",
         "#   uv run two doctor",
@@ -163,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--dry-run", action="store_true", default=True)
     parser.add_argument("--profile", default=DEFAULT_PROFILE_ID)
-    parser.add_argument("--topology", default=DeploymentTopologyId.SPLIT.value)
+    parser.add_argument("--topology", default=DeploymentTopologyId.COLOCATED.value)
     parser.add_argument("--bind", default=None)
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--system", action="store_true")

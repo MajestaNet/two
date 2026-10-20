@@ -40,8 +40,14 @@ the self-building installation
 ([ADR 0017](adrs/0017-local-self-building-system.md),
 [architecture.md](architecture.md) §5.2). They are not messengers, not a
 second agent, and not implemented. They default off, stay on the private
-network, and cannot reach the model, shell, git, or secrets. The first
-concrete device protocol needs its own ADR.
+network, and cannot reach shell, git, or secrets. They do not open Ollama.
+A later wearable adapter submits text turns through the control API.
+The controller resumes a persisted DeepSeek Harness profile
+([ADR 0019](adrs/0019-mini-resident-control-plane.md),
+architecture §5.4): `chat` has no tools, and `home-action` may request a
+typed device tool such as a temperature change. Neither profile is
+`self-build`. The adapter does not open Ollama. The first device
+protocol, including speech, needs its own ADR.
 
 ## Adapters (optional, deferred)
 
