@@ -5,22 +5,21 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); implementation of adoption and device adapters follows |
-| Version | 0.10 |
+| Status | Accepted product subject (ADR 0017) and seamless install (ADR 0018); adoption, device adapters, and voice chat follow |
+| Version | 0.11 |
 | Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
-| Development host | Separate Linux host by default; same Mac allowed when topology is `colocated` |
+| Development host | Any Mac running this scaffold and DeepSeek Harness together; Linux Compose remains unattended packaging; the Mac mini runs them only when `topology` is `colocated` |
 
 ## 1. Executive decision
 
 The system will separate **inference** from **software-development execution**. That split is **logical** (processes and trust), not a requirement for two chassis:
 
-- Native Ollama on Apple Silicon runs the official Qwen3.8 model. The default physical layout is a dedicated always-on Mac appliance (`topology: split`).
-- Majesta Two and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. By default they run on a separate Linux development host.
-- They call Ollama through an OpenAI-compatible HTTP endpoint. The model process never mounts the repository and never executes commands, even if Ollama and the harness share one Mac (`topology: colocated`, intended for ~48 GB+ and no sleep).
-- Colocation is a bind-address change (`127.0.0.1` instead of a LAN name), not a second architecture. See ADR 0006 and `two topology`.
+- Native Ollama on a Mac mini runs the official Qwen3.8 model. That mini is required for a live installation. Its job is to serve the model (`topology: split` on the 24 GB reference).
+- Majesta Two and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. They install together on any Mac on the private network with the mini (ADR 0018). Linux Compose remains the unattended packaging of that same scaffold, not a separate product.
+- They call Ollama through an OpenAI-compatible HTTP endpoint. The model process never mounts the repository and never executes commands. The scaffold may share the mini only as `topology: colocated` on a larger Mac that does not sleep (~48 GB+). That is a bind-address change, not a second architecture. See ADR 0006 and `two topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
 - A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface. Optional in-repo adapters — home devices, wearables, and a possible mobile surface — are further control surfaces over the same installation. Messaging clients remain possible optional adapters, but Slack is no longer the planned MVP. Every client is a control surface over one durable task record, not a separate agent session.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
@@ -33,7 +32,7 @@ The MVP deliberately uses one model and one inference request at a time. It does
 
 ### 2.1 Functional goals
 
-1. Serve an official Qwen3.8 model continuously from an Apple Silicon Mac. The default profile targets 24 GB unified memory; larger hosts may select a larger context or official checkpoint.
+1. Serve an official Qwen3.8 model continuously from a Mac mini. The default profile targets 24 GB unified memory; larger hosts may select a larger context or official checkpoint.
 2. Give DeepSeek Harness reliable access to model thinking, streaming, and function/tool calling.
 3. Let the harness autonomously inspect and modify this repository in isolated git worktrees.
 4. Support large repositories through repository discovery, lexical search, symbol navigation, bounded code excerpts, task memory, and context compaction.
@@ -53,6 +52,8 @@ The MVP deliberately uses one model and one inference request at a time. It does
 10. Use this local installation as the development client and as the only development subject. Tasks, worktrees, reviews, and reports refer to this repository.
 11. Build the next version of itself on an isolated worktree and adopt it only through validation, fresh review, and an approval of the candidate commit, applied at a process restart.
 12. Grow optional in-repository adapters for private local endpoints — home devices, wearables, and later similar devices — under the control API, off until the operator enables them on that installation.
+13. Require a Mac mini to serve Qwen, and run this scaffold together with DeepSeek Harness on any Mac on that private network. Colocation on the mini remains the large-Mac exception.
+14. Let later local client apps use that same served model. The named case is a wearable voice adapter that chats through the control plane, one inference at a time, with no repository tools.
 
 ### 2.2 Non-functional goals
 
@@ -91,19 +92,18 @@ These bounds stay in force after the original MVP:
 - Reimplementing the DeepSeek Harness model/tool loop inside this repository.
 - A second agent runtime inside a home, wearable, or other device adapter.
 - Binding a device adapter to a public interface, or enabling an adapter merely because its code landed in the tree.
-- Choosing a device radio, bus, or vendor SDK in this specification. The first concrete adapter gets its own ADR.
+- Choosing a device radio, bus, vendor SDK, or speech stack in this specification. The first concrete adapter gets its own ADR.
+- A device adapter opening Ollama on its own, or a chat turn writing a worktree, running shell, or adopting a commit.
+- Loading a second local model so chat and self-build can run at once.
 
 ## 4. Assumptions
 
 1. “Original Qwen3.8-27B” means the official post-trained Qwen model rather than an abliterated, uncensored, merged, or task-specific derivative. The default 24 GB profile requires a 4-bit runtime representation. Larger unified memory may use a higher-quality official quant or a larger official Qwen tag after soak tests. One local model remains loaded at a time.
 2. In `split` topology the Mac and development host can reach each other over a trusted private LAN or overlay. In `colocated` topology the endpoint is loopback on one Mac.
 3. The inference API trust boundary is that private path (LAN, overlay, or localhost). No public bind. Application auth is still required once any non-loopback client exists.
-4. The development host is either:
-   - a Linux VM or workstation (`split`), recommended for overnight isolation; or
-   - the same Mac as Ollama (`colocated`), for operators with enough unified memory who accept macOS as the unattended host; or
-   - a developer laptop for interactive use.
+4. The seamless install (ADR 0018) is a Mac mini that serves the model, plus any Mac that runs this scaffold and DeepSeek Harness together on the private network. Linux Compose remains a supported unattended packaging of that scaffold. Colocation on the mini is the ADR 0006 exception for a larger Mac that does not sleep.
 5. Target repositories use git and provide reproducible build/test commands or can be given an external repository profile containing them.
-6. Only one automated development task actively uses the local model at a time.
+6. One local model stays loaded, and one inference request is in flight at a time. Self-build turns and any later chat turns share that slot. A chat turn is admitted only at a model-turn boundary and does not hold the coding lease.
 7. The development host or VM remains powered on for overnight work and runs Majesta Two under an operating-system service manager rather than an interactive shell.
 8. A remote client or messaging adapter, if enabled, is an external control and notification channel. Its outage must not stop a running job. Remote output is governed by disclosure policy. The planned remote GUI is the first-party mobile client in ADR 0015; Slack is deferred.
 9. The operator's local checkout of this repository is the installation under change. Self-build tasks use worktrees of that checkout. Adoption updates the running copy only through the ADR 0017 gate.
@@ -115,15 +115,20 @@ flowchart TB
     subgraph Channels["Clients and adapters"]
         CLI["CLI first-party"]
         MOBILE["First-party mobile GUI (planned)"]
+        VOICE["Wearable voice chat (planned)"]
         MSG["Optional messenger adapter"]
     end
     CLI --> API["Majesta Two control API"]
     MOBILE --> API
+    VOICE --> API
     MSG --> API
     API --> C["Durable controller and queue"]
-    C --> H["DeepSeek Harness and worktree tools"]
-    C --> S["Task state, events, and artifacts"]
+    subgraph Scaffold["Any Mac: local scaffold"]
+        C --> H["DeepSeek Harness and worktree tools"]
+        C --> S["Task state, events, and artifacts"]
+    end
     H -->|"OpenAI-compatible API"| M["Mac mini: Qwen3.8-27B"]
+    C -->|"chat turns, same slot"| M
 ```
 
 ### 5.1 Trust and execution boundary
@@ -169,6 +174,21 @@ Rules:
 - A candidate that changes gates, bind addresses, credential policy, or adapter permissions names those changes in the adoption approval. They stay inactive in the running process that produced the candidate.
 - Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. Merging adapter code into the tree does not enable it; the operator enables it in local configuration.
 - The first concrete device protocol is a later ADR. This section defines the slot, the trust limit, and the growth path.
+
+### 5.3 Seamless install and shared inference
+
+ADR 0018. A live installation has two roles:
+
+| Role | Where it runs | What it owns |
+| --- | --- | --- |
+| Model server | Mac mini, native Ollama | The resident Qwen model and the OpenAI-compatible HTTP API |
+| Local scaffold | Any Mac on the private network with the mini | Majesta Two, DeepSeek Harness, worktrees, the store, and the control API |
+
+The harness is installed with the scaffold. It is not placed on its own machine. On the 24 GB reference the mini only serves the model. The scaffold shares that mini only under `topology: colocated` on a larger Mac that does not sleep, and the processes stay separate. Linux Compose can run the scaffold unattended; that packaging is the same product, not the seamless install. The implemented printed plan remains ADR 0013 until a later slice changes it.
+
+The mini's model is the inference pool for the whole installation. Self-build turns use it through DeepSeek Harness. A later local client uses it through the control API. The named client is a wearable voice adapter: the device captures and plays speech, and the controller sends text to the same Qwen as a chat session. That session has no worktree, shell, git, or secrets, and it cannot adopt a commit. The adapter does not open Ollama. One model stays loaded, and one inference is in flight. A chat turn runs only at a model-turn boundary of that slot.
+
+Speech recognition, speech synthesis, the wearable link, and chat-versus-coding priority are chosen in the adapter's own ADR.
 
 ## 6. Component architecture
 
@@ -254,6 +274,10 @@ A `qwen38-agent-32k` alias (`m24-qwen38-32k` or `m36-qwen38-32k`) may be evaluat
 - stable tool-call completion;
 - no material latency regression that reduces accepted-task throughput;
 - no model or Ollama termination during the 24-hour promotion soak.
+
+#### Shared inference pool
+
+The resident model is not reserved for the coding loop (ADR 0018, §5.3). Later local clients, including a wearable voice chat, call it through the Majesta Two scheduler. They do not receive the Ollama address as a credential and they do not add a second loaded model. The single-request and single-model limits in this section stay in force for those clients.
 
 ### 6.2 Private network
 
@@ -867,7 +891,7 @@ On development-host service startup, Majesta Two:
 
 Arbitrary shell commands cannot be made exactly-once across every possible host crash. Majesta Two therefore guarantees **at-most-once automatic replay**: an action with an uncertain outcome is reconciled from filesystem, git, process, and captured-command evidence or is escalated. It is never automatically issued twice merely because its result event is missing.
 
-The development host should use persistent storage with routine snapshots. A laptop can run interactive jobs, but a small always-on Linux VM is the recommended control plane for overnight execution.
+The development host should use persistent storage with routine snapshots. Any Mac can run the scaffold interactively (ADR 0018). A laptop that sleeps is a poor overnight host. A small always-on Linux VM remains the unattended packaging for overnight execution.
 
 ### 12.6 Secure remote GUI and optional adapters
 
@@ -1017,6 +1041,8 @@ Default policy:
 | Large-repo retrieval | Git + `rg` + LSP first | Lower complexity than premature vector infrastructure |
 | Product subject | One local installation of this repository (ADR 0017) | The running copy is the development client and builds the next version of itself |
 | Self-modification | Worktree candidate, then adoption at process restart | The executing tree and its privilege boundary change only by a named approval |
+| Seamless install | Mac mini serves Qwen; scaffold and DeepSeek Harness share any Mac (ADR 0018) | The mini is the model server; the harness is not its own machine |
+| Shared inference | One resident model for self-build and later local chat | Voice and other clients use the controller slot; they do not open Ollama |
 
 ## 17. Risks and mitigations
 
@@ -1038,7 +1064,8 @@ Default policy:
 | Repository or secrets leak through client/push | Privacy or credential exposure | On-demand source scope, redaction, minimal opaque notifications, no raw trajectories or environment values |
 | Unauthorized or stale client action controls a task | Unsafe pause, cancellation, config, or approval | Server-derived scopes, idempotency, ETags, recent-auth policy, immutable action digests, complete audit events |
 | Self-build writes the live tree or widens its own privileges | The system can disable the gates that constrain it | Worktree-only writes, adoption at restart, approval digest over the candidate commit, policy changes named in that approval |
-| A device adapter becomes a second agent or a public endpoint | Lost privacy boundary or a tool loop outside the controller | In-repo adapters, default off, private network only, no shell, git, model, or secrets |
+| A device adapter becomes a second agent or a public endpoint | Lost privacy boundary or a tool loop outside the controller | In-repo adapters, default off, private network only, no shell, git, or secrets; model access only as a controller chat turn |
+| A voice client calls Ollama directly or a chat turn runs tools | The wearable becomes a second agent with repository access | Chat sessions have no worktree tools; one in-flight inference; speech stays on the device |
 
 ## 18. Evaluation and promotion gates
 
@@ -1237,11 +1264,13 @@ invent a second architecture.
 
 The first repository implementation is complete when:
 
-Items 13–19 are future full-product gates. The current CLI/B07 baseline does
+Items 13–20 are future full-product gates. The current CLI/B07 baseline does
 not satisfy the first-party mobile, scoped-identity, or remote-disclosure
-parts (13–17), or subject pinning and adoption (18–19). Items 13–17 remain
-open until B14's API and native-client slices are implemented and promoted.
-Items 18–19 remain open until the ADR 0017 slice is implemented and promoted.
+parts (13–17), subject pinning and adoption (18–19), or the seamless install
+and shared chat slot (20). Items 13–17 remain open until B14's API and
+native-client slices are implemented and promoted. Items 18–19 remain open
+until the ADR 0017 slice is implemented and promoted. Item 20 remains open
+until the ADR 0018 slice is implemented and promoted.
 
 1. The Mac automatically starts Ollama, loads the expected Qwen model, and serves it on the private network.
 2. The model remains resident and the Mac shows no sustained swap-out growth or unrecovered failure during the 24-hour promotion soak.
@@ -1261,7 +1290,8 @@ Items 18–19 remain open until the ADR 0017 slice is implemented and promoted.
 16. Unauthorized client identities, duplicate mutations, stale resource revisions, stale approvals, and altered action digests cannot control or authorize a task.
 17. Remote client and notification output suppresses secrets, environment values, full trajectories, source, approval details, and raw verbose logs by default.
 18. A task prepares a change to this installation only in an isolated worktree of this repository, and the executing tree stays unchanged until an explicit adoption at a process restart.
-19. An in-repo device adapter, when present, stays off until locally enabled, reaches only the private network, and cannot call the model, shell, or git, or read secrets.
+19. An in-repo device adapter, when present, stays off until locally enabled, reaches only the private network, and cannot call shell or git, or read secrets. Model access, when a later chat adapter has it, is only a controller-mediated turn.
+20. A live install serves Qwen from a Mac mini, runs this scaffold and DeepSeek Harness on the same Mac, and admits a later chat turn on the single inference slot without giving that turn a worktree.
 
 ## 22. References
 
@@ -1279,6 +1309,7 @@ Items 18–19 remain open until the ADR 0017 slice is implemented and promoted.
 - [Majesta Two work graph (ADR 0014)](adrs/0014-persisted-work-graph.md)
 - [Majesta Two first-party client API (ADR 0015)](adrs/0015-first-party-client-api.md)
 - [Majesta Two local self-building installation (ADR 0017)](adrs/0017-local-self-building-system.md)
+- [Majesta Two seamless Mac install and shared inference (ADR 0018)](adrs/0018-seamless-mac-install-and-shared-inference.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

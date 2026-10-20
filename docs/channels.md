@@ -40,8 +40,12 @@ the self-building installation
 ([ADR 0017](adrs/0017-local-self-building-system.md),
 [architecture.md](architecture.md) §5.2). They are not messengers, not a
 second agent, and not implemented. They default off, stay on the private
-network, and cannot reach the model, shell, git, or secrets. The first
-concrete device protocol needs its own ADR.
+network, and cannot reach shell, git, or secrets. They do not open Ollama.
+A later wearable voice adapter may submit text turns through the control
+API so the same served Qwen answers them as chat
+([ADR 0018](adrs/0018-seamless-mac-install-and-shared-inference.md),
+architecture §5.3). Those turns have no worktree. The first concrete
+device protocol, including speech, needs its own ADR.
 
 ## Adapters (optional, deferred)
 

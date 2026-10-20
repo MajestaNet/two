@@ -4,7 +4,10 @@
 
 Accepted. Interactive first-run on a Mac laptop (same LAN, still
 `split`) is amended by [ADR 0013](0013-streamline-default-lan-setup.md).
-The logical split and `colocated` loopback rule are unchanged.
+[ADR 0018](0018-seamless-mac-install-and-shared-inference.md) names the
+seamless roles: a Mac mini serves the model, and the scaffold plus
+DeepSeek Harness share any Mac. The logical split and `colocated`
+loopback rule are unchanged.
 
 ## Context
 
