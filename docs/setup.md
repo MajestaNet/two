@@ -38,9 +38,10 @@ the spec.
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
 Last updated: 20 October 2026 (ADR 0019: the Mac mini is the default
-always-on host for Ollama, the control plane, and DeepSeek Harness.
-`two setup --plan` prints that path. ADR 0017 adoption and harness-profile
-preload are specified and not implemented.)
+always-on host. First task is a private copy aimed at this checkout.
+`two doctor` exit codes and the `two up` store are recorded below.
+ADR 0017 adoption and harness-profile preload are specified and not
+implemented.)
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -108,13 +109,43 @@ uv sync --dev
 uv run two setup --ollama-url http://127.0.0.1:11434/v1
 uv run two up
 uv run two doctor
-uv run two task submit config/examples/task.example.yaml
+uv run two task submit path/to/private-task.yaml
 ```
 
+Copy [config/examples/task.example.yaml](../config/examples/task.example.yaml)
+to that private path first. Set `repository` to the absolute path of
+**this** checkout and `validation_profile` to `two`
+(`config/repositories/two.yaml`). The committed example uses a placeholder
+path; submitting it records a repository that is not on disk.
+
+`two setup` writes `$TWO_DATA_DIR/env` at mode 0600 and creates the data
+and worktree directories at mode 0700. `two up` and `two doctor` load that
+file when the process environment does not already set the same keys.
+
 `two up` starts `two api`, `two scheduler`, and `two worker` together.
-Stop with Ctrl+C or `uv run two down`. Closing `two task` detaches; it
-does not stop the supervisor. The Majesta Two API stays on
-`127.0.0.1:8741`. Never bind Ollama or the API to a public interface.
+The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v6) and
+`$TWO_DATA_DIR/two.up.pid`. If any one of those three processes exits,
+the supervisor stops the other two. Stop a healthy supervisor with
+Ctrl+C or `uv run two down`. Closing `two task` detaches; it does not
+stop the supervisor. The Majesta Two API stays on `127.0.0.1:8741`.
+Never bind Ollama or the API to a public interface. Do not also run
+`two api` while `two up` is holding that port.
+
+`two doctor` is the install check:
+
+| Result | Meaning |
+| --- | --- |
+| Exit 0, `ready: yes (API up; Mac Healthy or Cold)` | Loopback `/health` answered and Ollama is Healthy or Cold |
+| Exit 1 | Ollama is Busy, or the API is down while Ollama is Healthy or Cold |
+| Exit 2 | Ollama is Degraded or Unavailable, or the env file or bind check failed |
+| `two doctor --offline` exit 0 | Catalogs, `$TWO_DATA_DIR/env`, and bind policy passed. The report says the API and Ollama were not probed |
+
+Exit 2 is expected until Ollama is listening on `127.0.0.1:11434`. A task
+submitted then stays `queued`. Missing `dsh` is a warning (pin
+`dsh-v0.1.2-alpha.1`), not a failed install. `GET /health` only proves the
+API and the store. `GET /v1/system/health` leaves scheduler, worker,
+harness, inference, and disk as `unknown` until some process records an
+observation for them. Use `two doctor` for Ollama.
 
 Print the recipe without writing files: `uv run two setup --plan`.
 
@@ -415,23 +446,30 @@ TWO_LIVE_MAC=1 MAC_QWEN_BASE_URL=http://YOUR-PRIVATE-MAC-NAME:11434/v1 \
 Put `dsh` on `PATH` only when you are ready for a live child; keep
 messenger tokens out of that environment.
 
-### 8. Target repository profile and task YAML
+### 8. Task YAML for this installation
 
 Validation commands come from `config/repositories/*.yaml`, not from
-`AGENTS.md` alone.
+`AGENTS.md` alone. The development subject is this checkout
+([ADR 0017](adrs/0017-local-self-building-system.md)).
+`config/repositories/two.yaml` is already that profile (`id: two`).
 
-1. Copy `config/repositories/example.yaml` to
-   `config/repositories/<your-id>.yaml`.
-2. Set `id`, `commands`, `allowed_paths`, and `forbidden_paths` (keep `.env`
-   forbidden).
-3. Copy [config/examples/task.example.yaml](../config/examples/task.example.yaml)
+1. Copy [config/examples/task.example.yaml](../config/examples/task.example.yaml)
    to a **private** path (not git).
+2. Set `repository` to the absolute path of this checkout.
+3. Set `validation_profile` to `two`.
+4. Set `base_ref` to a ref that exists there (`origin/main` is the usual one).
 
-> **Config.** `repository` should be the filesystem path of the **canonical**
-> git checkout. The controller locates it with `Path(manifest.repository)`
-> when that path exists. It never edits that checkout; work happens in
-> `TWO_WORKSPACE_ROOT` on branch `agent/<task-id>`. If `repository` is a
-> path, set `validation_profile` to the YAML `id` from step 1.
+> **Config.** The controller locates the checkout with
+> `Path(manifest.repository)` when that path exists. It does not edit that
+> tree. Work happens in `TWO_WORKSPACE_ROOT` on branch `agent/<task-id>`.
+> Adopting that worktree onto the executing tree is a later restart step
+> and is not implemented. Subject pinning has no manifest field yet.
+
+`config/repositories/example.yaml` is a fixture (`id: example-service`).
+The workspace can still open another git checkout if you pass its path
+and a profile id. That is not the product subject. Copy `example.yaml`
+only when you are exercising that older path, and keep `.env` in
+`forbidden_paths`.
 
 > **Privacy.** Keep `cloud_allowed: false`. The agent must not merge, push,
 > or deploy (`config/policies/default.yaml` `forbidden_actions`). GitHub
@@ -443,7 +481,7 @@ Validation commands come from `config/repositories/*.yaml`, not from
 
 Three processes. The CLI is **not** one of them; it only talks HTTP.
 
-**First test (native, same machine as the CLI):**
+**Interactive first test:** `uv run two up` from the [Mac mini path](#default-layout-mac-mini). It is the same three processes. Use the three commands below when you want separate terminals. They load `$TWO_DATA_DIR/env` from `two setup`. Source a repo-root `.env` only when that is the file you edited in step 4.
 
 ```bash
 set -a && source .env && set +a
@@ -453,7 +491,8 @@ uv run two worker              # drives stages after a lease
 ```
 
 On loopback, `two api` prints a local-trust warning and does not require a
-token. Leave those three running (tmux/systemd/Compose).
+token. Leave those three running (tmux/systemd/Compose). Do not start
+`two api` a second time while `two up` is bound to `127.0.0.1:8741`.
 
 **Unattended Linux:** Compose — see [Compose](#compose-linux-development-host).
 
@@ -464,10 +503,20 @@ token. Leave those three running (tmux/systemd/Compose).
 
 ```bash
 curl -fsS http://127.0.0.1:8741/health
+uv run two doctor
+uv run two doctor --offline
 ./scripts/health-check.sh --dry-run
-# live Mac:
-MAC_QWEN_BASE_URL=http://YOUR-PRIVATE-MAC-NAME:11434/v1 ./scripts/health-check.sh
+# live Ollama, colocated default:
+MAC_QWEN_BASE_URL=http://127.0.0.1:11434/v1 ./scripts/health-check.sh
+# optional split:
+# MAC_QWEN_BASE_URL=http://YOUR-PRIVATE-MAC-NAME:11434/v1 ./scripts/health-check.sh
+# Exit 0 Healthy; 1 Cold/Busy (retryable); 2 Degraded/Unavailable
 ```
+
+`GET /health` is API and store liveness. `two doctor` adds the env file,
+bind policy, and the Ollama classifier. Exit codes are in the
+[Mac mini path](#default-layout-mac-mini). `health-check.sh` uses the
+same 0 / 1 / 2 scale for Ollama alone.
 
 The scheduler poller uses `MAC_QWEN_BASE_URL` when set. If it is unset,
 health stays Healthy/offline so unit tests never open a socket.
@@ -476,7 +525,7 @@ health stays Healthy/offline so unit tests never open a socket.
 model, open SQLite, or start a worker.
 
 ```bash
-uv run two task submit path/to/task.yaml
+uv run two task submit path/to/private-task.yaml
 uv run two task show task-123
 uv run two task message task-123 --text "prefer the lock"
 uv run two task pause task-123
@@ -499,10 +548,11 @@ Silence is never approval. Resume is allowed from `paused` or
 `awaiting_input` and keeps the same task id. Cancelled is terminal.
 Principal defaults to `cli:local`.
 
-Without a healthy Mac + a compatible ACP child, the task stays
-`queued`/`paused` rather than running to `complete`. That is expected
-until the live DSH path is wired (ADR 0011). You can still verify
-submit/show/pause/resume against the in-process API.
+Without Healthy or Cold Ollama, `two doctor` exits 2 and the task stays
+`queued`. A compatible ACP child is also required before the worker can
+drive the task to `complete` (ADR 0011). You can still verify
+submit/show/pause/resume against the loopback API. The task `graph` stays
+empty until the controller walks a leased task.
 
 ### 11. Optional: CLI from another machine
 
@@ -531,11 +581,13 @@ implemented. Never open the API publicly for phone access. See
 
 ---
 
-## Compose (Linux development host)
+## Compose (optional Linux host)
 
-Compose is the default unattended packaging ([ADR 0005](adrs/0005-remote-access-and-compose.md)).
-Ollama stays native on the Mac. systemd user units under `deploy/systemd/`
-are optional native templates.
+Compose is the optional packaging when a Linux host stays powered on
+([ADR 0005](adrs/0005-remote-access-and-compose.md),
+[ADR 0019](adrs/0019-mini-resident-control-plane.md)). It is not the
+Mac mini install. Ollama stays native on the mini. systemd user units
+under `deploy/systemd/` are optional native templates.
 
 ```bash
 ./scripts/bootstrap-dev-host.sh --topology split --data-dir "$HOME/.local/share/two"

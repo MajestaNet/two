@@ -51,6 +51,9 @@ def test_proposed_plan_is_six_commands() -> None:
     assert "0.0.0.0" not in text
     assert "127.0.0.1:11434" in text
     assert "uv run two up" in text
+    assert "uv run two task submit path/to/private-task.yaml" in text
+    assert "validation_profile is two" in text
+    assert "task.example.yaml" not in [step.command for step in plan.steps]
     assert "[available/" in text
     assert "colocated" in plan.steps[0].command
 

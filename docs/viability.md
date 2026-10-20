@@ -58,8 +58,15 @@ model work.
 - Mac live bootstrap requires Darwin; `--dry-run` and health fixtures work offline
 - Live ACP still needs a pinned `dsh` binary that speaks JSON-RPC; default
   tests use a JSONL fixture child (ADR 0011)
-- First-party mobile client and its additive API resources are not
-  implemented ([B14](backlog/B14-secure-mobile-client.md))
+- The native mobile app is not implemented. Control-API slices 1–3
+  (capabilities, conversation, health, queue, projects, config candidates)
+  are in this repo ([B14](backlog/B14-secure-mobile-client.md))
+- Adopting a task worktree onto the executing tree is not implemented
+  ([ADR 0017](adrs/0017-local-self-building-system.md)). The first task
+  still targets this checkout (`validation_profile: two`)
+- `two doctor` is not ready until the API is up and Ollama is Healthy
+  or Cold. `--offline` can exit 0 with those sockets unprobed. An
+  unreachable Ollama exits 2 and leaves a submitted task `queued`
 - GitHub export adapter is not implemented ([B17](backlog/B17-github-export.md))
 - Optional loopback web UI was skipped in B13
 - GitHub Actions may be skipped if the org has no Actions minutes

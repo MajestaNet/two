@@ -3,9 +3,9 @@
 ## Status
 
 Accepted (operator-path decision). Implementation is
-[B18](../backlog/B18-streamlined-lan-setup.md). Slice 1 (this PR) is the
-plan printer: `two setup --plan`. Later slices may apply files, supervise
-processes, and check health. This ADR does **not** rewrite
+[B18](../backlog/B18-streamlined-lan-setup.md), done through slice 4
+(`two setup --ollama-url`, `two up`, `two down`, `two doctor`). Slices 5
+and 6 stay deferred. This ADR does **not** rewrite
 [architecture.md](../architecture.md); it amends the interactive operator
 path in front of the existing logical split.
 [ADR 0018](0018-seamless-mac-install-and-shared-inference.md) reserved the
@@ -83,7 +83,11 @@ unchanged.
 
 ## Target command sequence
 
-After a clone on each machine, the default LAN path should be:
+This block is the optional two-Mac list (`two setup --current`). The
+printed default is the Mac mini path in
+[ADR 0019](0019-mini-resident-control-plane.md) and [setup.md](../setup.md).
+
+After a clone on each machine, the split path is:
 
 **Inference Mac (once):**
 
@@ -99,12 +103,13 @@ uv sync --dev
 uv run two setup --ollama-url http://YOUR-PRIVATE-MAC-NAME:11434/v1
 uv run two up
 uv run two doctor
-uv run two task submit config/examples/task.example.yaml
+uv run two task submit path/to/private-task.yaml
 ```
 
-Six commands after clone, versus about twenty-two today. `two setup --plan`
-prints this recipe now. `two setup` apply, `two up`, and `two doctor` are
-later B18 slices (`--apply` exits 2 until then).
+That split list is longer than the mini path. `two setup --plan` prints
+the mini recipe. Copy `config/examples/task.example.yaml` to the private
+path first and set `repository` to this checkout and `validation_profile`
+to `two`. The committed example's repository path is a placeholder.
 
 Print the plan from a checkout with no Mac:
 

@@ -33,10 +33,19 @@ Development-host packaging ([B12](backlog/B12-dev-host-services.md)):
 
 - `scripts/bootstrap-dev-host.sh --dry-run` (CI) or live mkdir of
   `TWO_DATA_DIR` and the workspace root at mode 0700.
-- Compose (`deploy/compose`) is the default unattended packaging: services
-  `api`, `scheduler`, `worker`. No Ollama image. Host network; API on
-  `127.0.0.1:8741`.
+- Compose (`deploy/compose`) is the optional Linux packaging when that
+  host stays on: services `api`, `scheduler`, `worker`. No Ollama image.
+  Host network; API on `127.0.0.1:8741`. The Mac mini install does not
+  use it ([ADR 0019](adrs/0019-mini-resident-control-plane.md)).
 - Optional systemd user-unit templates: `deploy/systemd/`.
-- Process health: `GET /health` on two-api. Mac inference health:
-  `scripts/health-check.sh` from the Linux host (`MAC_QWEN_BASE_URL`).
-  The scheduler poller uses the same URL when set.
+- Process health: `GET /health` on two-api (API and store only).
+  `uv run two doctor` adds the env file, bind policy, and Ollama
+  classifier. Exit 0 when the API is up and Ollama is Healthy or Cold.
+  Exit 2 when Ollama is Degraded or Unavailable. `two doctor --offline`
+  does not open those sockets. `scripts/health-check.sh` classifies
+  Ollama alone (`MAC_QWEN_BASE_URL`): exit 0 Healthy, 1 Cold/Busy, 2
+  Degraded/Unavailable. The scheduler poller uses the same URL when set.
+- `two up` is the interactive supervisor for `api`, `scheduler`, and
+  `worker`. The first start creates `$TWO_DATA_DIR/two.sqlite`. If one
+  child exits, the supervisor stops the other two. `two down` signals
+  the pidfile. Do not start a second `two api` on `127.0.0.1:8741`.

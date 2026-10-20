@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Operator template for `two task submit`. Copy to a private path.
+# Do not submit this file as committed: repository is a placeholder.
+# This installation (ADR 0017): set repository to this checkout and
+# validation_profile to two (config/repositories/two.yaml).
 # Do not commit a real repository filesystem path or hostname.
 # Field names match architecture §8.1 / two.manifest.TaskManifest.
 # 24 GB / 16K overnight task shape: docs/local-16k.md.

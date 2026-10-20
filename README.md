@@ -24,7 +24,7 @@ Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attri
 
 Start with the living [setup guide](docs/setup.md). The canonical specification is [docs/architecture.md](docs/architecture.md).
 
-- [Setup](docs/setup.md) — operator walkthrough; default two-Mac LAN path first
+- [Setup](docs/setup.md) — operator walkthrough; Mac mini path first
 - [ADR 0013](docs/adrs/0013-streamline-default-lan-setup.md) — streamline that path
 - [ADR 0018](docs/adrs/0018-seamless-mac-install-and-shared-inference.md) — shared local inference for later clients
 - [ADR 0019](docs/adrs/0019-mini-resident-control-plane.md) — Mac mini hosts the control plane; persisted harness profiles for device actions
@@ -55,10 +55,11 @@ uv run two --help
 uv run two profiles
 uv run two topology
 uv run two setup --plan
-uv run two setup --ollama-url http://YOUR-PRIVATE-MAC-NAME:11434/v1
+uv run two setup --ollama-url http://127.0.0.1:11434/v1
 uv run two up
 uv run two doctor
-uv run two api
 ```
+
+`two up` already starts `two api`, `two scheduler`, and `two worker` on `127.0.0.1:8741`. Run `two api` only when that supervisor is not running. `two doctor` exits 0 when that API is up and Ollama is Healthy or Cold. `two doctor --offline` checks catalogs, `$TWO_DATA_DIR/env`, and bind policy, and it does not open those sockets. Copy `config/examples/task.example.yaml` to a private path and point it at this checkout (`validation_profile: two`) before `two task submit`. The walkthrough is [docs/setup.md](docs/setup.md).
 
 `make ci` is the single command that must stay green. Coding-agent instructions live in [AGENTS.md](AGENTS.md).
