@@ -1,8 +1,10 @@
 # Majesta Two
 
-Majesta Two is a **backend** control plane for local, private software-development agents. It drives [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) on a development host and calls an official Qwen 3.8 model served from a Mac over a private network. The CLI uses its channel-neutral control API today; a secure first-party mobile client is planned.
+Majesta Two is a fully local, self-building system ([ADR 0017](docs/adrs/0017-local-self-building-system.md)). One installation of this repository is the development client: it builds the next version of itself on an isolated worktree and adopts that version only after validation, fresh review, and an explicit approval, at a process restart. [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) stays the inner model/tool loop. An official Qwen 3.8 model is served from a Mac over a private network.
 
-Inference stays on the Mac. Repositories, shells, tests, and git worktrees stay on the development host. The model never mounts source and never executes commands on the inference appliance.
+The open-source tree grows optional adapters for private local endpoints (home devices, wearables, and similar). Those adapters are off until enabled on an installation, and they are not implemented yet.
+
+Inference stays on the Mac. Shells, tests, and git worktrees stay on the development host. The model never mounts source and never executes commands on the inference appliance. The worktree under change is this repository.
 
 This repository is the implementation of that architecture. Durable task
 state lives in SQLite (`two.store`). The control API (`two api`), scheduler

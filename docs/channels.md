@@ -33,6 +33,16 @@ Closing or disconnecting the app does not stop a task. The app projects the
 persisted graph and controller evidence; it does not run a model/tool loop,
 shell, git, or validation.
 
+## Local device adapters (planned)
+
+Home, wearable, and later private-device adapters are an in-repo slot on
+the self-building installation
+([ADR 0017](adrs/0017-local-self-building-system.md),
+[architecture.md](architecture.md) §5.2). They are not messengers, not a
+second agent, and not implemented. They default off, stay on the private
+network, and cannot reach the model, shell, git, or secrets. The first
+concrete device protocol needs its own ADR.
+
 ## Adapters (optional, deferred)
 
 A future Slack, Matrix, Discord, or other adapter should authenticate one
