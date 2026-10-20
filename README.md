@@ -54,7 +54,8 @@ uv run two setup --plan
 uv run two setup --ollama-url http://YOUR-PRIVATE-MAC-NAME:11434/v1
 uv run two up
 uv run two doctor
-uv run two api
 ```
+
+`two up` already starts `two api`, `two scheduler`, and `two worker` on `127.0.0.1:8741`. Run `two api` only when that supervisor is not running. `two doctor` exits 0 when that API is up and the Mac is Healthy or Cold. `two doctor --offline` checks catalogs, `$TWO_DATA_DIR/env`, and bind policy, and it does not open the API or Mac sockets. Copy `config/examples/task.example.yaml` to a private path and point it at this checkout (`validation_profile: two`) before `two task submit`. The walkthrough is [docs/setup.md](docs/setup.md).
 
 `make ci` is the single command that must stay green. Coding-agent instructions live in [AGENTS.md](AGENTS.md).

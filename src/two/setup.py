@@ -159,14 +159,22 @@ def proposed_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
             SetupStep(
                 host="dev-laptop",
                 command="uv run two doctor",
-                why="Check env, loopback API, and Mac Ollama health in one command",
+                why=(
+                    "Exit 0 when the API is up and the Mac is Healthy or Cold; "
+                    "exit 2 when the Mac is Unavailable (the task stays queued). "
+                    "--offline does not probe those sockets"
+                ),
                 status="available",
                 once=False,
             ),
             SetupStep(
                 host="dev-laptop",
-                command="uv run two task submit config/examples/task.example.yaml",
-                why="Submit a task and detach; closing the CLI does not cancel it",
+                command="uv run two task submit path/to/private-task.yaml",
+                why=(
+                    "Private copy of config/examples/task.example.yaml: "
+                    "repository is this checkout, validation_profile is two. "
+                    "Closing the CLI does not cancel the task"
+                ),
                 status="available",
                 once=False,
             ),
@@ -284,14 +292,20 @@ def current_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
         ),
         SetupStep(
             host="dev-laptop",
-            command="copy config/repositories/example.yaml to config/repositories/<id>.yaml",
-            why="Name validation commands for the target repo",
+            command="use config/repositories/two.yaml for this checkout",
+            why=(
+                "validation_profile two runs this repo's make targets. "
+                "example.yaml is a fixture; copy it only for another checkout"
+            ),
             status="available",
         ),
         SetupStep(
             host="dev-laptop",
             command="copy config/examples/task.example.yaml to a private task YAML",
-            why="Build a TaskManifest before first submit",
+            why=(
+                "Set repository to this checkout and validation_profile to two "
+                "before the first submit"
+            ),
             status="available",
         ),
         SetupStep(
@@ -318,14 +332,24 @@ def current_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
         SetupStep(
             host="dev-laptop",
             command="curl -fsS http://127.0.0.1:8741/health",
-            why="API liveness",
+            why="API liveness. This is not Mac health",
             status="available",
             once=False,
         ),
         SetupStep(
             host="dev-laptop",
-            command="uv run two task submit path/to/task.yaml",
-            why="First task",
+            command="uv run two doctor",
+            why=(
+                "Exit 0 when the API is up and the Mac is Healthy or Cold; "
+                "exit 2 when the Mac is Unavailable"
+            ),
+            status="available",
+            once=False,
+        ),
+        SetupStep(
+            host="dev-laptop",
+            command="uv run two task submit path/to/private-task.yaml",
+            why="First task for this checkout (validation_profile two)",
             status="available",
             once=False,
         ),

@@ -3,11 +3,13 @@
 ## Status
 
 Accepted (operator-path decision). Implementation is
-[B18](../backlog/B18-streamlined-lan-setup.md). Slice 1 (this PR) is the
-plan printer: `two setup --plan`. Later slices may apply files, supervise
-processes, and check health. This ADR does **not** rewrite
+[B18](../backlog/B18-streamlined-lan-setup.md), which is done through
+slice 4: `two setup --plan`, `two setup --ollama-url`, `two up` /
+`two down`, and `two doctor`. Slices 5 and 6 (LaunchAgents, mDNS) are
+still deferred. This ADR does **not** rewrite
 [architecture.md](../architecture.md); it amends the interactive operator
-path in front of the existing logical split.
+path in front of the existing logical split. The living commands are in
+[setup.md](../setup.md).
 
 ## Context
 
@@ -94,12 +96,15 @@ uv sync --dev
 uv run two setup --ollama-url http://YOUR-PRIVATE-MAC-NAME:11434/v1
 uv run two up
 uv run two doctor
-uv run two task submit config/examples/task.example.yaml
+uv run two task submit path/to/private-task.yaml
 ```
 
 Six commands after clone, versus about twenty-two today. `two setup --plan`
-prints this recipe now. `two setup` apply, `two up`, and `two doctor` are
-later B18 slices (`--apply` exits 2 until then).
+prints this recipe. Copy `config/examples/task.example.yaml` to the private
+path first and set `repository` to this checkout and `validation_profile`
+to `two`. The committed example's repository path is a placeholder.
+`two doctor` exits 0 when the API is up and the Mac is Healthy or Cold,
+and exits 2 when the Mac is Unavailable. Details: [setup.md](../setup.md).
 
 Print the plan from a checkout with no Mac:
 
@@ -257,11 +262,13 @@ Overnight isolation on a sleeping laptop is **not** promised. Architecture
 that the control plane talks to Ollama.
 
 **Design.** Keep `config/examples/task.example.yaml` as the operator
-template. `two doctor` can submit nothing. First `two task submit` may
-point at that example **or** a later `config/examples/task.smoke.yaml`
-that uses `evals/fixtures/adder` (already in tree) so validation has a
-real profile. Do not invent a second manifest schema. Do not require
-soak/`models.lock` for that first interactive submit (P12).
+template. `two doctor` can submit nothing. First `two task submit` uses a
+private copy of that example with `repository` set to this checkout and
+`validation_profile` set to `two`. Do not submit the committed placeholder
+path. A later `config/examples/task.smoke.yaml` that uses
+`evals/fixtures/adder` is still optional. Do not invent a second manifest
+schema. Do not require soak/`models.lock` for that first interactive
+submit (P12).
 
 ### P10 — Split contributor and operator tracks in the numbered guide
 

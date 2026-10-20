@@ -8,7 +8,8 @@ Configuration is data. Do not put Python here.
   profile. Keep it aligned with `Makefile` targets.
 - `repositories/example.yaml` is a fixture, not a live service.
 - `examples/task.example.yaml` is the operator copy of architecture §8.1.
-  Placeholders only; never a real checkout path.
+  Placeholders only; never a real checkout path. Copy it before submit.
+  This installation uses `validation_profile: two`.
 - `policies/default.yaml` encodes architecture budgets and forbidden actions.
 - `policies/context.yaml` encodes the 16K context-budget table and the
   72% compaction threshold (architecture §7.2).
