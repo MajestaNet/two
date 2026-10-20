@@ -8,5 +8,10 @@ Read `docs/architecture.md` before adding components, APIs, or workflow states.
 Majesta Two is the control plane. DeepSeek Harness owns the model/tool loop. Qwen
 stays on the Mac. Do not reimplement the harness inside this repo.
 
+The product subject is this local installation (ADR 0017). It builds the next
+version of itself from a worktree and adopts that version only at a process
+restart. Do not add a product that develops unrelated repositories. Do not
+let the agent loop write the executing tree.
+
 If an implementation would disagree with the spec, stop and add an ADR under
 `docs/adrs/` instead of rewriting `docs/architecture.md` to match the code.
