@@ -17,6 +17,7 @@ import inspect
 import json
 import re
 import sqlite3
+import threading
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -253,6 +254,35 @@ def test_release_lease_owned_only(store: Store) -> None:
     assert store.get_lease("task-123") is not None
     assert store.release_lease("task-123", "worker-a") is True
     assert store.get_lease("task-123") is None
+
+
+def test_concurrent_open_store_migrates_once(tmp_path: Path) -> None:
+    """api, scheduler, and worker open one fresh database together."""
+
+    path = tmp_path / "race.sqlite"
+    errors: list[Exception] = []
+    versions: list[int] = []
+    barrier = threading.Barrier(3)
+
+    def open_one() -> None:
+        try:
+            barrier.wait(timeout=5)
+            opened = open_store(path)
+            try:
+                versions.append(opened.schema_version())
+            finally:
+                opened.close()
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=open_one) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=15)
+        assert not thread.is_alive()
+    assert errors == []
+    assert versions == [SCHEMA_VERSION, SCHEMA_VERSION, SCHEMA_VERSION]
 
 
 def test_schema_migrates_from_v1_through_current(tmp_path: Path) -> None:

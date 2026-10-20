@@ -22,6 +22,7 @@ Default file is ``{TWO_DATA_DIR}/two.sqlite`` (see ``two.validation.artifacts``)
 from __future__ import annotations
 
 import sqlite3
+import time
 from pathlib import Path
 
 from two.store.schema import apply_migrations
@@ -55,12 +56,30 @@ def connect(path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection
 
 
 def _apply_pragmas(connection: sqlite3.Connection) -> None:
-    mode = connection.execute("PRAGMA journal_mode=WAL").fetchone()
-    if mode is None or str(mode[0]).lower() != "wal":
+    # Set the busy handler before journal_mode. A concurrent opener (the
+    # other ``two up`` children) may hold the write lock, and the default
+    # wait is zero until this pragma runs. ``PRAGMA journal_mode`` can still
+    # return SQLITE_BUSY immediately, so retry until the busy budget ends.
+    connection.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+    _set_wal_journal(connection)
+    connection.execute("PRAGMA foreign_keys=ON")
+
+
+def _set_wal_journal(connection: sqlite3.Connection) -> None:
+    deadline = time.monotonic() + (BUSY_TIMEOUT_MS / 1000)
+    while True:
+        try:
+            mode = connection.execute("PRAGMA journal_mode=WAL").fetchone()
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or time.monotonic() >= deadline:
+                connection.close()
+                raise
+            time.sleep(0.01)
+            continue
+        if mode is not None and str(mode[0]).lower() == "wal":
+            return
         connection.close()
         raise sqlite3.DatabaseError("SQLite refused WAL journal_mode")
-    connection.execute("PRAGMA foreign_keys=ON")
-    connection.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
 
 
 def prepare_database(

@@ -170,7 +170,9 @@ def format_report(report: DoctorReport) -> str:
         req = "required" if item.required else "warning"
         lines.append(f"  [{mark}/{req}] {item.name}: {item.detail}")
     lines.append("")
-    if report.ready:
+    if report.ready and report.offline:
+        lines.append("ready: yes (offline checks passed; API and Mac were not probed)")
+    elif report.ready:
         lines.append("ready: yes (API up; Mac Healthy or Cold)")
     else:
         lines.append("ready: no")
@@ -185,14 +187,17 @@ def doctor_exit_code(report: DoctorReport) -> int:
     if report.offline:
         return 0 if all(item.ok for item in report.checks if item.required) else 2
     mac = next((item for item in report.checks if item.name == "mac"), None)
-    if (
-        mac is not None
-        and mac.ok is False
-        and "Cold" not in mac.detail
-        and "Busy" not in mac.detail
-    ):
-        if "Unavailable" in mac.detail or "Degraded" in mac.detail:
-            return health_exit_code(HealthState.UNAVAILABLE)
+    if mac is not None and mac.ok is False:
+        # Match the state token. The detail also says "Cold is retryable",
+        # so a substring search would treat Unavailable as Cold.
+        for state in (
+            HealthState.UNAVAILABLE,
+            HealthState.DEGRADED,
+            HealthState.COLD,
+            HealthState.BUSY,
+        ):
+            if mac.detail.startswith(f"state {state.value}"):
+                return health_exit_code(state)
     return report.exit_code
 
 

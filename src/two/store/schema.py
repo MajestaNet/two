@@ -339,25 +339,29 @@ def current_schema_version(connection: sqlite3.Connection) -> int:
 
 
 def apply_migrations(connection: sqlite3.Connection) -> int:
-    """Apply pending migrations. Commits each version before returning it."""
+    """Apply pending migrations. Commits each version before returning it.
+
+    The applied version is read inside ``BEGIN IMMEDIATE``. ``two up`` opens
+    the store from the API, scheduler, and worker together; a check outside
+    the lock lets two processes apply the same ``CREATE TABLE``.
+    """
     connection.execute(_MIGRATIONS_TABLE)
     connection.commit()
-    applied = current_schema_version(connection)
+    applied = 0
     for version, statements in MIGRATIONS:
-        if version <= applied:
-            continue
         connection.execute("BEGIN IMMEDIATE")
         try:
-            for statement in statements:
-                connection.execute(statement)
-            connection.execute(
-                "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-                (version, datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")),
-            )
+            applied = current_schema_version(connection)
+            if version > applied:
+                for statement in statements:
+                    connection.execute(statement)
+                connection.execute(
+                    "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+                    (version, datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")),
+                )
+                applied = version
+            connection.commit()
         except Exception:
             connection.rollback()
             raise
-        else:
-            connection.commit()
-        applied = version
     return applied
