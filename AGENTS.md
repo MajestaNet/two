@@ -5,8 +5,11 @@
 Majesta Two is a fully local, self-building system (ADR 0017). One local
 installation of this repository is the development client and the only
 development subject. DeepSeek Harness remains the pinned inner model/tool
-loop and is not reimplemented here. Qwen 3.8 stays on a dedicated Mac
-inference host. This repository is not a Slack (or other messenger) product
+loop and is not reimplemented here. The Mac mini is the always-on host for Qwen 3.8, this scaffold, and
+DeepSeek Harness (ADR 0019). The installer selects the inference profile.
+A later wearable or device request resumes a persisted harness profile
+(`chat` or `home-action`), not the self-build profile. One inference
+runs at a time. This repository is not a Slack (or other messenger) product
 and it does not develop unrelated repositories. The CLI is the local surface
 today; ADR 0015/B14 plans a secure first-party mobile client over the same
 API. In-repo home and wearable adapters are specified and not implemented.
@@ -73,7 +76,7 @@ listed in `config/repositories/two.yaml`.
 ## Layout
 
 - `src/two/` — Python only. Package implementations live here.
-  `src/two/setup.py` is the default two-Mac LAN setup plan (ADR 0013).
+  `src/two/setup.py` is the Mac mini setup plan (ADR 0019). `two setup --current` still prints the optional split list (ADR 0013).
   `two setup --plan` prints it. `two setup --ollama-url` writes env via
   `two.operator`. `two doctor` / `two up` / `two down` are B18.
   `src/two/runtime/` holds the Mac lock file, Ollama env/bind policy,
@@ -186,7 +189,7 @@ listed in `config/repositories/two.yaml`.
 - GitHub App, source-control export, or a local git forge (ADR 0012)
 - Task-manifest field changes
 - Changing the *default* inference profile or default topology
-  (per-host `colocated` on a large Mac is fine)
+  (the default topology is `colocated` on the Mac mini, ADR 0019)
 - Adding a vector database
 
 ### Never

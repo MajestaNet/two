@@ -7,7 +7,7 @@ in [setup.md](setup.md).
 ## Verdict
 
 The control plane, CLI, and offline gates are in place. An operator with
-a development host (Mac laptop on the same LAN, or Linux) can clone, run
+a Mac mini (or a Linux host on the optional split path) can clone, run
 `make ci`, start `two api` / `scheduler` / `worker`, and drive tasks with
 `two task …` on loopback.
 
@@ -21,7 +21,7 @@ implemented; handoff is the local worktree.
 
 Ease of setup is **good for contributors**, **usable for CLI operators**
 if they follow [setup.md](setup.md) (privacy and network first; default
-two-Mac LAN recipe: `two setup --plan`, [ADR 0013](adrs/0013-streamline-default-lan-setup.md)),
+Mac mini recipe: `two setup --plan`, [ADR 0019](adrs/0019-mini-resident-control-plane.md)),
 and **still a cliff** for a first unattended model run (Mac bind + DSH pin).
 `two setup --apply`, `two up`, and `two doctor` are shipped for the
 interactive two-Mac LAN path ([B18](backlog/B18-streamlined-lan-setup.md)).

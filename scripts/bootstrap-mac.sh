@@ -15,7 +15,7 @@ cd "$ROOT"
 
 DRY_RUN=0
 PROFILE="${TWO_INFERENCE_PROFILE:-m24-qwen38-16k}"
-TOPOLOGY="${TWO_TOPOLOGY:-split}"
+TOPOLOGY="${TWO_TOPOLOGY:-colocated}"
 BIND="${MAC_INFERENCE_BIND_ADDRESS:-}"
 SYSTEM=0
 OLLAMA_BIN=""
@@ -28,7 +28,7 @@ Idempotent Mac inference bootstrap (architecture §6.1 / §12.1).
 
   --dry-run     Print the plan and exit 0 (CI path; no Darwin, no Ollama)
   --profile     Inference catalog id (default: m24-qwen38-16k)
-  --topology    split (private LAN/overlay) or colocated (127.0.0.1)
+  --topology    colocated (default, 127.0.0.1) or split (private LAN/overlay)
   --bind        Ollama bind host; optional on Darwin split (auto .local / RFC1918).
                 Never 0.0.0.0. Required on live split if auto-bind fails.
   --system      Install LaunchDaemon under /Library (default: user LaunchAgent)
@@ -226,7 +226,7 @@ curl -fsS --max-time 120 "${origin}/api/generate" \
 echo "bootstrap-mac.sh: ready alias=${ALIAS} bind=${BIND_ADDRESS}"
 cat <<EOF
 
-Pairing card (run on the development Mac laptop):
+Pairing card (on this Mac mini):
   uv run two setup --ollama-url http://${BIND_ADDRESS}:11434/v1
   uv run two up
   uv run two doctor

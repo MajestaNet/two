@@ -4,7 +4,11 @@
 
 Accepted. Interactive first-run on a Mac laptop (same LAN, still
 `split`) is amended by [ADR 0013](0013-streamline-default-lan-setup.md).
-The logical split and `colocated` loopback rule are unchanged.
+[ADR 0018](0018-seamless-mac-install-and-shared-inference.md) names the
+seamless roles. [ADR 0019](0019-mini-resident-control-plane.md) makes
+`colocated` the default: the Mac mini is the always-on host for Ollama,
+the control plane, and DeepSeek Harness. The logical split and loopback
+rule are unchanged. The 24 GB inference-only rule is withdrawn.
 
 ## Context
 
@@ -32,7 +36,7 @@ drop the trust boundary that the model never executes tools.
 
 ## Consequences
 
-Two-machine networking stays optional. A 24 GB Mini should stay
-inference-only. A 64 GB Studio can run the control plane locally without
-a second architecture. See `config/deploy/topology.yaml` and
+Two-machine networking stays optional. ADR 0019 withdraws the
+inference-only consequence: the Mac mini hosts the control plane, and
+the installer selects the profile. See `config/deploy/topology.yaml` and
 `two topology`.

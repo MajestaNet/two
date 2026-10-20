@@ -9,8 +9,10 @@ Use this page as an index, not a second spec:
 
 - Mac startup and recovery — §12.1
 - Development-host services — §12.2
-- Default two-Mac LAN operator path — [ADR 0013](adrs/0013-streamline-default-lan-setup.md),
-  `uv run two setup --plan`, `two setup --ollama-url`, `two up`, `two doctor`
+- Mac mini operator path — [ADR 0019](adrs/0019-mini-resident-control-plane.md),
+  `uv run two setup --plan`, `two setup --ollama-url`, `two up`, `two doctor`.
+  Optional two-Mac list: [ADR 0013](adrs/0013-streamline-default-lan-setup.md),
+  `two setup --current`
 - Health states — §12.3
 - Timeouts and retries — §12.4
 - Startup recovery and action reconciliation — §12.5

@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Default two-Mac LAN setup plan. No I/O, no network, no store."""
+"""Default Mac mini setup plan. No I/O, no network, no store."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from two.types import DeploymentTopologyId, InferenceProfileId
 
-DEFAULT_TOPOLOGY = DeploymentTopologyId.SPLIT.value
+DEFAULT_TOPOLOGY = DeploymentTopologyId.COLOCATED.value
 DEFAULT_PROFILE = InferenceProfileId.M24_QWEN38_16K.value
 DEFAULT_API_BIND = "127.0.0.1"
 DEFAULT_API_PORT = 8741
@@ -32,7 +32,7 @@ DEFAULT_OLLAMA_PORT = 11434
 DEFAULT_OLLAMA_HOST = "mac-inference.internal"
 DUMMY_OLLAMA_KEY = "ollama"
 
-SetupHost = Literal["inference-mac", "dev-laptop"]
+SetupHost = Literal["inference-mac", "dev-laptop", "mac-mini"]
 SetupStatus = Literal["available", "proposed"]
 
 
@@ -40,7 +40,7 @@ def pairing_card(ollama_url: str) -> str:
     """Copy-paste block printed by Mac bootstrap and ``two setup``."""
 
     return (
-        "Pairing card (run on the development Mac laptop):\n"
+        "Pairing card (on this Mac mini):\n"
         f"  uv run two setup --ollama-url {ollama_url}\n"
         "  uv run two up\n"
         "  uv run two doctor\n"
@@ -52,15 +52,17 @@ class PublicOllamaHostError(ValueError):
 
 
 class DefaultLanAssumptions(BaseModel):
-    """Interactive operator default from ADR 0013. Not a third topology."""
+    """Always-on default from ADR 0019. Not a third topology."""
 
     model_config = ConfigDict(extra="forbid")
 
     topology: str = DEFAULT_TOPOLOGY
     profile: str = DEFAULT_PROFILE
-    inference: str = "dedicated Apple Silicon Mac; native Ollama only"
-    development: str = "separate Mac laptop; Majesta Two + DeepSeek Harness"
-    network: str = "same private LAN; Tailscale not required; no public bind"
+    inference: str = "Mac mini; native Ollama; installer selects the profile that fits"
+    development: str = (
+        "same Mac mini; Majesta Two + DeepSeek Harness; Ollama stays a separate process"
+    )
+    network: str = "loopback between Ollama and the scaffold; no public bind"
     api_bind: str = f"{DEFAULT_API_BIND}:{DEFAULT_API_PORT}"
     ollama_port: int = DEFAULT_OLLAMA_PORT
     dummy_api_key: str = DUMMY_OLLAMA_KEY
@@ -119,52 +121,53 @@ def refuse_public_ollama_host(host: str) -> str:
     return cleaned
 
 
-def proposed_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
-    """Six-command target path after clone (ADR 0013)."""
+def proposed_lan_plan(ollama_host: str = "127.0.0.1") -> SetupPlan:
+    """Six-command path on the Mac mini after clone (ADR 0019)."""
 
-    url = ollama_base_url(ollama_host)
+    refuse_public_ollama_host(ollama_host)
+    url = ollama_base_url("127.0.0.1")
     return SetupPlan(
         kind="proposed",
         assumptions=DefaultLanAssumptions(),
         ollama_base_url=url,
         steps=[
             SetupStep(
-                host="inference-mac",
-                command="./scripts/bootstrap-mac.sh",
-                why="Native Ollama via uv run (PyYAML); default 24 GB alias; pairing card",
+                host="mac-mini",
+                command="./scripts/bootstrap-mac.sh --topology colocated --bind 127.0.0.1",
+                why="Native Ollama on loopback; installer may pick another profile",
                 status="available",
                 once=True,
             ),
             SetupStep(
-                host="dev-laptop",
+                host="mac-mini",
                 command="uv sync --dev",
-                why="Install the Majesta Two CLI on the laptop",
+                why="Install the Majesta Two control plane on the mini",
                 status="available",
                 once=True,
             ),
             SetupStep(
-                host="dev-laptop",
+                host="mac-mini",
                 command=f"uv run two setup --ollama-url {url}",
                 why="Write private env and data dirs (0700/0600); do not start processes",
                 status="available",
                 once=True,
             ),
             SetupStep(
-                host="dev-laptop",
+                host="mac-mini",
                 command="uv run two up",
                 why="Start api, scheduler, and worker as one supervisor",
                 status="available",
                 once=False,
             ),
             SetupStep(
-                host="dev-laptop",
+                host="mac-mini",
                 command="uv run two doctor",
-                why="Check env, loopback API, and Mac Ollama health in one command",
+                why="Check env, loopback API, and local Ollama health in one command",
                 status="available",
                 once=False,
             ),
             SetupStep(
-                host="dev-laptop",
+                host="mac-mini",
                 command="uv run two task submit config/examples/task.example.yaml",
                 why="Submit a task and detach; closing the CLI does not cancel it",
                 status="available",
@@ -180,9 +183,15 @@ def proposed_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
 
 
 def current_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
-    """Documented live split path from setup.md, excluding clone."""
+    """Longer split command list kept for comparison. Not the default."""
 
     url = ollama_base_url(ollama_host)
+    assumptions = DefaultLanAssumptions(
+        topology=DeploymentTopologyId.SPLIT.value,
+        inference="dedicated Apple Silicon Mac; native Ollama only",
+        development="separate Mac laptop; Majesta Two + DeepSeek Harness",
+        network="same private LAN; Tailscale not required; no public bind",
+    )
     bind = refuse_public_ollama_host(ollama_host)
     steps: list[SetupStep] = [
         SetupStep(
@@ -332,7 +341,7 @@ def current_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
     ]
     return SetupPlan(
         kind="current",
-        assumptions=DefaultLanAssumptions(),
+        assumptions=assumptions,
         ollama_base_url=url,
         steps=steps,
         deferred=(),
@@ -342,8 +351,8 @@ def current_lan_plan(ollama_host: str = DEFAULT_OLLAMA_HOST) -> SetupPlan:
 def format_plan(plan: SetupPlan) -> str:
     assumptions = plan.assumptions
     lines = [
-        f"Majesta Two default LAN setup ({plan.kind})",
-        "See docs/adrs/0013-streamline-default-lan-setup.md",
+        f"Majesta Two setup ({plan.kind})",
+        "See docs/adrs/0019-mini-resident-control-plane.md",
         "",
         "Assumptions:",
         f"  topology     {assumptions.topology}",
@@ -361,11 +370,12 @@ def format_plan(plan: SetupPlan) -> str:
     for index, step in enumerate(plan.steps, start=1):
         if step.host != current_host:
             current_host = step.host
-            title = (
-                "Inference Mac (Ollama only)"
-                if step.host == "inference-mac"
-                else "Development Mac laptop (Majesta Two + DSH)"
-            )
+            if step.host == "mac-mini":
+                title = "Mac mini (Ollama, Majesta Two, and DeepSeek Harness)"
+            elif step.host == "inference-mac":
+                title = "Inference Mac (Ollama only)"
+            else:
+                title = "Development Mac laptop (Majesta Two + DSH)"
             lines.append(title)
         cadence = "once" if step.once else "daily"
         lines.append(f"  {index}. [{step.status}/{cadence}] {step.command}")

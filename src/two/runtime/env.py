@@ -293,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Emit Ollama environment for a profile and topology (no network).",
     )
     parser.add_argument("--profile", default=DEFAULT_PROFILE_ID)
-    parser.add_argument("--topology", default=DeploymentTopologyId.SPLIT.value)
+    parser.add_argument("--topology", default=DeploymentTopologyId.COLOCATED.value)
     parser.add_argument("--bind", default=None)
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--system", action="store_true")

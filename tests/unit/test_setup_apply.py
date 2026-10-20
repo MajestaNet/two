@@ -50,9 +50,9 @@ def test_apply_writes_private_env(tmp_path: Path) -> None:
     assert (trees.stat().st_mode & 0o777) == 0o700
     assert (result.env_file.stat().st_mode & 0o777) == 0o600
     body = result.env_file.read_text(encoding="utf-8")
-    assert "MAC_QWEN_BASE_URL=http://mac-mini.local:11434/v1" in body
+    assert "MAC_QWEN_BASE_URL=http://127.0.0.1:11434/v1" in body
     assert "TWO_API_BIND=127.0.0.1" in body
-    assert "TWO_TOPOLOGY=split" in body
+    assert "TWO_TOPOLOGY=colocated" in body
     assert "0.0.0.0" not in body
     parsed = parse_env_file(result.env_file)
     assert parsed["TWO_WORKSPACE_ROOT"] == str(trees)
@@ -79,7 +79,7 @@ def test_setup_apply_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     )
     out = capsys.readouterr().out
     assert "mode 0600" in out
-    assert "mac-mini.local:11434" in out
+    assert "127.0.0.1:11434" in out
     assert "0.0.0.0" not in out
     assert (data / "env").is_file()
 
@@ -120,7 +120,7 @@ def test_load_data_dir_env_fills_missing_keys(tmp_path: Path) -> None:
     environ = {"TWO_DATA_DIR": str(tmp_path / "data"), "TWO_API_BIND": "127.0.0.1"}
     path = load_data_dir_env(environ)
     assert path is not None
-    assert environ["MAC_QWEN_BASE_URL"] == "http://mac-mini.local:11434/v1"
+    assert environ["MAC_QWEN_BASE_URL"] == "http://127.0.0.1:11434/v1"
     assert environ["TWO_API_BIND"] == "127.0.0.1"
 
 

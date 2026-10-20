@@ -14,7 +14,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 DRY_RUN=0
-TOPOLOGY="${TWO_TOPOLOGY:-split}"
+TOPOLOGY="${TWO_TOPOLOGY:-split}" # Compose/Linux stays split; the mini default is colocated (ADR 0019)
 DATA_DIR="${TWO_DATA_DIR:-}"
 WORKSPACE_ROOT="${TWO_WORKSPACE_ROOT:-}"
 OLLAMA_URL="${MAC_QWEN_BASE_URL:-}"
