@@ -49,6 +49,16 @@ typed device tool such as a temperature change. Neither profile is
 `self-build`. The adapter does not open Ollama. The first device
 protocol, including speech, needs its own ADR.
 
+## Watch voice client
+
+An Apple Watch app is a first-party client of this API, not a device
+adapter and not a HomePod integration
+([ADR 0020](adrs/0020-watch-edge-mtls.md),
+[watch-client.md](watch-client.md)). Caddy on a private address
+requires a client certificate and proxies to the loopback API. The
+watch principal cannot submit a self-build task. The Xcode app is not
+in this repository.
+
 ## Adapters (optional, deferred)
 
 A future Slack, Matrix, Discord, or other adapter should authenticate one

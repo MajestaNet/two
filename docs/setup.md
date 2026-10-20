@@ -18,7 +18,7 @@ the spec.
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
-| Remote client | CLI works over a private overlay with `--url` / `--token`. Mobile requires future HTTPS + OIDC/PKCE work and is not implemented ([client API design](client-api-design.md)) |
+| Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
 | Messaging adapters | Optional and deferred; Slack stubs are not an implemented adapter |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
@@ -37,11 +37,11 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 20 October 2026 (ADR 0019: the Mac mini is the default
-always-on host. First task is a private copy aimed at this checkout.
-`two doctor` exit codes and the `two up` store are recorded below.
-ADR 0017 adoption and harness-profile preload are specified and not
-implemented.)
+Last updated: 20 October 2026 (ADR 0020: Caddy mutual TLS on a private
+address in front of the loopback API. `client:watch` cannot submit
+`self-build`. The watch app spec is [watch-client.md](watch-client.md).
+ADR 0017 adoption, harness-profile preload, and OIDC remain specified
+and not implemented.)
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -184,7 +184,7 @@ Allowed ways to reach the backend:
 | --- | --- | --- |
 | On the development host | `two task …` → `http://127.0.0.1:8741` or a Unix socket | No |
 | On another machine | Tailscale/WireGuard, then SSH local-forward **or** bind the API to the overlay IP only + `TWO_API_TOKEN` | Only on the overlay |
-| On a phone later | First-party app uses authenticated HTTPS over a private overlay. Not implemented ([B14](backlog/B14-secure-mobile-client.md)) | Only on the overlay |
+| On a watch or phone | Caddy on a private LAN address, client certificate required, proxy to `127.0.0.1:8741`. `uv run two edge plan --listen PRIVATE-LAN-IP`. The API process stays on loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)) | Only that private address, TLS |
 
 Ollama is never a remote-user endpoint. Only the development host (or the
 same Mac when `colocated`) calls `MAC_QWEN_BASE_URL`. Details:
@@ -572,12 +572,25 @@ and pass `--token`. Never bind a public Ethernet/WAN address.
 
 ### 12. Future remote clients
 
-Leave the legacy Slack stub off and its tokens empty. It is not B14. The
-planned phone path is the first-party client in
-[B14](backlog/B14-secure-mobile-client.md): HTTPS over a private overlay,
-trusted OIDC with PKCE, and scoped server-derived identity. That work is not
-implemented. Never open the API publicly for phone access. See
-[client-api-design.md](client-api-design.md).
+Leave the legacy Slack stub off and its tokens empty. It is not B14.
+
+The watch path is [ADR 0020](adrs/0020-watch-edge-mtls.md). Print the
+plan, then issue a private CA and Caddyfile. Replace `PRIVATE-LAN-IP`
+with an address of the mini. Do not commit that address or the files
+under the data directory.
+
+```bash
+uv run two edge plan --listen PRIVATE-LAN-IP
+uv run two edge issue --listen PRIVATE-LAN-IP
+```
+
+Export `TWO_EDGE_TOKEN` from `$TWO_DATA_DIR/edge/edge.env` for both
+`caddy` and `two api`. Run Caddy with `$TWO_DATA_DIR/edge/Caddyfile`.
+Keep `TWO_API_BIND=127.0.0.1`. The native app is specified in
+[watch-client.md](watch-client.md) for a later Xcode agent. OIDC with
+PKCE is still not implemented
+([ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md)). Never open the API
+publicly. See [client-api-design.md](client-api-design.md).
 
 ---
 

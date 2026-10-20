@@ -66,6 +66,11 @@ A device may be on coffee-shop Wi-Fi or a hostile LAN.
   are `401`. `/health` stays local liveness and is not a task oracle.
 - **Later:** OIDC + TLS termination (ADR 0016). No Python JWT library is
   added in this slice.
+- **Watch edge (ADR 0020):** Caddy listens on a private address, requires
+  a client certificate, and proxies to loopback. The API trusts the
+  edge only when `TWO_EDGE_TOKEN` matches the header Caddy injects. The
+  resulting principal is `client:watch` and cannot submit `self-build`.
+  The token is not a credential stored on the watch.
 
 ### Lost or revoked devices
 

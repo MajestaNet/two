@@ -152,7 +152,20 @@ class ErrorCode(StrEnum):
     OPEN_INPUT = "open_input"
     NOT_RESUMABLE = "not_resumable"
     DUPLICATE_PROJECT = "duplicate_project"
+    PROFILE_NOT_EXECUTABLE = "profile_not_executable"
     INTERNAL = "internal"
+
+
+class HarnessProfile(StrEnum):
+    """Persisted DeepSeek Harness profile a request may resume (ADR 0019).
+
+    ``self-build`` is the coding loop. A watch client is limited to
+    ``chat`` and ``home-action`` (ADR 0020).
+    """
+
+    SELF_BUILD = "self-build"
+    HOME_ACTION = "home-action"
+    CHAT = "chat"
 
 
 class Scope(StrEnum):

@@ -7,6 +7,10 @@ Python package for the Majesta Two control plane.
   FastAPI). CLI and `channels.*` import it.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
+- `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
+  no I/O. `issue_edge` writes a private CA and Caddyfile under the data
+  directory and calls `openssl`. No store, no listen socket, no Python
+  TLS library. CLI lazy-imports it from `two edge`.
 - `setup.py` is the Mac mini plan (ADR 0019). `two setup --current` prints the optional split list (ADR 0013). No I/O, no
   network, no store. `two setup --plan` prints it. Apply I/O lives in
   `operator/`. CLI lazy-imports `two.operator` (not `two.runtime`).

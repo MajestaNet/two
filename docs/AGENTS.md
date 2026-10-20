@@ -22,7 +22,7 @@
 - Thin siblings (`operations.md`, `unattended-operations.md`,
   `interaction-contract.md`, `task-manifest.md`, `channels.md`,
   `source-control-export.md`, `remote-access.md`, `viability.md`,
-  `local-16k.md`, `work-graph.md`) point at sections or operator
+  `local-16k.md`, `work-graph.md`, `watch-client.md`) point at sections or operator
   decisions. Do not copy the spec into those files. `local-16k.md` is
   24 GB / 16K operator guidance (quality, manifests, overnight starter
   workflows). `work-graph.md` points at ADR 0014 (persisted nodes/edges

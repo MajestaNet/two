@@ -88,7 +88,10 @@ from two.api.gui import (
     utcnow,
 )
 from two.api.principal import (
+    PROFILE_NOT_EXECUTABLE,
+    SELF_BUILD_DENIED,
     action_principal,
+    allows_self_build,
     authenticate_request,
     claimed_actor,
     operator_scope_values,
@@ -146,6 +149,7 @@ from two.api.schemas import (
     TodoItem,
     ValidationGateView,
     ValidationSummary,
+    VoiceTurnRequest,
 )
 from two.approvals import (
     ApprovalNotOpenError,
@@ -185,7 +189,7 @@ from two.store.models import (
     QuestionRecord,
     TaskRecord,
 )
-from two.types import EventType, LifecycleState, Scope
+from two.types import EventType, HarnessProfile, LifecycleState, Scope
 
 _PLAN_EVENT_TYPES = frozenset({EventType.TASK_PLAN.value, "plan"})
 _TODO_EVENT_TYPES = frozenset({EventType.TASK_TODOS.value, "todos"})
@@ -217,6 +221,7 @@ def create_app(
     stream_min_seq: int = 0,
     health_stale_after_ms: int = DEFAULT_HEALTH_STALE_AFTER_MS,
     clock: Callable[[], datetime] | None = None,
+    edge_token: str | None = None,
 ) -> FastAPI:
     """Build the control API. Does not bind a socket and does not call Ollama.
 
@@ -245,6 +250,9 @@ def create_app(
     app.state.box = box
     app.state.require_auth = require_auth
     app.state.auth_token = auth_token
+    app.state.edge_token = (
+        edge_token.strip() if isinstance(edge_token, str) and edge_token.strip() else None
+    )
     app.state.operator_scopes = scopes
     app.state.repositories_dir = Path(repositories_dir) if repositories_dir is not None else None
     app.state.data_dir = Path(data_dir) if data_dir is not None else None
@@ -318,6 +326,7 @@ def create_app(
             require_auth=bool(request.app.state.require_auth),
             auth_token=request.app.state.auth_token,
             scopes=request.app.state.operator_scopes,
+            edge_token=request.app.state.edge_token,
         )
         request.state.principal = principal
         async with box.lock:
@@ -328,6 +337,7 @@ def create_app(
     router.add_api_route("/v1/system/health", _get_system_health, methods=["GET"])
     router.add_api_route("/v1/system/queue", _get_system_queue, methods=["GET"])
     router.add_api_route("/v1/tasks", _create_task, methods=["POST"], status_code=201)
+    router.add_api_route("/v1/voice/turns", _voice_turn, methods=["POST"])
     router.add_api_route("/v1/tasks", _list_tasks, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}", _get_task, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}/events", _list_events, methods=["GET"])
@@ -422,13 +432,16 @@ def _box(request: Request) -> _StoreBox:
 
 async def _get_capabilities(request: Request) -> SystemCapabilities:
     principal = require_scope(request, Scope.SYSTEM_READ)
+    edge_token = getattr(request.app.state, "edge_token", None)
     return SystemCapabilities(
         principal=principal.id,
         scopes=sorted(principal.scopes),
+        allowed_harness_profiles=sorted(principal.harness_profiles),
         auth=AuthCapabilities(
             method=principal.method,
             oidc_available=False,
             mobile_ready=False,
+            edge_available=isinstance(edge_token, str) and edge_token != "",
         ),
         features=ClientFeatures(
             conversation=True,
@@ -443,6 +456,9 @@ async def _get_capabilities(request: Request) -> SystemCapabilities:
 
 
 async def _create_task(request: Request, manifest: TaskManifest) -> JSONResponse:
+    principal = principal_from_request(request)
+    if not allows_self_build(principal):
+        raise HTTPException(status_code=403, detail=SELF_BUILD_DENIED)
     require_scope(request, Scope.TASKS_CONTROL)
     box = _box(request)
     async with box.lock:
@@ -461,6 +477,24 @@ async def _create_task(request: Request, manifest: TaskManifest) -> JSONResponse
         status_code=201,
         headers={"Location": f"/v1/tasks/{record.id}"},
     )
+
+
+async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
+    """Accept a watch transcript. Coding tasks stay on ``POST /v1/tasks``.
+
+    ``chat`` and ``home-action`` are authorized for the watch client and
+    refused until a profile executor exists. The body is not written to
+    the store.
+    """
+    principal = principal_from_request(request)
+    if body.profile == HarnessProfile.SELF_BUILD.value:
+        raise HTTPException(status_code=403, detail=SELF_BUILD_DENIED)
+    if body.profile not in principal.harness_profiles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"client cannot use harness profile {body.profile}",
+        )
+    raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
 
 
 async def _list_tasks(

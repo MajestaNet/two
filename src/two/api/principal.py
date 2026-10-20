@@ -25,11 +25,26 @@ from typing import Literal
 
 from fastapi import HTTPException, Request
 
-from two.types import OPERATOR_SCOPES, Scope
+from two.edge import CLIENT_ID_HEADER, EDGE_TOKEN_HEADER, WATCH_CLIENT_ID
+from two.types import OPERATOR_SCOPES, HarnessProfile, Scope
 
 LOCAL_PRINCIPAL_ID = "local"
 TOKEN_PRINCIPAL_ID = "token:operator"
-AuthMethod = Literal["local_trust", "bearer_token"]
+WATCH_PRINCIPAL_ID = "client:watch"
+SELF_BUILD_DENIED = "client cannot submit self-build"
+PROFILE_NOT_EXECUTABLE = "harness profile is not executable yet"
+AuthMethod = Literal["local_trust", "bearer_token", "edge_client"]
+OPERATOR_HARNESS_PROFILES: frozenset[str] = frozenset({HarnessProfile.SELF_BUILD.value})
+WATCH_HARNESS_PROFILES: frozenset[str] = frozenset(
+    {HarnessProfile.CHAT.value, HarnessProfile.HOME_ACTION.value}
+)
+WATCH_SCOPES: frozenset[Scope] = frozenset(
+    {
+        Scope.TASKS_READ,
+        Scope.APPROVALS_DECIDE,
+        Scope.SYSTEM_READ,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +54,7 @@ class AuthenticatedPrincipal:
     id: str
     method: AuthMethod
     scopes: frozenset[str]
+    harness_profiles: frozenset[str] = frozenset()
 
 
 def operator_scope_values(scopes: Collection[Scope | str] | None = None) -> frozenset[str]:
@@ -48,19 +64,61 @@ def operator_scope_values(scopes: Collection[Scope | str] | None = None) -> froz
     return frozenset(scope.value if isinstance(scope, Scope) else str(scope) for scope in scopes)
 
 
+def watch_scope_values() -> frozenset[str]:
+    """Scopes for ``client:watch``. Excludes task control and source reads."""
+    return frozenset(scope.value for scope in WATCH_SCOPES)
+
+
+def allows_self_build(principal: AuthenticatedPrincipal) -> bool:
+    """True when this caller may submit a coding task."""
+    return HarnessProfile.SELF_BUILD.value in principal.harness_profiles
+
+
+def _edge_principal(
+    request: Request,
+    *,
+    edge_token: str | None,
+) -> AuthenticatedPrincipal:
+    """Map a Caddy-injected edge credential to the watch client.
+
+    The header is present only because the caller attempted the edge path.
+    A missing or wrong token fails closed. It does not fall through to
+    local-trust, which would turn a proxied watch into the operator.
+    """
+    expected = edge_token.strip() if isinstance(edge_token, str) else ""
+    if expected == "":
+        raise HTTPException(status_code=401, detail="edge token is not configured")
+    offered = request.headers.get(EDGE_TOKEN_HEADER, "")
+    if not hmac.compare_digest(offered, expected):
+        raise HTTPException(status_code=401, detail="invalid edge token")
+    client_id = request.headers.get(CLIENT_ID_HEADER, "").strip()
+    if client_id != WATCH_CLIENT_ID:
+        raise HTTPException(status_code=401, detail="unknown edge client")
+    return AuthenticatedPrincipal(
+        id=WATCH_PRINCIPAL_ID,
+        method="edge_client",
+        scopes=watch_scope_values(),
+        harness_profiles=WATCH_HARNESS_PROFILES,
+    )
+
+
 def authenticate_request(
     request: Request,
     *,
     require_auth: bool,
     auth_token: str | None,
     scopes: frozenset[str],
+    edge_token: str | None = None,
 ) -> AuthenticatedPrincipal:
     """Derive the caller. Missing/invalid remote tokens fail closed with 401."""
+    if EDGE_TOKEN_HEADER in request.headers:
+        return _edge_principal(request, edge_token=edge_token)
     if not require_auth:
         return AuthenticatedPrincipal(
             id=LOCAL_PRINCIPAL_ID,
             method="local_trust",
             scopes=scopes,
+            harness_profiles=OPERATOR_HARNESS_PROFILES,
         )
     expected = auth_token
     if not isinstance(expected, str) or expected == "":
@@ -75,6 +133,7 @@ def authenticate_request(
         id=TOKEN_PRINCIPAL_ID,
         method="bearer_token",
         scopes=scopes,
+        harness_profiles=OPERATOR_HARNESS_PROFILES,
     )
 
 
