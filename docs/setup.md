@@ -23,6 +23,7 @@ the spec.
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
+| Seamless install roles | Specified, not a new installer ([ADR 0018](adrs/0018-seamless-mac-install-and-shared-inference.md)): Mac mini serves Qwen; this scaffold and DeepSeek Harness share any Mac; later voice chat uses that model through the control plane. `two setup --plan` is still the ADR 0013 laptop recipe |
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
@@ -36,9 +37,9 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 12 September 2026 (B14 slice 3 persisted projects and typed
-config candidates, schema v6; B19 work graph remains schema v5; OIDC libraries
-not added, ADR 0016).
+Last updated: 20 October 2026 (ADR 0018 seamless install roles specified;
+printed plan is still ADR 0013. ADR 0017 self-building subject is specified
+and not implemented. B14 slice 3 and B19 remain as previously landed.)
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -59,6 +60,11 @@ Two tracks:
 | **Operator (reference)** | Overlay, Compose, and soaks — [full walkthrough](#step-by-step-get-it-running-full-reference) | Yes for model work; no for CLI-against-API smoke |
 
 The default interactive layout is **two Macs, `topology: split`, one LAN**.
+ADR 0018 names the seamless roles on that layout: the Mac mini is required
+to serve the model, and this scaffold plus DeepSeek Harness run together on
+any Mac on the LAN (a laptop is the implemented plan). Later, that same
+served model can answer a wearable voice chat through the control plane.
+No new setup command exists for those roles yet.
 Print the recipe (no files written):
 
 ```bash

@@ -12,10 +12,10 @@ topologies:
     ollama_bind: private-lan-or-overlay
     harness_host: development-host
     notes: >-
-      Default. Dedicated Apple Silicon inference appliance. Interactive
-      first-run is a separate Mac laptop on the same private LAN (ADR 0013).
-      Linux Compose remains the unattended packaging (ADR 0005). Use this
-      on a 24 GB Mini.
+      Default. A Mac mini serves Qwen (ADR 0018). Majesta Two and DeepSeek
+      Harness run together on any other Mac on the same private LAN.
+      Interactive first-run remains the ADR 0013 laptop plan. Linux Compose
+      remains the unattended packaging (ADR 0005). Use this on a 24 GB Mini.
 
   colocated:
     recommended_min_unified_memory_gb: 48

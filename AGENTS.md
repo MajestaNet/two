@@ -5,8 +5,11 @@
 Majesta Two is a fully local, self-building system (ADR 0017). One local
 installation of this repository is the development client and the only
 development subject. DeepSeek Harness remains the pinned inner model/tool
-loop and is not reimplemented here. Qwen 3.8 stays on a dedicated Mac
-inference host. This repository is not a Slack (or other messenger) product
+loop and is not reimplemented here. A Mac mini is required to serve
+Qwen 3.8. This scaffold and DeepSeek Harness run together on any Mac on
+the private network with that mini (ADR 0018). A later wearable voice
+adapter may use the same model as a chat agent through the control plane,
+one inference at a time. This repository is not a Slack (or other messenger) product
 and it does not develop unrelated repositories. The CLI is the local surface
 today; ADR 0015/B14 plans a secure first-party mobile client over the same
 API. In-repo home and wearable adapters are specified and not implemented.
