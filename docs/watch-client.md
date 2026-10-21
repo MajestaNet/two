@@ -155,9 +155,9 @@ the transcript only.
 
 | Status | `error.code` | What the UI does |
 | --- | --- | --- |
-| 202 | — | `profile: chat` is stored. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. Do not speak `reply` in this build. A chat turn does not add a coding-task row. |
+| 202 | — | `profile: chat` is stored. `profile: home-action` is stored when the mini's climate binding is enabled. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. `climate` is the device read-back. `awaiting_approval` carries `action_digest` and `pending_action`. Do not speak `reply` in this build. A voice turn does not add a coding-task row. |
 | 403 | `forbidden` | The profile is not allowed. If the detail is `client cannot submit self-build`, the app tried the coding path. That is a bug in the app. Do not retry. |
-| 409 | `profile_not_executable` | `home-action` is still not executable and was not stored. Tell the operator the pipe works. |
+| 409 | `profile_not_executable` | `home-action` was not stored because the local climate binding is missing or invalid. Tell the operator the pipe works and the binding is off. |
 | 401 | `unauthorized` | Enrollment or the edge token on the mini is wrong. Send the operator back to enrollment. |
 | 422 | `validation_error` | The transcript was empty or the JSON gained a field. |
 
@@ -261,8 +261,11 @@ the mini or a stand-in that speaks this JSON:
 
 - Enrollment, then capabilities shows `client:watch`.
 - A chat turn returns `202` and a receipt. The coding task list does
-  not gain a row. Do not speak `reply`. `home-action` still returns
-  `409` `profile_not_executable` and stores nothing.
+  not gain a row. Do not speak `reply`. `home-action` returns `202`
+  when the climate binding is enabled, and `409`
+  `profile_not_executable` when it is not. An out-of-band climate
+  write stays `awaiting_approval` until approve or reject posts the
+  same `action_digest`.
 - Approve and reject against a fixture approval, including a stale
   digest.
 - Airplane mode shows unreachable, and does not queue an approval
@@ -271,6 +274,6 @@ the mini or a stand-in that speaks this JSON:
 ## Explicitly later
 
 - OIDC Authorization Code plus PKCE, or device code, after ADR 0016.
-- An executor that stores `chat` and `home-action` turns.
+- Speech playback. Climate execution is ADR 0022. Chat storage is B20.
 - AirPlay of a spoken reply to a HomePod group.
 - A client key generated on the watch instead of a PKCS#12 from the mini.

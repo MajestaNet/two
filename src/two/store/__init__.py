@@ -21,6 +21,7 @@ A successful commit is required before any UI acknowledgement
 open the database. Schema v5 persists ``work_nodes`` / ``work_edges``.
 Schema v6 persists projects and immutable config candidates (B14 slice 3).
 Schema v7 persists one ``chat`` harness session and its turn log (B20).
+Schema v8 persists ``home-action`` turns and climate approvals (ADR 0022).
 See docs/architecture.md §6.3.G, §8.4, §8.5, and §12.5.
 """
 
@@ -50,10 +51,13 @@ from two.store.models import (
     ChannelBinding,
     ChatTurnRecord,
     ChatTurnStatus,
+    ClimateApprovalRecord,
     ConfigApprovalRecord,
     ConfigCandidateRecord,
     EventRecord,
     HarnessSessionRecord,
+    HomeActionTurnRecord,
+    HomeActionTurnStatus,
     IdempotencyRecord,
     LeaseRecord,
     ProjectRecord,
@@ -76,7 +80,10 @@ __all__ = [
     "ChannelBinding",
     "ChatTurnRecord",
     "ChatTurnStatus",
+    "ClimateApprovalRecord",
     "HarnessSessionRecord",
+    "HomeActionTurnRecord",
+    "HomeActionTurnStatus",
     "ConfigApprovalRecord",
     "ConfigCandidateRecord",
     "DuplicateActionError",

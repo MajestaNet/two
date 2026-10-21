@@ -477,13 +477,45 @@ class VoiceTurnRequest(BaseModel):
 
     ``self-build`` is accepted by the schema so a stolen or confused client
     is rejected by authorization (403) rather than by a 422. ``chat`` is
-    stored and resumed. ``home-action`` stays unauthorized for execution.
+    stored and resumed. ``home-action`` is stored when the local climate
+    binding is enabled (ADR 0022).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(min_length=1, max_length=4_000)
     profile: Literal["self-build", "home-action", "chat"]
+
+
+class ClimateReadbackView(BaseModel):
+    """Observed climate state. Entity ids and upstream URLs stay off this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    zone: str = Field(min_length=1, max_length=64)
+    celsius: float | None = None
+    setpoint_celsius: float | None = None
+    mode: Literal["off", "heat", "cool", "auto"] | None = None
+    reachable: bool
+
+
+class ClimateRequestView(BaseModel):
+    """The tool call waiting for an approval digest. No entity id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool: Literal["climate.read", "climate.set_setpoint", "climate.set_mode"]
+    zone: str = Field(min_length=1, max_length=64)
+    celsius: float | None = None
+    mode: Literal["off", "heat", "cool", "auto"] | None = None
+
+
+class ClimateDecisionRequest(BaseModel):
+    """Approve or reject one open climate action. The digest is the whole scope."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_digest: str = Field(min_length=1, max_length=80)
 
 
 def encode_turn_cursor(seq: int) -> str:
@@ -495,20 +527,25 @@ def encode_turn_cursor(seq: int) -> str:
 
 
 class VoiceTurnReceipt(BaseModel):
-    """Client-safe result of one ``chat`` turn. Plain text only.
+    """Client-safe result of one ``chat`` or ``home-action`` turn.
 
     ``reply`` is set only when ``status`` is ``complete``. ``error_code`` is
-    set only when ``status`` is ``failed``. Host paths and session ids stay off
-    this body.
+    set only when ``status`` is ``failed``. ``action_digest`` and
+    ``pending_action`` are set only when ``status`` is ``awaiting_approval``.
+    ``climate`` is the device read-back on a completed climate action.
+    Host paths, session ids, entity ids, and tokens stay off this body.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     turn_id: str = Field(min_length=1)
-    profile: Literal["chat"]
-    status: Literal["queued", "running", "complete", "failed"]
+    profile: Literal["chat", "home-action"]
+    status: Literal["queued", "running", "awaiting_approval", "complete", "failed"]
     reply: str | None = Field(default=None, min_length=1, max_length=4_000)
     error_code: ErrorCode | None = None
+    climate: ClimateReadbackView | None = None
+    action_digest: str | None = None
+    pending_action: ClimateRequestView | None = None
     cursor: str = Field(min_length=1)
     revision: int = Field(ge=1)
 
@@ -517,11 +554,30 @@ class VoiceTurnReceipt(BaseModel):
         if self.status == "complete":
             if self.reply is None or self.error_code is not None:
                 raise ValueError("complete receipt has reply and no error_code")
+            if self.action_digest is not None or self.pending_action is not None:
+                raise ValueError("complete receipt has no pending action")
         elif self.status == "failed":
             if self.error_code is None or self.reply is not None:
                 raise ValueError("failed receipt has error_code and no reply")
+            if (
+                self.climate is not None
+                or self.action_digest is not None
+                or self.pending_action is not None
+            ):
+                raise ValueError("failed receipt has no climate result")
+        elif self.status == "awaiting_approval":
+            if self.reply is not None or self.error_code is not None or self.climate is not None:
+                raise ValueError("awaiting approval has no reply or climate result")
+            if self.action_digest is None or self.pending_action is None:
+                raise ValueError("awaiting approval names the digest and the action")
         elif self.reply is not None or self.error_code is not None:
             raise ValueError("reply and error_code are terminal")
+        elif (
+            self.climate is not None
+            or self.action_digest is not None
+            or self.pending_action is not None
+        ):
+            raise ValueError("queued and running receipts omit climate results")
         return self
 
 
@@ -533,19 +589,31 @@ def voice_turn_receipt(
     error_code: str | None,
     seq: int,
     revision: int,
+    profile: str = "chat",
+    climate: ClimateReadbackView | None = None,
+    action_digest: str | None = None,
+    pending_action: ClimateRequestView | None = None,
 ) -> VoiceTurnReceipt:
     """Build a receipt. Non-terminal rows never expose reply or error_code."""
     shown_reply = reply if status == "complete" else None
     shown_error = error_code if status == "failed" else None
+    shown_climate = climate if status == "complete" else None
+    shown_digest = action_digest if status == "awaiting_approval" else None
+    shown_pending = pending_action if status == "awaiting_approval" else None
     if shown_reply is not None and len(shown_reply) > 4000:
         shown_reply = shown_reply[:4000]
     return VoiceTurnReceipt.model_validate(
         {
             "turn_id": turn_id,
-            "profile": "chat",
+            "profile": profile,
             "status": status,
             "reply": shown_reply,
             "error_code": shown_error,
+            "climate": None if shown_climate is None else shown_climate.model_dump(mode="json"),
+            "action_digest": shown_digest,
+            "pending_action": (
+                None if shown_pending is None else shown_pending.model_dump(mode="json")
+            ),
             "cursor": encode_turn_cursor(seq),
             "revision": revision,
         }

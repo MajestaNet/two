@@ -125,6 +125,10 @@ def run_worker(
                 driver.drive(task.id, now=instant)
             elif chat is not None:
                 acp.run_chat(chat.id, now=instant)
+            else:
+                home = owned.running_home_action_turn()
+                if home is not None:
+                    acp.run_home_action(home.id, now=instant)
             nap(poll_interval)
     finally:
         if opened:

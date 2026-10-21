@@ -274,8 +274,24 @@ class ControlClient:
         return _parse(response, VoiceTurnReceipt)
 
     def get_voice_turn(self, turn_id: str) -> VoiceTurnReceipt:
-        """GET one chat receipt."""
+        """GET one chat or home-action receipt."""
         response = self._call("GET", "/v1/voice/turns/" + quote(turn_id, safe="-._~"))
+        return _parse(response, VoiceTurnReceipt)
+
+    def decide_climate_turn(
+        self,
+        turn_id: str,
+        action_digest: str,
+        *,
+        approve: bool,
+    ) -> VoiceTurnReceipt:
+        """POST approve or reject for one climate action."""
+        action = "approve" if approve else "reject"
+        response = self._call(
+            "POST",
+            "/v1/voice/turns/" + quote(turn_id, safe="-._~") + "/" + action,
+            {"action_digest": action_digest},
+        )
         return _parse(response, VoiceTurnReceipt)
 
     def _control(

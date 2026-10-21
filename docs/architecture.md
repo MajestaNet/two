@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); adoption, device tools, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); adoption, speech, and profile preload follow |
 | Version | 0.13 |
 | Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -174,7 +174,7 @@ Rules:
 - Adoption is a controller operation. It runs only after required validation, a fresh review with no blocking finding, and an approval whose digest is the candidate commit. It takes effect when the installation's processes restart onto that commit.
 - A candidate that changes gates, bind addresses, credential policy, or adapter permissions names those changes in the adoption approval. They stay inactive in the running process that produced the candidate.
 - Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. Merging adapter code into the tree does not enable it. The install menu is `config/adapters/catalog.yaml` (`two adapters`, ADR 0021). A slot is on only when that catalog says so. Today that is the CLI alone.
-- The first concrete device protocol is a later ADR. This section defines the slot, the trust limit, and the growth path. The reserved package path is `src/two/devices/<name>/`. That directory does not exist until the protocol ADR. `src/two/export/` is the same kind of reservation for ADR 0012.
+- The first device protocol is climate (ADR 0022). The package is `src/two/devices/climate/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/climate.yaml`. The kind-level device slot stays reserved for a later protocol. `src/two/export/` remains the ADR 0012 reservation.
 
 ### 5.3 Mac mini installation
 
@@ -196,7 +196,7 @@ DeepSeek Harness remains the only model/tool loop (ADR 0019). One pinned binary 
 
 Profiles are persisted sessions under the local data directory. The controller may keep a profile warm so the next request resumes it without rebuilding a workspace. Warm profiles are not extra model weights and not extra harness releases. One inference stays in flight. A non-coding turn runs at a model-turn boundary and does not hold the coding lease.
 
-A device action is a typed tool request from `home-action`. The controller or the device adapter performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. Speech capture and playback stay on the device. The first device tool, the speech stack, and the preload mechanism are a later slice.
+A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. Speech capture and playback stay on the device. The speech stack and the preload mechanism are a later slice.
 
 ## 6. Component architecture
 
@@ -1061,6 +1061,7 @@ Default policy:
 | Always-on install | Mac mini runs Ollama, the scaffold, and DeepSeek Harness (ADR 0019) | A laptop is a client; `split` is optional |
 | Shared inference | One resident model; persisted harness profiles share the slot | Chat and device actions resume a profile; they do not open Ollama |
 | Adapter install menu | Committed catalog; only the CLI is enabled (ADR 0021) | Kinds stay separate; landing a package does not turn a slot on |
+| Climate tools | Closed `home-action` tools, control plane performs them (ADR 0022) | Default off; read-back is the result; no per-brand firmware package |
 
 ## 17. Risks and mitigations
 
@@ -1268,8 +1269,10 @@ invent a second architecture.
 - Build the secure first-party native mobile client as B14. The backend must
   run without it and without an OIDC issuer.
 - Persist and resume harness profile `chat` on the single inference slot
-  (ADR 0019, ADR 0021, B20). Leave `home-action` refused. This slice is
-  not a GUI and does not add a second agent loop.
+  (ADR 0019, ADR 0021, B20). Execute the closed climate tools on
+  `home-action` in the control plane (ADR 0022, B21). The climate slot
+  stays off until a local binding enables it. This slice is not a GUI
+  and does not add a second agent loop.
 - Pass private-overlay disconnect, revocation, duplicate-mutation,
   authorization, stale-approval, disclosure, and no-terminal workflow tests.
 
@@ -1294,9 +1297,10 @@ parts (13–17), subject pinning and adoption (18–19), or the seamless install
 and shared chat slot (20). Items 13–17 remain open until B14's API and
 native-client slices are implemented and promoted. Items 18–19 remain open
 until the ADR 0017 slice is implemented and promoted. Item 20 remains open
-until the ADR 0018 slice is implemented and promoted. B20 is only the
-`chat` profile resume. Landing B20 does not close item 20:
-`home-action`, slot priority, and the seamless install remain open.
+until the ADR 0018 slice is implemented and promoted. B20 is the
+`chat` profile resume. B21 executes climate on `home-action` and does
+not close item 20: slot priority past chat-before-home-action, speech,
+and the seamless install remain open.
 
 1. The Mac automatically starts Ollama, loads the expected Qwen model, and serves it on the private network.
 2. The model remains resident and the Mac shows no sustained swap-out growth or unrecovered failure during the 24-hour promotion soak.

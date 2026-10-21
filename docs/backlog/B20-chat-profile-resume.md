@@ -5,6 +5,7 @@
 | ID | B20 |
 | Phase | 6 — Conversational control (profile resume, not a GUI) |
 | Status | done |
+| Superseded for `home-action` | [B21](B21-climate-home-action.md) stores and executes that profile. This item's refusal was the slice boundary. |
 | Depends on | B07, B08, B09 |
 | Blocks | Nothing. Landing this item does not close architecture §21 item 20. |
 | Architecture | §5.4, §21 item 20, ADR 0018 decision 5–6, ADR 0019, ADR 0021 decision 5 |

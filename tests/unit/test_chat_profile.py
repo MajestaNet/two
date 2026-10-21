@@ -94,7 +94,7 @@ def test_schema_v7_round_trips_one_chat_session_and_ordered_turns(tmp_path: Path
     path = tmp_path / "two.sqlite"
     with open_store(path) as opened:
         assert opened.schema_version() == SCHEMA_VERSION
-        assert SCHEMA_VERSION == 7
+        assert SCHEMA_VERSION == 8
         opened.ensure_chat_session(now=T0)
         opened.set_chat_session_id("sess-1", now=T0)
         first = opened.insert_chat_turn("one", "local", turn_id="turn-1", now=T0)
@@ -114,14 +114,14 @@ def test_schema_v7_round_trips_one_chat_session_and_ordered_turns(tmp_path: Path
         assert encode_turn_cursor(1) != encode_turn_cursor(2)
 
 
-def test_home_action_cannot_be_inserted(store: Store) -> None:
+def test_chat_turns_reject_home_action_and_sessions_reject_self_build(store: Store) -> None:
     stamp = "2026-08-30T12:00:00.000000Z"
     with pytest.raises(sqlite3.IntegrityError):
         store._connection.execute(
             """
             INSERT INTO harness_sessions (
                 profile, session_id, data_relpath, created_at, updated_at
-            ) VALUES ('home-action', NULL, 'profiles/home-action', ?, ?)
+            ) VALUES ('self-build', NULL, 'profiles/self-build', ?, ?)
             """,
             (stamp, stamp),
         )
@@ -138,8 +138,13 @@ def test_home_action_cannot_be_inserted(store: Store) -> None:
             """,
             (stamp, stamp),
         )
+    store.ensure_home_action_session(now=T0)
+    home = store.get_harness_session("home-action")
+    assert home is not None
+    assert home.profile == "home-action"
     assert store.get_harness_session() is None
     assert store.list_chat_turns() == []
+    assert store.list_home_action_turns() == []
 
 
 def test_watch_chat_is_stored_and_home_action_and_self_build_are_not(
@@ -209,7 +214,11 @@ def test_operator_local_and_bearer_can_send_chat_not_home_action(
     local = create_app(store=store, data_dir=tmp_path)
     with TestClient(local) as client:
         caps = client.get("/v1/system/capabilities")
-        assert caps.json()["allowed_harness_profiles"] == ["chat", "self-build"]
+        assert caps.json()["allowed_harness_profiles"] == [
+            "chat",
+            "home-action",
+            "self-build",
+        ]
         assert "tasks:message" in caps.json()["scopes"]
         accepted = client.post("/v1/voice/turns", json={"text": "hello", "profile": "chat"})
         assert accepted.status_code == 202
@@ -217,8 +226,9 @@ def test_operator_local_and_bearer_can_send_chat_not_home_action(
             "/v1/voice/turns",
             json={"text": "set the air con to 20", "profile": "home-action"},
         )
-        assert denied.status_code == 403
-        assert denied.json()["detail"] == "client cannot use harness profile home-action"
+        assert denied.status_code == 409
+        assert denied.json()["error"]["code"] == "profile_not_executable"
+        assert store.list_home_action_turns() == []
         assert len(store.list_chat_turns()) == 1
     remote = create_app(
         store=store,
@@ -229,7 +239,11 @@ def test_operator_local_and_bearer_can_send_chat_not_home_action(
     with TestClient(remote) as client:
         headers = {"Authorization": "Bearer secret-token"}
         caps = client.get("/v1/system/capabilities", headers=headers)
-        assert caps.json()["allowed_harness_profiles"] == ["chat", "self-build"]
+        assert caps.json()["allowed_harness_profiles"] == [
+            "chat",
+            "home-action",
+            "self-build",
+        ]
         assert caps.json()["principal"] == "token:operator"
         accepted = client.post(
             "/v1/voice/turns",
@@ -243,7 +257,8 @@ def test_operator_local_and_bearer_can_send_chat_not_home_action(
             json={"text": "temperature", "profile": "home-action"},
             headers=headers,
         )
-        assert denied.status_code == 403
+        assert denied.status_code == 409
+        assert denied.json()["error"]["code"] == "profile_not_executable"
         assert _count(store, "tasks") == 0
 
 
@@ -524,9 +539,15 @@ def test_receipt_json_has_no_path_or_secret(
         "status",
         "reply",
         "error_code",
+        "climate",
+        "action_digest",
+        "pending_action",
         "cursor",
         "revision",
     }
+    assert accepted.json()["climate"] is None
+    assert accepted.json()["action_digest"] is None
+    assert accepted.json()["pending_action"] is None
     turn_id = str(accepted.json()["turn_id"])
     assert store.admit_chat_turn(now=T0) is not None
     worker = AcpWorker(

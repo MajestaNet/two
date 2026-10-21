@@ -182,6 +182,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_task_parser(subparsers)
     _add_chat_parser(subparsers)
+    _add_climate_parser(subparsers)
     return parser
 
 
@@ -239,6 +240,11 @@ def main(
         from two.cli_chat import run_chat
 
         return run_chat(args, request=request)
+    if args.command == "climate":
+        _load_host_env()
+        from two.cli_climate import run_climate
+
+        return run_climate(args, request=request)
     if args.command is None:
         parser.print_help()
         return 0
@@ -544,6 +550,51 @@ def _add_chat_parser(subparsers: Any) -> None:
         help="Print the receipt for TURN_ID",
     )
     show.add_argument("turn_id", help="Chat turn id")
+
+
+def _add_climate_parser(subparsers: Any) -> None:
+    transport = _transport_parser()
+    climate = subparsers.add_parser(
+        "climate",
+        help="Send, show, approve, or reject one home-action climate turn",
+        description=(
+            "Talks only to the control API. Does not open the device, the "
+            "store, git, or Ollama. The turn runs only when the local climate "
+            "binding is enabled."
+        ),
+    )
+    climate_sub = climate.add_subparsers(dest="climate_command", required=True)
+    send = climate_sub.add_parser(
+        "send",
+        parents=[transport],
+        help="POST a home-action turn and print the receipt",
+    )
+    send.add_argument("--text", required=True, help="User transcript")
+    send.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Optional Idempotency-Key for this POST",
+    )
+    show = climate_sub.add_parser(
+        "show",
+        parents=[transport],
+        help="Print the receipt for TURN_ID",
+    )
+    show.add_argument("turn_id", help="Home-action turn id")
+    approve = climate_sub.add_parser(
+        "approve",
+        parents=[transport],
+        help="Approve one open climate action (digest required)",
+    )
+    approve.add_argument("turn_id", help="Home-action turn id")
+    approve.add_argument("--digest", required=True, help="Exact action_digest")
+    reject = climate_sub.add_parser(
+        "reject",
+        parents=[transport],
+        help="Reject one open climate action (digest required)",
+    )
+    reject.add_argument("turn_id", help="Home-action turn id")
+    reject.add_argument("--digest", required=True, help="Exact action_digest")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ the spec.
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
-| Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. Device and GitHub export are reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [adapters.md](adapters.md)) |
+| Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate` is shipped and off until `$TWO_DATA_DIR/devices/climate.yaml` enables it. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
@@ -27,7 +27,7 @@ the spec.
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
-| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md)) |
+| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log; schema v8 adds home-action turns and climate approvals) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md), [B21](backlog/B21-climate-home-action.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket). Client JSON is `two.projection`. B14 slice 3 adds persisted projects and typed config candidates on top of slice 2 conversation/SSE/health/repo reads ([B07](backlog/B07-control-api.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; `two scheduler` process) ([B08](backlog/B08-scheduler.md)) |
 | ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
@@ -36,14 +36,16 @@ the spec.
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
-| Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. Schema v7. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. `home-action` stays refused and is not stored ([B20](backlog/B20-chat-profile-resume.md)) |
+| Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
+| Harness profile `home-action` | Works when `$TWO_DATA_DIR/devices/climate.yaml` enables a private climate upstream (`two climate send/show/approve/reject`). The control plane performs `climate.read`, `climate.set_setpoint`, and `climate.set_mode`. Out-of-band writes wait for a digest. Without the binding the turn is refused and not stored ([ADR 0022](adrs/0022-climate-device-protocol.md), [B21](backlog/B21-climate-home-action.md)) |
 
-Last updated: 21 October 2026 (B20: `two chat` resumes harness profile
-`chat` on the single slot, schema v7. `home-action` stays refused.
-ADR 0021: `two adapters` is the install menu. Only the CLI is enabled.
-No messenger is selected. ADR 0020 watch edge, ADR 0017 adoption,
-harness-profile preload, and OIDC remain specified and not a running
-device executor.)
+Last updated: 21 October 2026 (B21: `home-action` performs the closed
+climate tools when a local binding enables them, schema v8. The
+climate slot stays off. B20: `two chat` resumes harness profile
+`chat` on the single slot. ADR 0021: `two adapters` is the install
+menu. Only the CLI is enabled. No messenger is selected. ADR 0020
+watch edge, ADR 0017 adoption, harness-profile preload, speech, and
+OIDC remain specified and not a running voice executor.)
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -125,7 +127,7 @@ and worktree directories at mode 0700. `two up` and `two doctor` load that
 file when the process environment does not already set the same keys.
 
 `two up` starts `two api`, `two scheduler`, and `two worker` together.
-The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v7) and
+The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v8) and
 `$TWO_DATA_DIR/two.up.pid`. If any one of those three processes exits,
 the supervisor stops the other two. Stop a healthy supervisor with
 Ctrl+C or `uv run two down`. Closing `two task` detaches; it does not
