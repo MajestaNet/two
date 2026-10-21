@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -149,6 +150,7 @@ from two.api.schemas import (
     TodoItem,
     ValidationGateView,
     ValidationSummary,
+    VoiceTurnReceipt,
     VoiceTurnRequest,
 )
 from two.approvals import (
@@ -168,6 +170,7 @@ from two.approvals import (
 )
 from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
+from two.projection import voice_turn_receipt
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
 from two.store import (
     ApprovalNotFoundError,
@@ -184,12 +187,14 @@ from two.store import (
 )
 from two.store.models import (
     ApprovalRecord,
+    ChatTurnRecord,
     ConfigApprovalRecord,
     EventRecord,
     QuestionRecord,
     TaskRecord,
 )
 from two.types import EventType, HarnessProfile, LifecycleState, Scope
+from two.worker.chat import ensure_chat_profile_dir
 
 _PLAN_EVENT_TYPES = frozenset({EventType.TASK_PLAN.value, "plan"})
 _TODO_EVENT_TYPES = frozenset({EventType.TASK_TODOS.value, "todos"})
@@ -338,6 +343,7 @@ def create_app(
     router.add_api_route("/v1/system/queue", _get_system_queue, methods=["GET"])
     router.add_api_route("/v1/tasks", _create_task, methods=["POST"], status_code=201)
     router.add_api_route("/v1/voice/turns", _voice_turn, methods=["POST"])
+    router.add_api_route("/v1/voice/turns/{turn_id}", _get_voice_turn, methods=["GET"])
     router.add_api_route("/v1/tasks", _list_tasks, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}", _get_task, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}/events", _list_events, methods=["GET"])
@@ -479,12 +485,34 @@ async def _create_task(request: Request, manifest: TaskManifest) -> JSONResponse
     )
 
 
-async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
-    """Accept a watch transcript. Coding tasks stay on ``POST /v1/tasks``.
+def _require_chat_profile(request: Request) -> str:
+    """Return the caller id when ``chat`` is on their harness allow-list."""
+    principal = principal_from_request(request)
+    if HarnessProfile.CHAT.value not in principal.harness_profiles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"client cannot use harness profile {HarnessProfile.CHAT.value}",
+        )
+    return principal.id
 
-    ``chat`` and ``home-action`` are authorized for the watch client and
-    refused until a profile executor exists. The body is not written to
-    the store.
+
+def _receipt_for(turn: ChatTurnRecord) -> VoiceTurnReceipt:
+    return voice_turn_receipt(
+        turn_id=turn.id,
+        status=turn.status.value,
+        reply=turn.reply_text,
+        error_code=turn.error_code,
+        seq=turn.seq,
+        revision=turn.revision,
+    )
+
+
+async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
+    """Accept one ``chat`` transcript. Coding tasks stay on ``POST /v1/tasks``.
+
+    ``home-action`` stays ``profile_not_executable`` and is not stored.
+    ``self-build`` on this route is forbidden. The row is committed before
+    the response. A chat turn does not take a coding lease.
     """
     principal = principal_from_request(request)
     if body.profile == HarnessProfile.SELF_BUILD.value:
@@ -494,7 +522,33 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
             status_code=403,
             detail=f"client cannot use harness profile {body.profile}",
         )
-    raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
+    if body.profile != HarnessProfile.CHAT.value:
+        raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
+    box = _box(request)
+    data_dir = request.app.state.data_dir
+    async with box.lock:
+        ensure_chat_profile_dir(data_dir if isinstance(data_dir, Path) else None)
+        box.store.ensure_chat_session()
+        record = box.store.insert_chat_turn(
+            body.text,
+            principal.id,
+            turn_id=f"turn-{uuid.uuid4().hex[:16]}",
+        )
+        latest = box.store.get_chat_turn(record.id)
+    receipt = _receipt_for(latest if latest is not None else record)
+    return JSONResponse(status_code=202, content=receipt.model_dump(mode="json"))
+
+
+async def _get_voice_turn(request: Request, turn_id: str) -> JSONResponse:
+    """Return the stored chat receipt. Callers must be allowed to use ``chat``."""
+    _require_chat_profile(request)
+    box = _box(request)
+    async with box.lock:
+        record = box.store.get_chat_turn(turn_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="not found")
+    receipt = _receipt_for(record)
+    return JSONResponse(status_code=200, content=receipt.model_dump(mode="json"))
 
 
 async def _list_tasks(

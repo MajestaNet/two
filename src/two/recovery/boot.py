@@ -116,11 +116,15 @@ def run_worker(
         while True:
             if should_stop is not None and should_stop():
                 return 0
+            instant = now if now is not None else datetime.now(UTC)
             task = _leased_running(owned, worker_id)
+            chat = owned.running_chat_turn()
             if task is not None:
-                instant = now if now is not None else datetime.now(UTC)
+                # An in-flight coding turn is not preempted by chat.
                 heartbeat(task.id)
                 driver.drive(task.id, now=instant)
+            elif chat is not None:
+                acp.run_chat(chat.id, now=instant)
             nap(poll_interval)
     finally:
         if opened:

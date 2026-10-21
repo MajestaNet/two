@@ -153,6 +153,7 @@ class ErrorCode(StrEnum):
     NOT_RESUMABLE = "not_resumable"
     DUPLICATE_PROJECT = "duplicate_project"
     PROFILE_NOT_EXECUTABLE = "profile_not_executable"
+    PROFILE_TOOL_DENIED = "profile_tool_denied"
     INTERNAL = "internal"
 
 

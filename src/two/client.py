@@ -44,6 +44,7 @@ from two.projection import (
     TaskMessageReceipt,
     TaskProjection,
     TaskReport,
+    VoiceTurnReceipt,
 )
 from two.types import ErrorCode
 
@@ -255,6 +256,28 @@ class ControlClient:
         response = self._call("GET", _task_path(task_id, "report"))
         return _parse(response, TaskReport)
 
+    def post_voice_turn(
+        self,
+        text: str,
+        *,
+        profile: str = "chat",
+        idempotency_key: str | None = None,
+    ) -> VoiceTurnReceipt:
+        """POST ``/v1/voice/turns``. Parses a ``VoiceTurnReceipt``."""
+        payload: dict[str, Any] = {"text": text, "profile": profile}
+        response = self._call(
+            "POST",
+            "/v1/voice/turns",
+            payload,
+            idempotency_key=idempotency_key,
+        )
+        return _parse(response, VoiceTurnReceipt)
+
+    def get_voice_turn(self, turn_id: str) -> VoiceTurnReceipt:
+        """GET one chat receipt."""
+        response = self._call("GET", "/v1/voice/turns/" + quote(turn_id, safe="-._~"))
+        return _parse(response, VoiceTurnReceipt)
+
     def _control(
         self,
         task_id: str,
@@ -273,12 +296,16 @@ class ControlClient:
         method: str,
         path: str,
         payload: Mapping[str, Any] | None = None,
+        *,
+        idempotency_key: str | None = None,
     ) -> ClientResponse:
         headers: dict[str, str] = {"Accept": "application/json"}
         body: bytes | None = None
         if payload is not None:
             body = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
         return self._request(method, path, body, headers)

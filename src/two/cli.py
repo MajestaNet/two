@@ -181,6 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run the ACP worker (poll SQLite for a leased running task)",
     )
     _add_task_parser(subparsers)
+    _add_chat_parser(subparsers)
     return parser
 
 
@@ -233,6 +234,11 @@ def main(
         from two.cli_task import run_task
 
         return run_task(args, request=request)
+    if args.command == "chat":
+        _load_host_env()
+        from two.cli_chat import run_chat
+
+        return run_chat(args, request=request)
     if args.command is None:
         parser.print_help()
         return 0
@@ -508,6 +514,36 @@ def _add_task_parser(subparsers: Any) -> None:
         help="Print the Stage 8 report (branch, notes, risks)",
     )
     report.add_argument("task_id", help="Task id")
+
+
+def _add_chat_parser(subparsers: Any) -> None:
+    transport = _transport_parser()
+    chat = subparsers.add_parser(
+        "chat",
+        help="Send or show one no-tools chat turn (control API only)",
+        description=(
+            "Talks only to the control API. Does not open the store, git, "
+            "or Ollama. A chat turn is not a coding task."
+        ),
+    )
+    chat_sub = chat.add_subparsers(dest="chat_command", required=True)
+    send = chat_sub.add_parser(
+        "send",
+        parents=[transport],
+        help="POST a chat turn and print the receipt",
+    )
+    send.add_argument("--text", required=True, help="User transcript")
+    send.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Optional Idempotency-Key for this POST",
+    )
+    show = chat_sub.add_parser(
+        "show",
+        parents=[transport],
+        help="Print the receipt for TURN_ID",
+    )
+    show.add_argument("turn_id", help="Chat turn id")
 
 
 if __name__ == "__main__":

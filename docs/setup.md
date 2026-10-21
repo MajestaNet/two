@@ -27,7 +27,7 @@ the spec.
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
-| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md)) |
+| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket). Client JSON is `two.projection`. B14 slice 3 adds persisted projects and typed config candidates on top of slice 2 conversation/SSE/health/repo reads ([B07](backlog/B07-control-api.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; `two scheduler` process) ([B08](backlog/B08-scheduler.md)) |
 | ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
@@ -36,13 +36,14 @@ the spec.
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
-| Harness profile `chat` | Specified, not executable. `POST /v1/voice/turns` still returns `profile_not_executable` and stores nothing. The resume slice is [B20](backlog/B20-chat-profile-resume.md). `home-action` stays refused |
+| Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. Schema v7. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. `home-action` stays refused and is not stored ([B20](backlog/B20-chat-profile-resume.md)) |
 
-Last updated: 21 October 2026 (ADR 0021: `two adapters` is the install
-menu. Only the CLI is enabled. No messenger is selected.
-ADR 0020 watch edge, ADR 0017 adoption, harness-profile preload, and
-OIDC remain specified and not a running device or chat executor.
-Chat resume is planned as [B20](backlog/B20-chat-profile-resume.md).)
+Last updated: 21 October 2026 (B20: `two chat` resumes harness profile
+`chat` on the single slot, schema v7. `home-action` stays refused.
+ADR 0021: `two adapters` is the install menu. Only the CLI is enabled.
+No messenger is selected. ADR 0020 watch edge, ADR 0017 adoption,
+harness-profile preload, and OIDC remain specified and not a running
+device executor.)
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -124,7 +125,7 @@ and worktree directories at mode 0700. `two up` and `two doctor` load that
 file when the process environment does not already set the same keys.
 
 `two up` starts `two api`, `two scheduler`, and `two worker` together.
-The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v6) and
+The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v7) and
 `$TWO_DATA_DIR/two.up.pid`. If any one of those three processes exits,
 the supervisor stops the other two. Stop a healthy supervisor with
 Ctrl+C or `uv run two down`. Closing `two task` detaches; it does not

@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B20 |
 | Phase | 6 — Conversational control (profile resume, not a GUI) |
-| Status | planned |
+| Status | done |
 | Depends on | B07, B08, B09 |
 | Blocks | Nothing. Landing this item does not close architecture §21 item 20. |
 | Architecture | §5.4, §21 item 20, ADR 0018 decision 5–6, ADR 0019, ADR 0021 decision 5 |
@@ -286,17 +286,17 @@ Offline. No Mac, Ollama, OIDC, or live harness.
 
 ## Acceptance criteria
 
-- [ ] Schema v7 round-trips one `chat` session and ordered turns.
+- [x] Schema v7 round-trips one `chat` session and ordered turns.
   `home-action` cannot be inserted.
-- [ ] `POST /v1/voice/turns` for `chat` returns `202` and persists the
+- [x] `POST /v1/voice/turns` for `chat` returns `202` and persists the
       turn. `home-action` returns `409` and persists nothing.
-- [ ] Operator loopback can send and show a chat turn. The watch
+- [x] Operator loopback can send and show a chat turn. The watch
       principal still cannot submit `self-build`.
-- [ ] A held coding lease blocks chat admission. A running chat turn
+- [x] A held coding lease blocks chat admission. A running chat turn
       blocks coding dispatch. Chat never holds a coding lease.
-- [ ] The fake child reply is the receipt `reply`. A tool request does
+- [x] The fake child reply is the receipt `reply`. A tool request does
       not run.
-- [ ] `make ci` is green. This file and the README row are `done`.
+- [x] `make ci` is green. This file and the README row are `done`.
 
 ## Definition of done
 

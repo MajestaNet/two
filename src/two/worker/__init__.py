@@ -21,11 +21,13 @@ ACP child; it does not reimplement the agent loop or set
 task lifecycle ``complete``. See docs/architecture.md §6.3.G, §10, §12.4–12.5.
 """
 
+from two.worker.chat import build_chat_argv, chat_child_env, plan_chat_session
 from two.worker.child import SupervisedChild, build_dsh_argv, default_child_env
 from two.worker.errors import ActionReplayError, ChildError, WorkerError
 from two.worker.ledger import ActionLedger
 from two.worker.models import (
     CancelOutcome,
+    ChatSessionPlan,
     ChildConfig,
     RepairAction,
     RepairDecision,
@@ -55,6 +57,7 @@ __all__ = [
     "ActionLedger",
     "ActionReplayError",
     "CancelOutcome",
+    "ChatSessionPlan",
     "ChildConfig",
     "ChildError",
     "RepairAction",
@@ -64,8 +67,11 @@ __all__ = [
     "SupervisedChild",
     "ToolCallRepairPolicy",
     "WorkerError",
+    "build_chat_argv",
     "build_dsh_argv",
+    "chat_child_env",
     "default_child_env",
+    "plan_chat_session",
     "plan_session",
     "tool_call_fingerprint",
 ]

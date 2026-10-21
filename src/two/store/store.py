@@ -78,9 +78,12 @@ from two.store.models import (
     ActionStatus,
     ApprovalRecord,
     ChannelBinding,
+    ChatTurnRecord,
+    ChatTurnStatus,
     ConfigApprovalRecord,
     ConfigCandidateRecord,
     EventRecord,
+    HarnessSessionRecord,
     IdempotencyRecord,
     LeaseRecord,
     ProjectRecord,
@@ -1602,6 +1605,272 @@ class Store:
                 stamp,
             )
 
+    def ensure_chat_session(self, *, now: datetime | None = None) -> HarnessSessionRecord:
+        """Insert the installation ``chat`` session row if it is missing.
+
+        Does not clear ``session_id``. ``home-action`` is not a row in this table.
+        """
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            self._connection.execute(
+                """
+                INSERT INTO harness_sessions (
+                    profile, session_id, data_relpath, created_at, updated_at
+                ) VALUES ('chat', NULL, 'profiles/chat', ?, ?)
+                ON CONFLICT(profile) DO NOTHING
+                """,
+                (stamp, stamp),
+            )
+        record = self.get_harness_session()
+        if record is None:
+            raise StoreError("chat harness session missing after insert")
+        return record
+
+    def set_chat_session_id(
+        self,
+        session_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> HarnessSessionRecord:
+        """Store the DeepSeek Harness session id for profile ``chat``.
+
+        Does not write ``tasks.dsh_session_id``.
+        """
+        cleaned = session_id.strip()
+        if cleaned == "":
+            raise StoreError("chat session_id must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            self._connection.execute(
+                """
+                INSERT INTO harness_sessions (
+                    profile, session_id, data_relpath, created_at, updated_at
+                ) VALUES ('chat', ?, 'profiles/chat', ?, ?)
+                ON CONFLICT(profile) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    updated_at = excluded.updated_at
+                """,
+                (cleaned, stamp, stamp),
+            )
+        record = self.get_harness_session()
+        if record is None or record.session_id != cleaned:
+            raise StoreError("chat harness session missing after update")
+        return record
+
+    def get_harness_session(self) -> HarnessSessionRecord | None:
+        """Return the installation chat session, or ``None`` before the first turn."""
+        row = self._connection.execute(
+            "SELECT * FROM harness_sessions WHERE profile = 'chat'"
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("harness session query did not return a sqlite3.Row")
+        return _harness_session_from_row(row)
+
+    def insert_chat_turn(
+        self,
+        request_text: str,
+        principal: str,
+        *,
+        turn_id: str,
+        now: datetime | None = None,
+    ) -> ChatTurnRecord:
+        """Insert one queued ``chat`` turn and commit before returning.
+
+        Does not insert a task, event, lease, work node, or action.
+        """
+        if turn_id.strip() == "":
+            raise StoreError("chat turn id must be non-empty")
+        if principal.strip() == "":
+            raise StoreError("chat turn principal must be non-empty")
+        if len(request_text) < 1 or len(request_text) > 4000:
+            raise StoreError("chat request_text must be 1 to 4000 characters")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            seq_row = self._connection.execute(
+                "SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM chat_turns"
+            ).fetchone()
+            if seq_row is None:
+                raise StoreError("chat turn seq missing")
+            seq = _as_int(seq_row["seq"], "seq")
+            self._connection.execute(
+                """
+                INSERT INTO chat_turns (
+                    id, profile, seq, status, request_text, reply_text, error_code,
+                    principal, revision, created_at, updated_at
+                ) VALUES (?, 'chat', ?, 'queued', ?, NULL, NULL, ?, 1, ?, ?)
+                """,
+                (turn_id, seq, request_text, principal, stamp, stamp),
+            )
+        record = self.get_chat_turn(turn_id)
+        if record is None:
+            raise StoreError(f"chat turn missing after insert: {turn_id}")
+        return record
+
+    def get_chat_turn(self, turn_id: str) -> ChatTurnRecord | None:
+        """Return one chat turn, or ``None`` when the id is absent."""
+        row = self._chat_turn_row(turn_id)
+        if row is None:
+            return None
+        return _chat_turn_from_row(row)
+
+    def list_chat_turns(self) -> list[ChatTurnRecord]:
+        """Return chat turns ordered by ``seq``."""
+        rows = self._connection.execute("SELECT * FROM chat_turns ORDER BY seq ASC").fetchall()
+        return [_chat_turn_from_row(row) for row in rows]
+
+    def running_chat_turn(self) -> ChatTurnRecord | None:
+        """Return the single running chat turn, if the slot holds one."""
+        row = self._connection.execute(
+            """
+            SELECT * FROM chat_turns
+            WHERE status = 'running'
+            ORDER BY seq ASC
+            LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("chat turn query did not return a sqlite3.Row")
+        return _chat_turn_from_row(row)
+
+    def unexpired_lease_held(self, *, now: datetime | None = None) -> bool:
+        """True when any coding lease is still unexpired."""
+        instant = _utc(now)
+        rows = self._connection.execute("SELECT expires_at FROM leases").fetchall()
+        for row in rows:
+            if _parse_time(str(row["expires_at"])) >= instant:
+                return True
+        return False
+
+    def admit_chat_turn(self, *, now: datetime | None = None) -> ChatTurnRecord | None:
+        """Set the oldest queued chat turn to ``running`` when none is running.
+
+        The partial unique index is the guard. Does not insert a coding lease.
+        Returns ``None`` when a turn is already running or none is queued.
+        """
+        instant = _utc(now)
+        stamp = _iso(instant)
+        turn_id: str | None = None
+        try:
+            with self._txn():
+                running = self._connection.execute(
+                    "SELECT id FROM chat_turns WHERE status = 'running' LIMIT 1"
+                ).fetchone()
+                if running is not None:
+                    return None
+                queued = self._connection.execute(
+                    """
+                    SELECT id FROM chat_turns
+                    WHERE status = 'queued'
+                    ORDER BY seq ASC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if queued is None:
+                    return None
+                turn_id = _as_str(queued["id"], "id")
+                cursor = self._connection.execute(
+                    """
+                    UPDATE chat_turns
+                    SET status = 'running', revision = revision + 1, updated_at = ?
+                    WHERE id = ? AND status = 'queued'
+                    """,
+                    (stamp, turn_id),
+                )
+                if cursor.rowcount != 1:
+                    turn_id = None
+        except sqlite3.IntegrityError:
+            return None
+        if turn_id is None:
+            return None
+        return self.get_chat_turn(turn_id)
+
+    def complete_chat_turn(
+        self,
+        turn_id: str,
+        reply_text: str,
+        *,
+        now: datetime | None = None,
+    ) -> ChatTurnRecord:
+        """Mark a running chat turn complete. Stores at most 4000 characters."""
+        if len(reply_text) > 4000:
+            reply_text = reply_text[:4000]
+        if len(reply_text) < 1:
+            raise StoreError("chat reply_text must be non-empty")
+        return self._finish_chat_turn(
+            turn_id,
+            status=ChatTurnStatus.COMPLETE,
+            reply_text=reply_text,
+            error_code=None,
+            now=now,
+        )
+
+    def fail_chat_turn(
+        self,
+        turn_id: str,
+        error_code: str,
+        *,
+        now: datetime | None = None,
+    ) -> ChatTurnRecord:
+        """Mark a running chat turn failed. ``reply_text`` stays null."""
+        if error_code.strip() == "":
+            raise StoreError("chat error_code must be non-empty")
+        return self._finish_chat_turn(
+            turn_id,
+            status=ChatTurnStatus.FAILED,
+            reply_text=None,
+            error_code=error_code,
+            now=now,
+        )
+
+    def _finish_chat_turn(
+        self,
+        turn_id: str,
+        *,
+        status: ChatTurnStatus,
+        reply_text: str | None,
+        error_code: str | None,
+        now: datetime | None,
+    ) -> ChatTurnRecord:
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            existing = self._chat_turn_row(turn_id)
+            if existing is None:
+                raise StoreError(f"unknown chat turn: {turn_id}")
+            if str(existing["status"]) != ChatTurnStatus.RUNNING.value:
+                raise StoreError(f"chat turn {turn_id} is not running")
+            self._connection.execute(
+                """
+                UPDATE chat_turns
+                SET status = ?, reply_text = ?, error_code = ?,
+                    revision = revision + 1, updated_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (status.value, reply_text, error_code, stamp, turn_id),
+            )
+        record = self.get_chat_turn(turn_id)
+        if record is None:
+            raise StoreError(f"chat turn missing after finish: {turn_id}")
+        return record
+
+    def _chat_turn_row(self, turn_id: str) -> sqlite3.Row | None:
+        row = self._connection.execute(
+            "SELECT * FROM chat_turns WHERE id = ?",
+            (turn_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("chat turn query did not return a sqlite3.Row")
+        return row
+
     def _lease_row(self, task_id: str) -> sqlite3.Row | None:
         row = self._connection.execute(
             "SELECT * FROM leases WHERE task_id = ?",
@@ -1838,6 +2107,32 @@ def _approval_from_row(row: sqlite3.Row) -> ApprovalRecord:
         resolved_at=(
             _parse_time(_as_str(resolved_raw, "resolved_at")) if resolved_raw is not None else None
         ),
+    )
+
+
+def _harness_session_from_row(row: sqlite3.Row) -> HarnessSessionRecord:
+    return HarnessSessionRecord(
+        profile=_as_str(row["profile"], "profile"),
+        session_id=_optional_str(row["session_id"], "session_id"),
+        data_relpath=_as_str(row["data_relpath"], "data_relpath"),
+        created_at=_parse_time(_as_str(row["created_at"], "created_at")),
+        updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
+    )
+
+
+def _chat_turn_from_row(row: sqlite3.Row) -> ChatTurnRecord:
+    return ChatTurnRecord(
+        id=_as_str(row["id"], "id"),
+        profile=_as_str(row["profile"], "profile"),
+        seq=_as_int(row["seq"], "seq"),
+        status=ChatTurnStatus(_as_str(row["status"], "status")),
+        request_text=_as_str(row["request_text"], "request_text"),
+        reply_text=_optional_str(row["reply_text"], "reply_text"),
+        error_code=_optional_str(row["error_code"], "error_code"),
+        principal=_as_str(row["principal"], "principal"),
+        revision=_as_int(row["revision"], "revision"),
+        created_at=_parse_time(_as_str(row["created_at"], "created_at")),
+        updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
     )
 
 

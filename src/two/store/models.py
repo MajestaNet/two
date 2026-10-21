@@ -207,6 +207,43 @@ class ConfigCandidateRecord:
     created_by: str
 
 
+class ChatTurnStatus(StrEnum):
+    """Durable status of one no-tools chat turn. Not a task lifecycle."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class HarnessSessionRecord:
+    """One installation harness session. ``session_id`` stays off the API."""
+
+    profile: str
+    session_id: str | None
+    data_relpath: str
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ChatTurnRecord:
+    """One persisted chat turn. Reply text is plain and bounded."""
+
+    id: str
+    profile: str
+    seq: int
+    status: ChatTurnStatus
+    request_text: str
+    reply_text: str | None
+    error_code: str | None
+    principal: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+
+
 @dataclass(frozen=True, slots=True)
 class ConfigApprovalRecord:
     """Digest-scoped config approval. First-writer-wins status change."""
