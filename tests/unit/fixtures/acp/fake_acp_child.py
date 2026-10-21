@@ -182,6 +182,34 @@ def mode_chat_tool(invoke_out: str | None) -> int:
             return 0
 
 
+def mode_home_tool(tool: str, arguments: str, invoke_out: str | None) -> int:
+    _session()
+    parsed: object = json.loads(arguments)
+    if not isinstance(parsed, dict):
+        parsed = {}
+    _emit(
+        {
+            "type": "tool_request",
+            "action_id": "act-climate",
+            "intent": {"tool": tool, "arguments": parsed},
+        }
+    )
+    while True:
+        cmd = _read_command(timeout=0.05)
+        if cmd is None:
+            continue
+        kind = cmd.get("type")
+        if kind == "execute":
+            if invoke_out:
+                Path(invoke_out).write_text("execute\n", encoding="utf-8")
+            return 0
+        if kind == "cancel":
+            _emit({"type": "cancel_ack"})
+            return 0
+        if kind == "skip":
+            return 0
+
+
 def mode_chat_silent() -> int:
     _session()
     return 0
@@ -225,10 +253,13 @@ def main(argv: list[str] | None = None) -> int:
             "chat-reply",
             "chat-tool",
             "chat-silent",
+            "home-tool",
             "assistant-only",
         ),
     )
     parser.add_argument("--text", default="hello from chat")
+    parser.add_argument("--tool", default="climate.set_setpoint")
+    parser.add_argument("--arguments", default='{"zone":"living","celsius":20}')
     parser.add_argument("--invoke-out", default=None)
     args = parser.parse_args(argv)
     if args.mode == "heartbeat-once":
@@ -250,6 +281,9 @@ def main(argv: list[str] | None = None) -> int:
         return mode_chat_tool(invoke_out)
     if args.mode == "chat-silent":
         return mode_chat_silent()
+    if args.mode == "home-tool":
+        invoke_out = args.invoke_out if isinstance(args.invoke_out, str) else None
+        return mode_home_tool(str(args.tool), str(args.arguments), invoke_out)
     if args.mode == "assistant-only":
         return mode_assistant_only(str(args.text))
     return 2

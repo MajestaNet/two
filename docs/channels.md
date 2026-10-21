@@ -50,8 +50,9 @@ The controller resumes a persisted DeepSeek Harness profile
 ([ADR 0019](adrs/0019-mini-resident-control-plane.md),
 architecture §5.4): `chat` has no tools, and `home-action` may request a
 typed device tool such as a temperature change. Neither profile is
-`self-build`. The adapter does not open Ollama. The first device
-protocol, including speech, needs its own ADR.
+`self-build`. The adapter does not open Ollama. Climate is that
+protocol ([ADR 0022](adrs/0022-climate-device-protocol.md)). Speech
+still needs its own ADR.
 
 ## Watch voice client
 
@@ -63,8 +64,12 @@ requires a client certificate and proxies to the loopback API. The
 watch principal cannot submit a self-build task. `chat` is stored
 and resumed on the single inference slot
 ([B20](backlog/B20-chat-profile-resume.md)): `two chat send` /
-`two chat show`, schema v7, and no coding lease. `home-action` still
-returns `profile_not_executable` and is not stored. The Xcode app is
+`two chat show`, schema v7, and no coding lease. `home-action` is
+stored and can run the closed climate tools when
+`$TWO_DATA_DIR/devices/climate.yaml` enables them
+([ADR 0022](adrs/0022-climate-device-protocol.md),
+[B21](backlog/B21-climate-home-action.md)). Without that binding the
+turn is `profile_not_executable` and is not stored. The Xcode app is
 not in this repository. The catalog keeps `watch` at `contract`.
 
 ## Messengers (none selected)

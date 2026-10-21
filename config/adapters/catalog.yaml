@@ -45,7 +45,8 @@ slots:
     notes: >
       First-party client, not a device adapter (ADR 0020).
       two edge issue writes a private CA. The Xcode app is not in this
-      repo. chat and home-action return profile_not_executable.
+      repo. chat is stored. home-action is stored only when the local
+      climate binding is enabled.
 
   device:
     kind: device
@@ -57,8 +58,21 @@ slots:
       - chat
       - home-action
     notes: >
-      Reserved path src/two/devices/<name>/. No package until a protocol
-      ADR. May resume chat or home-action only. Default off on an install.
+      Kind-level reservation. Named device packages are separate slots.
+      May resume chat or home-action only. Default off on an install.
+
+  climate:
+    kind: device
+    status: shipped
+    package: two.devices.climate
+    default_enabled: false
+    selectable: true
+    harness_profiles:
+      - home-action
+    notes: >
+      Closed climate tools (ADR 0022). Default off. An install enables it
+      with $TWO_DATA_DIR/devices/climate.yaml. The model does not call
+      the upstream. The control plane performs the read-back.
 
   github:
     kind: export

@@ -63,6 +63,23 @@ def format_receipt(receipt: VoiceTurnReceipt) -> str:
         f"cursor: {receipt.cursor}",
         f"revision: {receipt.revision}",
     ]
+    if receipt.action_digest is not None:
+        lines.append(f"action_digest: {receipt.action_digest}")
+    if receipt.pending_action is not None:
+        pending = receipt.pending_action
+        lines.append(f"pending_tool: {pending.tool}")
+        lines.append(f"pending_zone: {pending.zone}")
+        if pending.celsius is not None:
+            lines.append(f"pending_celsius: {pending.celsius}")
+        if pending.mode is not None:
+            lines.append(f"pending_mode: {pending.mode}")
+    if receipt.climate is not None:
+        climate = receipt.climate
+        lines.append(f"climate_zone: {climate.zone}")
+        lines.append(f"climate_celsius: {climate.celsius}")
+        lines.append(f"climate_setpoint_celsius: {climate.setpoint_celsius}")
+        lines.append(f"climate_mode: {climate.mode}")
+        lines.append(f"climate_reachable: {climate.reachable}")
     return "\n".join(lines)
 
 

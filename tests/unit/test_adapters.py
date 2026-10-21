@@ -35,7 +35,12 @@ def test_optional_slots_stay_off_and_separated() -> None:
     github = catalog.slots["github"]
     assert watch.kind == "client"
     assert set(watch.harness_profiles) == {"chat", "home-action"}
+    climate = catalog.slots["climate"]
     assert device.status == "reserved" and device.package == ""
+    assert climate.status == "shipped" and climate.default_enabled is False
+    assert climate.selectable is True
+    assert climate.package == "two.devices.climate"
+    assert climate.harness_profiles == ["home-action"]
     assert github.kind == "export" and github.package == ""
     assert "self-build" not in device.harness_profiles
 

@@ -163,19 +163,25 @@ class Scheduler:
         selected. Does not implement git worktree logic.
 
         A chat turn is admitted on this same call when no unexpired coding
-        lease is held and no chat turn is already running. Chat never receives
-        a coding lease. A running chat turn blocks coding dispatch. An
-        in-flight coding turn is not cancelled.
+        lease is held and no chat or home-action turn is already running.
+        A queued chat turn is admitted before a queued home-action turn.
+        Neither receives a coding lease. A running chat or home-action turn
+        blocks coding dispatch. An in-flight coding turn is not cancelled.
         """
         instant = _utc(now)
         if self._health_probe() is not HealthState.HEALTHY:
             return None
         if self._store.running_chat_turn() is not None:
             return None
+        if self._store.running_home_action_turn() is not None:
+            return None
         lease_held = self._store.unexpired_lease_held(now=instant)
         if not lease_held and not self._slot_busy():
             admitted = self._store.admit_chat_turn(now=instant)
             if admitted is not None:
+                return None
+            admitted_home = self._store.admit_home_action_turn(now=instant)
+            if admitted_home is not None:
                 return None
         if self._slot_busy():
             return None

@@ -109,7 +109,7 @@ def test_client_id_without_edge_token_stays_local_trust(client: TestClient) -> N
     body = response.json()
     assert body["principal"] == "local"
     assert body["auth"]["method"] == "local_trust"
-    assert body["allowed_harness_profiles"] == ["chat", "self-build"]
+    assert body["allowed_harness_profiles"] == ["chat", "home-action", "self-build"]
 
 
 def test_bad_edge_token_is_401(client: TestClient) -> None:
@@ -159,7 +159,7 @@ def test_watch_voice_turn_rejects_self_build_and_holds_home_action(client: TestC
     assert chat.json()["reply"] is None
 
 
-def test_operator_can_send_chat_but_not_home_action(client: TestClient) -> None:
+def test_operator_home_action_stays_unstored_until_climate_is_enabled(client: TestClient) -> None:
     response = client.post(
         "/v1/voice/turns",
         json={"text": "hello", "profile": "chat"},
@@ -170,8 +170,8 @@ def test_operator_can_send_chat_but_not_home_action(client: TestClient) -> None:
         "/v1/voice/turns",
         json={"text": "set the air con to 20", "profile": "home-action"},
     )
-    assert denied.status_code == 403
-    assert "home-action" in denied.json()["detail"]
+    assert denied.status_code == 409
+    assert denied.json()["error"]["code"] == "profile_not_executable"
 
 
 def test_watch_cannot_pause_or_read_source(client: TestClient, store: Store) -> None:

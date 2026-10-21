@@ -227,6 +227,50 @@ class HarnessSessionRecord:
     updated_at: datetime
 
 
+class HomeActionTurnStatus(StrEnum):
+    """Durable status of one climate home-action turn. Not a task lifecycle."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    AWAITING_APPROVAL = "awaiting_approval"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class HomeActionTurnRecord:
+    """One persisted home-action turn. The read-back JSON is the device result."""
+
+    id: str
+    profile: str
+    seq: int
+    status: HomeActionTurnStatus
+    request_text: str
+    reply_text: str | None
+    error_code: str | None
+    principal: str
+    tool_name: str | None
+    arguments_json: str | None
+    readback_json: str | None
+    action_digest: str | None
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ClimateApprovalRecord:
+    """Digest-scoped climate approval. Not a task approval. Silence changes nothing."""
+
+    id: str
+    turn_id: str
+    action_digest: str
+    status: str
+    created_at: datetime
+    resolved_at: datetime | None
+    resolver: str | None
+
+
 @dataclass(frozen=True, slots=True)
 class ChatTurnRecord:
     """One persisted chat turn. Reply text is plain and bounded."""

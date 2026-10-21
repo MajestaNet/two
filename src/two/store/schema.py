@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -310,7 +310,8 @@ _V6_STATEMENTS = (
 )
 
 # Version 7: one persisted chat harness session and its turn log (B20).
-# Chat is not a task. Do not reuse v4, v5, or v6. home-action stays out.
+# Chat is not a task. Do not reuse v4, v5, or v6. The profile check is
+# widened in v8 for home-action.
 _V7_STATEMENTS = (
     """
     CREATE TABLE harness_sessions (
@@ -347,6 +348,75 @@ _V7_STATEMENTS = (
     """,
 )
 
+# Version 8: home-action turns and climate approvals (ADR 0022, B21).
+# Chat rows stay in chat_turns. harness_sessions is rebuilt so its check
+# can name both profiles. A climate approval is not a task approval.
+_V8_STATEMENTS = (
+    """
+    CREATE TABLE harness_sessions_v8 (
+        profile TEXT PRIMARY KEY,
+        session_id TEXT,
+        data_relpath TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (profile IN ('chat', 'home-action'))
+    )
+    """,
+    """
+    INSERT INTO harness_sessions_v8 (
+        profile, session_id, data_relpath, created_at, updated_at
+    )
+    SELECT profile, session_id, data_relpath, created_at, updated_at
+    FROM harness_sessions
+    """,
+    "DROP TABLE harness_sessions",
+    "ALTER TABLE harness_sessions_v8 RENAME TO harness_sessions",
+    """
+    CREATE TABLE home_action_turns (
+        id TEXT PRIMARY KEY,
+        profile TEXT NOT NULL,
+        seq INTEGER NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        request_text TEXT NOT NULL,
+        reply_text TEXT,
+        error_code TEXT,
+        principal TEXT NOT NULL,
+        tool_name TEXT,
+        arguments_json TEXT,
+        readback_json TEXT,
+        action_digest TEXT,
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (profile = 'home-action'),
+        CHECK (status IN (
+            'queued', 'running', 'awaiting_approval', 'complete', 'failed'
+        )),
+        CHECK (tool_name IS NULL OR tool_name IN (
+            'climate.read', 'climate.set_setpoint', 'climate.set_mode'
+        )),
+        CHECK (length(request_text) BETWEEN 1 AND 4000),
+        CHECK (reply_text IS NULL OR length(reply_text) BETWEEN 1 AND 4000)
+    )
+    """,
+    """
+    CREATE UNIQUE INDEX idx_home_action_turns_one_running
+        ON home_action_turns (status) WHERE status = 'running'
+    """,
+    """
+    CREATE TABLE climate_approvals (
+        id TEXT PRIMARY KEY,
+        turn_id TEXT NOT NULL UNIQUE,
+        action_digest TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolver TEXT,
+        CHECK (status IN ('open', 'approved', 'rejected'))
+    )
+    """,
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1_STATEMENTS),
     (2, _V2_STATEMENTS),
@@ -355,6 +425,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (5, _V5_STATEMENTS),
     (6, _V6_STATEMENTS),
     (7, _V7_STATEMENTS),
+    (8, _V8_STATEMENTS),
 )
 
 

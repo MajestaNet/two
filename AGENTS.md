@@ -12,11 +12,13 @@ A later wearable or device request resumes a persisted harness profile
 runs at a time. This repository is not a messenger product
 and it does not develop unrelated repositories. The CLI is the local surface
 today; ADR 0015/B14 plans a secure first-party mobile client over the same
-API. In-repo home and wearable adapters are specified and not implemented.
+API. The climate device package is in-repo and default off (ADR 0022).
+Speech and other device protocols are specified and not implemented.
 The SQLite WAL store (`two.store`)
 persists tasks, events, leases, the work graph (schema v5),
 projects/config candidates (schema v6), and the chat harness session
-plus turn log (schema v7).
+plus turn log (schema v7), and home-action climate turns
+(schema v8).
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
@@ -72,6 +74,10 @@ uv run two task answer ID QUESTION_ID --text ...
 uv run two task report ID
 uv run two chat send --text TEXT
 uv run two chat show TURN_ID
+uv run two climate send --text TEXT
+uv run two climate show TURN_ID
+uv run two climate approve TURN_ID --digest DIGEST
+uv run two climate reject TURN_ID --digest DIGEST
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
 ./scripts/bootstrap-dev-host.sh --dry-run
@@ -96,7 +102,9 @@ listed in `config/repositories/two.yaml`.
  and `work_edges` (v4 is B14 idempotency). Schema v6 adds `projects`,
  `repository_config_state`, `config_candidates`, and `config_approvals`
  (B14 slice 3). Schema v7 adds `harness_sessions` and `chat_turns` (B20).
- A chat turn is not a task and never takes a coding lease.
+ Schema v8 adds `home_action_turns` and `climate_approvals` (B21).
+ A chat turn is not a task and never takes a coding lease. A home-action
+ turn is not a task either.
  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
  `two api` lazy-imports it so `two profiles` does not load the store.
  Additive B14 slice 2 routes include conversation, SSE, aggregate health,
@@ -109,10 +117,10 @@ listed in `config/repositories/two.yaml`.
  builders live in `two.api.gui`.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. Only the `cli` slot is
- enabled. `watch` and `mobile` are clients at `contract`. `device` and
- `github` are reserved paths (`src/two/devices/<name>/`,
- `src/two/export/`) and are not packages. Do not enable a slot by
- adding a directory.
+ enabled. `watch` and `mobile` are clients at `contract`. `climate`
+ is shipped and off (`src/two/devices/climate/`, ADR 0022). The
+ kind-level `device` slot and `github` (`src/two/export/`) stay
+ reserved. Do not enable a slot by adding a directory.
  `src/two/edge.py` is the watch edge plan (ADR 0020): private CA,
  Caddy mutual TLS, loopback upstream. `two edge plan` writes nothing.
  `two edge issue` writes under `$TWO_DATA_DIR/edge`. The watch principal

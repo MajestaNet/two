@@ -29,9 +29,10 @@ from pathlib import Path
 
 from two.context.errors import MemoryPersistenceError
 from two.context.persist import load_task_memory
+from two.devices.climate.contract import ClimateBroker, ClimateInstall
 from two.providers import DSH_PIN
 from two.scheduler.models import WorkerOutcome, WorkerResult
-from two.store.models import ActionStatus, ChatTurnRecord, TaskRecord
+from two.store.models import ActionStatus, ChatTurnRecord, HomeActionTurnRecord, TaskRecord
 from two.store.store import Store
 from two.validation.results import ValidationResult
 from two.worker.chat import ChatArgvFactory, run_chat_turn
@@ -47,6 +48,7 @@ from two.worker.events import (
     EVENT_TOOL_ESCALATE,
     EVENT_TOOL_REPAIR,
 )
+from two.worker.home_action import HomeArgvFactory, run_home_action_turn
 from two.worker.ledger import ActionLedger
 from two.worker.models import (
     ChildConfig,
@@ -78,6 +80,10 @@ class AcpWorker:
         argv_factory: ArgvFactory | None = None,
         chat_argv: Sequence[str] | None = None,
         chat_argv_factory: ChatArgvFactory | None = None,
+        home_argv: Sequence[str] | None = None,
+        home_argv_factory: HomeArgvFactory | None = None,
+        climate_install: ClimateInstall | None = None,
+        climate_broker: ClimateBroker | None = None,
         child_env: Mapping[str, str] | None = None,
         child_config: ChildConfig | None = None,
         session_is_valid: SessionValidator | None = None,
@@ -92,6 +98,10 @@ class AcpWorker:
         self._argv_factory = argv_factory
         self._chat_argv = list(chat_argv) if chat_argv is not None else None
         self._chat_argv_factory = chat_argv_factory
+        self._home_argv = list(home_argv) if home_argv is not None else None
+        self._home_argv_factory = home_argv_factory
+        self._climate_install = climate_install
+        self._climate_broker = climate_broker
         self._child_env = dict(child_env) if child_env is not None else None
         self._child_config = child_config if child_config is not None else ChildConfig()
         self._session_is_valid = session_is_valid
@@ -141,6 +151,21 @@ class AcpWorker:
             argv_factory=self._chat_argv_factory,
             child_config=self._child_config,
             session_is_valid=self._session_is_valid,
+        )
+
+    def run_home_action(self, turn_id: str, *, now: datetime | None = None) -> HomeActionTurnRecord:
+        """Resume home-action for one admitted turn. The child does not perform I/O."""
+        return run_home_action_turn(
+            self._store,
+            turn_id,
+            now=now,
+            data_dir=self._data_dir,
+            argv=self._home_argv,
+            argv_factory=self._home_argv_factory,
+            child_config=self._child_config,
+            session_is_valid=self._session_is_valid,
+            install=self._climate_install,
+            broker=self._climate_broker,
         )
 
     def _run(self, task_id: str, *, now: datetime | None) -> WorkerResult:

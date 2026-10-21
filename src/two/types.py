@@ -154,6 +154,10 @@ class ErrorCode(StrEnum):
     DUPLICATE_PROJECT = "duplicate_project"
     PROFILE_NOT_EXECUTABLE = "profile_not_executable"
     PROFILE_TOOL_DENIED = "profile_tool_denied"
+    CLIMATE_NOT_CONFIGURED = "climate_not_configured"
+    CLIMATE_ZONE_DENIED = "climate_zone_denied"
+    CLIMATE_UPSTREAM = "climate_upstream"
+    CLIMATE_REJECTED = "climate_rejected"
     INTERNAL = "internal"
 
 

@@ -35,7 +35,7 @@ AdapterKind = Literal["client", "messenger", "device", "export"]
 AdapterStatus = Literal["shipped", "contract", "stub", "reserved"]
 HarnessProfileName = Literal["self-build", "home-action", "chat"]
 
-_REQUIRED_IDS: tuple[str, ...] = ("cli", "mobile", "watch", "device", "github")
+_REQUIRED_IDS: tuple[str, ...] = ("cli", "mobile", "watch", "device", "climate", "github")
 _DEVICE_PROFILES: frozenset[str] = frozenset({"chat", "home-action"})
 
 
@@ -151,11 +151,20 @@ def validate_catalog(catalog: AdapterCatalog, repo_root: Path) -> None:
     )
     device = catalog.slots["device"]
     _require(device.kind == "device" and device.status == "reserved", "device slot stays reserved")
-    _require(device.package == "", "device package is created by a later ADR")
+    _require(device.package == "", "the kind-level device slot stays unpackaged")
     _require(
         set(device.harness_profiles) == _DEVICE_PROFILES,
         "device profiles must be chat and home-action",
     )
+    climate = catalog.slots["climate"]
+    _require(
+        climate.kind == "device" and climate.status == "shipped",
+        "climate is the shipped device package",
+    )
+    _require(climate.package == "two.devices.climate", "climate package is two.devices.climate")
+    _require(not climate.default_enabled, "climate stays off until an install binds it")
+    _require(climate.selectable, "climate is selectable once shipped")
+    _require(climate.harness_profiles == ["home-action"], "climate resumes home-action only")
     github = catalog.slots["github"]
     _require(
         github.kind == "export" and github.status == "reserved" and github.package == "",

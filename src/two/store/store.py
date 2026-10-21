@@ -80,10 +80,13 @@ from two.store.models import (
     ChannelBinding,
     ChatTurnRecord,
     ChatTurnStatus,
+    ClimateApprovalRecord,
     ConfigApprovalRecord,
     ConfigCandidateRecord,
     EventRecord,
     HarnessSessionRecord,
+    HomeActionTurnRecord,
+    HomeActionTurnStatus,
     IdempotencyRecord,
     LeaseRecord,
     ProjectRecord,
@@ -1659,10 +1662,16 @@ class Store:
             raise StoreError("chat harness session missing after update")
         return record
 
-    def get_harness_session(self) -> HarnessSessionRecord | None:
-        """Return the installation chat session, or ``None`` before the first turn."""
+    def get_harness_session(self, profile: str = "chat") -> HarnessSessionRecord | None:
+        """Return one installation harness session, or ``None`` before the first turn.
+
+        ``profile`` is ``chat`` or ``home-action``. The default keeps chat callers.
+        """
+        if profile not in {"chat", "home-action"}:
+            raise StoreError(f"unknown harness profile: {profile}")
         row = self._connection.execute(
-            "SELECT * FROM harness_sessions WHERE profile = 'chat'"
+            "SELECT * FROM harness_sessions WHERE profile = ?",
+            (profile,),
         ).fetchone()
         if row is None:
             return None
@@ -1859,6 +1868,412 @@ class Store:
         if record is None:
             raise StoreError(f"chat turn missing after finish: {turn_id}")
         return record
+
+    def ensure_home_action_session(self, *, now: datetime | None = None) -> HarnessSessionRecord:
+        """Insert the installation ``home-action`` session row if it is missing."""
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            self._connection.execute(
+                """
+                INSERT INTO harness_sessions (
+                    profile, session_id, data_relpath, created_at, updated_at
+                ) VALUES ('home-action', NULL, 'profiles/home-action', ?, ?)
+                ON CONFLICT(profile) DO NOTHING
+                """,
+                (stamp, stamp),
+            )
+        record = self.get_harness_session("home-action")
+        if record is None:
+            raise StoreError("home-action harness session missing after insert")
+        return record
+
+    def set_home_action_session_id(
+        self,
+        session_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> HarnessSessionRecord:
+        """Store the DeepSeek Harness session id for profile ``home-action``."""
+        cleaned = session_id.strip()
+        if cleaned == "":
+            raise StoreError("home-action session_id must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            self._connection.execute(
+                """
+                INSERT INTO harness_sessions (
+                    profile, session_id, data_relpath, created_at, updated_at
+                ) VALUES ('home-action', ?, 'profiles/home-action', ?, ?)
+                ON CONFLICT(profile) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    updated_at = excluded.updated_at
+                """,
+                (cleaned, stamp, stamp),
+            )
+        record = self.get_harness_session("home-action")
+        if record is None or record.session_id != cleaned:
+            raise StoreError("home-action harness session missing after update")
+        return record
+
+    def insert_home_action_turn(
+        self,
+        request_text: str,
+        principal: str,
+        *,
+        turn_id: str,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """Insert one queued home-action turn. Does not insert a task or a lease."""
+        if turn_id.strip() == "":
+            raise StoreError("home-action turn id must be non-empty")
+        if principal.strip() == "":
+            raise StoreError("home-action turn principal must be non-empty")
+        if len(request_text) < 1 or len(request_text) > 4000:
+            raise StoreError("home-action request_text must be 1 to 4000 characters")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            seq_row = self._connection.execute(
+                "SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM home_action_turns"
+            ).fetchone()
+            if seq_row is None:
+                raise StoreError("home-action turn seq missing")
+            seq = _as_int(seq_row["seq"], "seq")
+            self._connection.execute(
+                """
+                INSERT INTO home_action_turns (
+                    id, profile, seq, status, request_text, reply_text, error_code,
+                    principal, tool_name, arguments_json, readback_json, action_digest,
+                    revision, created_at, updated_at
+                ) VALUES (
+                    ?, 'home-action', ?, 'queued', ?, NULL, NULL,
+                    ?, NULL, NULL, NULL, NULL,
+                    1, ?, ?
+                )
+                """,
+                (turn_id, seq, request_text, principal, stamp, stamp),
+            )
+        record = self.get_home_action_turn(turn_id)
+        if record is None:
+            raise StoreError(f"home-action turn missing after insert: {turn_id}")
+        return record
+
+    def get_home_action_turn(self, turn_id: str) -> HomeActionTurnRecord | None:
+        """Return one home-action turn, or ``None`` when the id is absent."""
+        row = self._home_action_turn_row(turn_id)
+        if row is None:
+            return None
+        return _home_action_turn_from_row(row)
+
+    def list_home_action_turns(self) -> list[HomeActionTurnRecord]:
+        """Return home-action turns ordered by ``seq``."""
+        rows = self._connection.execute(
+            "SELECT * FROM home_action_turns ORDER BY seq ASC"
+        ).fetchall()
+        return [_home_action_turn_from_row(row) for row in rows]
+
+    def running_home_action_turn(self) -> HomeActionTurnRecord | None:
+        """Return the single running home-action turn, if the slot holds one."""
+        row = self._connection.execute(
+            """
+            SELECT * FROM home_action_turns
+            WHERE status = 'running'
+            ORDER BY seq ASC
+            LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("home-action turn query did not return a sqlite3.Row")
+        return _home_action_turn_from_row(row)
+
+    def admit_home_action_turn(self, *, now: datetime | None = None) -> HomeActionTurnRecord | None:
+        """Set the oldest queued home-action turn to ``running`` when none is running.
+
+        Does not insert a coding lease. ``awaiting_approval`` does not occupy the slot.
+        """
+        instant = _utc(now)
+        stamp = _iso(instant)
+        turn_id: str | None = None
+        try:
+            with self._txn():
+                running = self._connection.execute(
+                    "SELECT id FROM home_action_turns WHERE status = 'running' LIMIT 1"
+                ).fetchone()
+                if running is not None:
+                    return None
+                queued = self._connection.execute(
+                    """
+                    SELECT id FROM home_action_turns
+                    WHERE status = 'queued'
+                    ORDER BY seq ASC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if queued is None:
+                    return None
+                turn_id = _as_str(queued["id"], "id")
+                cursor = self._connection.execute(
+                    """
+                    UPDATE home_action_turns
+                    SET status = 'running', revision = revision + 1, updated_at = ?
+                    WHERE id = ? AND status = 'queued'
+                    """,
+                    (stamp, turn_id),
+                )
+                if cursor.rowcount != 1:
+                    turn_id = None
+        except sqlite3.IntegrityError:
+            return None
+        if turn_id is None:
+            return None
+        return self.get_home_action_turn(turn_id)
+
+    def stage_home_action_tool(
+        self,
+        turn_id: str,
+        tool_name: str,
+        arguments_json: str,
+        action_digest: str,
+        *,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """Record a pre-authorized tool on a running turn before the device call."""
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            existing = self._home_action_turn_row(turn_id)
+            if existing is None:
+                raise StoreError(f"unknown home-action turn: {turn_id}")
+            if str(existing["status"]) != HomeActionTurnStatus.RUNNING.value:
+                raise StoreError(f"home-action turn {turn_id} is not running")
+            if existing["tool_name"] is not None:
+                return _home_action_turn_from_row(existing)
+            self._connection.execute(
+                """
+                UPDATE home_action_turns
+                SET tool_name = ?, arguments_json = ?, action_digest = ?,
+                    revision = revision + 1, updated_at = ?
+                WHERE id = ? AND status = 'running' AND tool_name IS NULL
+                """,
+                (tool_name, arguments_json, action_digest, stamp, turn_id),
+            )
+        record = self.get_home_action_turn(turn_id)
+        if record is None:
+            raise StoreError(f"home-action turn missing after stage: {turn_id}")
+        return record
+
+    def hold_home_action_for_approval(
+        self,
+        turn_id: str,
+        tool_name: str,
+        arguments_json: str,
+        action_digest: str,
+        *,
+        approval_id: str,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """Park a running turn until an approval digest matches. Frees the slot."""
+        if approval_id.strip() == "":
+            raise StoreError("climate approval id must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            existing = self._home_action_turn_row(turn_id)
+            if existing is None:
+                raise StoreError(f"unknown home-action turn: {turn_id}")
+            if str(existing["status"]) != HomeActionTurnStatus.RUNNING.value:
+                raise StoreError(f"home-action turn {turn_id} is not running")
+            self._connection.execute(
+                """
+                INSERT INTO climate_approvals (
+                    id, turn_id, action_digest, status, created_at, resolved_at, resolver
+                ) VALUES (?, ?, ?, 'open', ?, NULL, NULL)
+                """,
+                (approval_id, turn_id, action_digest, stamp),
+            )
+            self._connection.execute(
+                """
+                UPDATE home_action_turns
+                SET status = 'awaiting_approval', tool_name = ?, arguments_json = ?,
+                    action_digest = ?, revision = revision + 1, updated_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (tool_name, arguments_json, action_digest, stamp, turn_id),
+            )
+        record = self.get_home_action_turn(turn_id)
+        if record is None:
+            raise StoreError(f"home-action turn missing after hold: {turn_id}")
+        return record
+
+    def get_climate_approval(self, turn_id: str) -> ClimateApprovalRecord | None:
+        """Return the climate approval for one turn, or ``None``."""
+        row = self._connection.execute(
+            "SELECT * FROM climate_approvals WHERE turn_id = ?",
+            (turn_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("climate approval query did not return a sqlite3.Row")
+        return _climate_approval_from_row(row)
+
+    def decide_climate_approval(
+        self,
+        turn_id: str,
+        action_digest: str,
+        *,
+        approve: bool,
+        resolver: str,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """First writer wins. A matching repeat returns the turn unchanged.
+
+        Approval queues the turn again. Rejection fails it. Neither calls the device.
+        """
+        if resolver.strip() == "":
+            raise StoreError("climate approval resolver must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            approval_row = self._connection.execute(
+                "SELECT * FROM climate_approvals WHERE turn_id = ?",
+                (turn_id,),
+            ).fetchone()
+            if approval_row is None:
+                raise StoreError(f"unknown home-action turn: {turn_id}")
+            if not isinstance(approval_row, sqlite3.Row):
+                raise StoreError("climate approval query did not return a sqlite3.Row")
+            stored_digest = _as_str(approval_row["action_digest"], "action_digest")
+            if stored_digest != action_digest:
+                raise StoreError("stale action digest")
+            status = _as_str(approval_row["status"], "status")
+            if status == "approved" and approve:
+                pass
+            elif status == "rejected" and not approve:
+                pass
+            elif status != "open":
+                raise StoreError("climate approval is not open")
+            else:
+                next_status = "approved" if approve else "rejected"
+                self._connection.execute(
+                    """
+                    UPDATE climate_approvals
+                    SET status = ?, resolved_at = ?, resolver = ?
+                    WHERE turn_id = ? AND status = 'open'
+                    """,
+                    (next_status, stamp, resolver, turn_id),
+                )
+                if approve:
+                    self._connection.execute(
+                        """
+                        UPDATE home_action_turns
+                        SET status = 'queued', revision = revision + 1, updated_at = ?
+                        WHERE id = ? AND status = 'awaiting_approval'
+                        """,
+                        (stamp, turn_id),
+                    )
+                else:
+                    self._connection.execute(
+                        """
+                        UPDATE home_action_turns
+                        SET status = 'failed', error_code = 'climate_rejected',
+                            revision = revision + 1, updated_at = ?
+                        WHERE id = ? AND status = 'awaiting_approval'
+                        """,
+                        (stamp, turn_id),
+                    )
+        record = self.get_home_action_turn(turn_id)
+        if record is None:
+            raise StoreError(f"unknown home-action turn: {turn_id}")
+        return record
+
+    def complete_home_action_turn(
+        self,
+        turn_id: str,
+        reply_text: str,
+        readback_json: str | None,
+        *,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """Mark a running home-action turn complete."""
+        if len(reply_text) > 4000:
+            reply_text = reply_text[:4000]
+        if len(reply_text) < 1:
+            raise StoreError("home-action reply_text must be non-empty")
+        return self._finish_home_action_turn(
+            turn_id,
+            status=HomeActionTurnStatus.COMPLETE,
+            reply_text=reply_text,
+            error_code=None,
+            readback_json=readback_json,
+            now=now,
+        )
+
+    def fail_home_action_turn(
+        self,
+        turn_id: str,
+        error_code: str,
+        *,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """Mark a running home-action turn failed."""
+        if error_code.strip() == "":
+            raise StoreError("home-action error_code must be non-empty")
+        return self._finish_home_action_turn(
+            turn_id,
+            status=HomeActionTurnStatus.FAILED,
+            reply_text=None,
+            error_code=error_code,
+            readback_json=None,
+            now=now,
+        )
+
+    def _finish_home_action_turn(
+        self,
+        turn_id: str,
+        *,
+        status: HomeActionTurnStatus,
+        reply_text: str | None,
+        error_code: str | None,
+        readback_json: str | None,
+        now: datetime | None,
+    ) -> HomeActionTurnRecord:
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            existing = self._home_action_turn_row(turn_id)
+            if existing is None:
+                raise StoreError(f"unknown home-action turn: {turn_id}")
+            if str(existing["status"]) != HomeActionTurnStatus.RUNNING.value:
+                raise StoreError(f"home-action turn {turn_id} is not running")
+            self._connection.execute(
+                """
+                UPDATE home_action_turns
+                SET status = ?, reply_text = ?, error_code = ?, readback_json = ?,
+                    revision = revision + 1, updated_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (status.value, reply_text, error_code, readback_json, stamp, turn_id),
+            )
+        record = self.get_home_action_turn(turn_id)
+        if record is None:
+            raise StoreError(f"home-action turn missing after finish: {turn_id}")
+        return record
+
+    def _home_action_turn_row(self, turn_id: str) -> sqlite3.Row | None:
+        row = self._connection.execute(
+            "SELECT * FROM home_action_turns WHERE id = ?",
+            (turn_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("home-action turn query did not return a sqlite3.Row")
+        return row
 
     def _chat_turn_row(self, turn_id: str) -> sqlite3.Row | None:
         row = self._connection.execute(
@@ -2117,6 +2532,41 @@ def _harness_session_from_row(row: sqlite3.Row) -> HarnessSessionRecord:
         data_relpath=_as_str(row["data_relpath"], "data_relpath"),
         created_at=_parse_time(_as_str(row["created_at"], "created_at")),
         updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
+    )
+
+
+def _home_action_turn_from_row(row: sqlite3.Row) -> HomeActionTurnRecord:
+    return HomeActionTurnRecord(
+        id=_as_str(row["id"], "id"),
+        profile=_as_str(row["profile"], "profile"),
+        seq=_as_int(row["seq"], "seq"),
+        status=HomeActionTurnStatus(_as_str(row["status"], "status")),
+        request_text=_as_str(row["request_text"], "request_text"),
+        reply_text=_optional_str(row["reply_text"], "reply_text"),
+        error_code=_optional_str(row["error_code"], "error_code"),
+        principal=_as_str(row["principal"], "principal"),
+        tool_name=_optional_str(row["tool_name"], "tool_name"),
+        arguments_json=_optional_str(row["arguments_json"], "arguments_json"),
+        readback_json=_optional_str(row["readback_json"], "readback_json"),
+        action_digest=_optional_str(row["action_digest"], "action_digest"),
+        revision=_as_int(row["revision"], "revision"),
+        created_at=_parse_time(_as_str(row["created_at"], "created_at")),
+        updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
+    )
+
+
+def _climate_approval_from_row(row: sqlite3.Row) -> ClimateApprovalRecord:
+    resolved_raw = row["resolved_at"]
+    return ClimateApprovalRecord(
+        id=_as_str(row["id"], "id"),
+        turn_id=_as_str(row["turn_id"], "turn_id"),
+        action_digest=_as_str(row["action_digest"], "action_digest"),
+        status=_as_str(row["status"], "status"),
+        created_at=_parse_time(_as_str(row["created_at"], "created_at")),
+        resolved_at=(
+            _parse_time(_as_str(resolved_raw, "resolved_at")) if resolved_raw is not None else None
+        ),
+        resolver=_optional_str(row["resolver"], "resolver"),
     )
 
 

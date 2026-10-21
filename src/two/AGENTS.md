@@ -8,8 +8,9 @@ Python package for the Majesta Two control plane.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
 - `adapters.py` may read `config/adapters/catalog.yaml` (ADR 0021). No
   network, no store, no channel import. `two adapters` prints the menu.
-  It does not enable a slot. Do not add `devices/` or `export/` until
-  the ADR for that slot.
+  It does not enable a slot. `devices/climate/` is the climate package
+  (ADR 0022) and stays default off. Do not add `export/` until the ADR
+  for that slot.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
   no I/O. `issue_edge` writes a private CA and Caddyfile under the data
@@ -30,7 +31,8 @@ Python package for the Majesta Two control plane.
 - `store/` is the SQLite WAL store (`open_store`). Schema v5 persists
   `work_nodes` / `work_edges`. Schema v6 persists projects and immutable
   config candidates (B14 slice 3). Schema v7 persists one `chat`
-  harness session and `chat_turns` (B20). Do not open databases from
+  harness session and `chat_turns` (B20). Schema v8 persists
+  `home_action_turns` and `climate_approvals` (ADR 0022). Do not open databases from
   `cli.py` at import time. The `two api` subcommand lazy-imports
   `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
@@ -54,14 +56,15 @@ Python package for the Majesta Two control plane.
   lifecycle policy. Silence is never approval. Digests are immutable.
   It does not import git or the model.
 - `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
-  budgets clock, and Mac health mapping. It admits a queued chat turn only
-  when no coding lease is held. Inject a health probe and worker
+  budgets clock, and Mac health mapping. It admits a queued chat turn,
+  then a queued home-action turn, only when no coding lease is held.
+  Inject a health probe and worker
   callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Messaging
   adapters are deferred and none is selected. ADR 0015/B14 plans a
   first-party mobile API client, not another `channels.*` agent runtime.
-  Device adapters, when a later protocol ADR creates them, live under
-  `devices/`, not here.
+  Device adapters live under `devices/`, not here. `devices/climate/`
+  is ADR 0022 and stays default off.
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
   It is not implemented. Do not add `push` to `workspace/`. Do not put
   GitHub tokens in `worker/` or `channels/`.
@@ -89,7 +92,9 @@ Python package for the Majesta Two control plane.
   Default pytest uses a JSONL fixture child (ADR 0011). It must not set
   lifecycle `complete`. Local Qwen worker count is one. Profile `chat`
   resumes `harness_sessions` with no worktree and no tools. A tool
-  request fails the turn and is not executed.
+  request fails the chat turn and is not executed. Profile `home-action`
+  may request the closed climate tools. The control plane performs them
+  and does not send `execute` to the child (ADR 0022).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. `run_worker` drives
   `WorkflowController` with `AcpPhaseWorker` and heartbeats the lease.

@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import asynccontextmanager
@@ -117,6 +118,9 @@ from two.api.schemas import (
     ArtifactListResponse,
     AuthCapabilities,
     ClientFeatures,
+    ClimateDecisionRequest,
+    ClimateReadbackView,
+    ClimateRequestView,
     ConfigActivateRequest,
     ConfigActivateResponse,
     ConfigApprovalView,
@@ -168,6 +172,7 @@ from two.approvals import (
     request_approval,
     resume_task,
 )
+from two.devices.climate.config import load_climate_config
 from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
 from two.projection import voice_turn_receipt
@@ -190,11 +195,13 @@ from two.store.models import (
     ChatTurnRecord,
     ConfigApprovalRecord,
     EventRecord,
+    HomeActionTurnRecord,
     QuestionRecord,
     TaskRecord,
 )
 from two.types import EventType, HarnessProfile, LifecycleState, Scope
 from two.worker.chat import ensure_chat_profile_dir
+from two.worker.home_action import ensure_home_action_profile_dir
 
 _PLAN_EVENT_TYPES = frozenset({EventType.TASK_PLAN.value, "plan"})
 _TODO_EVENT_TYPES = frozenset({EventType.TASK_TODOS.value, "todos"})
@@ -344,6 +351,16 @@ def create_app(
     router.add_api_route("/v1/tasks", _create_task, methods=["POST"], status_code=201)
     router.add_api_route("/v1/voice/turns", _voice_turn, methods=["POST"])
     router.add_api_route("/v1/voice/turns/{turn_id}", _get_voice_turn, methods=["GET"])
+    router.add_api_route(
+        "/v1/voice/turns/{turn_id}/approve",
+        _approve_climate,
+        methods=["POST"],
+    )
+    router.add_api_route(
+        "/v1/voice/turns/{turn_id}/reject",
+        _reject_climate,
+        methods=["POST"],
+    )
     router.add_api_route("/v1/tasks", _list_tasks, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}", _get_task, methods=["GET"])
     router.add_api_route("/v1/tasks/{task_id}/events", _list_events, methods=["GET"])
@@ -485,20 +502,10 @@ async def _create_task(request: Request, manifest: TaskManifest) -> JSONResponse
     )
 
 
-def _require_chat_profile(request: Request) -> str:
-    """Return the caller id when ``chat`` is on their harness allow-list."""
-    principal = principal_from_request(request)
-    if HarnessProfile.CHAT.value not in principal.harness_profiles:
-        raise HTTPException(
-            status_code=403,
-            detail=f"client cannot use harness profile {HarnessProfile.CHAT.value}",
-        )
-    return principal.id
-
-
 def _receipt_for(turn: ChatTurnRecord) -> VoiceTurnReceipt:
     return voice_turn_receipt(
         turn_id=turn.id,
+        profile="chat",
         status=turn.status.value,
         reply=turn.reply_text,
         error_code=turn.error_code,
@@ -507,12 +514,62 @@ def _receipt_for(turn: ChatTurnRecord) -> VoiceTurnReceipt:
     )
 
 
-async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
-    """Accept one ``chat`` transcript. Coding tasks stay on ``POST /v1/tasks``.
+def _home_receipt(turn: HomeActionTurnRecord) -> VoiceTurnReceipt:
+    climate = None
+    pending = None
+    if turn.status.value == "complete" and turn.readback_json:
+        climate = ClimateReadbackView.model_validate_json(turn.readback_json)
+    if turn.status.value == "awaiting_approval":
+        pending = _pending_action(turn)
+    return voice_turn_receipt(
+        turn_id=turn.id,
+        profile="home-action",
+        status=turn.status.value,
+        reply=turn.reply_text,
+        error_code=turn.error_code,
+        seq=turn.seq,
+        revision=turn.revision,
+        climate=climate,
+        action_digest=turn.action_digest,
+        pending_action=pending,
+    )
 
-    ``home-action`` stays ``profile_not_executable`` and is not stored.
-    ``self-build`` on this route is forbidden. The row is committed before
-    the response. A chat turn does not take a coding lease.
+
+def _pending_action(turn: HomeActionTurnRecord) -> ClimateRequestView | None:
+    if turn.tool_name is None or turn.arguments_json is None:
+        return None
+    try:
+        raw = json.loads(turn.arguments_json)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    return ClimateRequestView.model_validate(
+        {
+            "tool": turn.tool_name,
+            "zone": raw.get("zone"),
+            "celsius": raw.get("celsius"),
+            "mode": raw.get("mode"),
+        }
+    )
+
+
+def _require_harness_profile(request: Request, profile: str) -> str:
+    principal = principal_from_request(request)
+    if profile not in principal.harness_profiles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"client cannot use harness profile {profile}",
+        )
+    return principal.id
+
+
+async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
+    """Accept one ``chat`` or enabled ``home-action`` transcript.
+
+    Coding tasks stay on ``POST /v1/tasks``. ``self-build`` on this route is
+    forbidden. ``home-action`` is stored only when the local climate binding
+    is enabled. Neither turn takes a coding lease.
     """
     principal = principal_from_request(request)
     if body.profile == HarnessProfile.SELF_BUILD.value:
@@ -522,33 +579,99 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
             status_code=403,
             detail=f"client cannot use harness profile {body.profile}",
         )
-    if body.profile != HarnessProfile.CHAT.value:
-        raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
     box = _box(request)
     data_dir = request.app.state.data_dir
+    directory = data_dir if isinstance(data_dir, Path) else None
+    if body.profile == HarnessProfile.HOME_ACTION.value:
+        if load_climate_config(directory) is None:
+            raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
+        async with box.lock:
+            ensure_home_action_profile_dir(directory)
+            box.store.ensure_home_action_session()
+            record = box.store.insert_home_action_turn(
+                body.text,
+                principal.id,
+                turn_id=f"turn-{uuid.uuid4().hex[:16]}",
+            )
+            latest = box.store.get_home_action_turn(record.id)
+        receipt = _home_receipt(latest if latest is not None else record)
+        return JSONResponse(status_code=202, content=receipt.model_dump(mode="json"))
+    if body.profile != HarnessProfile.CHAT.value:
+        raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
     async with box.lock:
-        ensure_chat_profile_dir(data_dir if isinstance(data_dir, Path) else None)
+        ensure_chat_profile_dir(directory)
         box.store.ensure_chat_session()
-        record = box.store.insert_chat_turn(
+        chat_record = box.store.insert_chat_turn(
             body.text,
             principal.id,
             turn_id=f"turn-{uuid.uuid4().hex[:16]}",
         )
-        latest = box.store.get_chat_turn(record.id)
-    receipt = _receipt_for(latest if latest is not None else record)
+        latest_chat = box.store.get_chat_turn(chat_record.id)
+    receipt = _receipt_for(latest_chat if latest_chat is not None else chat_record)
     return JSONResponse(status_code=202, content=receipt.model_dump(mode="json"))
 
 
 async def _get_voice_turn(request: Request, turn_id: str) -> JSONResponse:
-    """Return the stored chat receipt. Callers must be allowed to use ``chat``."""
-    _require_chat_profile(request)
+    """Return a stored chat or home-action receipt the caller may read."""
     box = _box(request)
     async with box.lock:
-        record = box.store.get_chat_turn(turn_id)
-    if record is None:
+        chat = box.store.get_chat_turn(turn_id)
+        home = None if chat is not None else box.store.get_home_action_turn(turn_id)
+    if chat is not None:
+        _require_harness_profile(request, HarnessProfile.CHAT.value)
+        receipt = _receipt_for(chat)
+    elif home is not None:
+        _require_harness_profile(request, HarnessProfile.HOME_ACTION.value)
+        receipt = _home_receipt(home)
+    else:
         raise HTTPException(status_code=404, detail="not found")
-    receipt = _receipt_for(record)
     return JSONResponse(status_code=200, content=receipt.model_dump(mode="json"))
+
+
+async def _approve_climate(
+    request: Request,
+    turn_id: str,
+    body: ClimateDecisionRequest,
+) -> JSONResponse:
+    """Approve one open climate action. The digest must match. Silence is not this call."""
+    return await _decide_climate(request, turn_id, body, approve=True)
+
+
+async def _reject_climate(
+    request: Request,
+    turn_id: str,
+    body: ClimateDecisionRequest,
+) -> JSONResponse:
+    """Reject one open climate action. The device is not called."""
+    return await _decide_climate(request, turn_id, body, approve=False)
+
+
+async def _decide_climate(
+    request: Request,
+    turn_id: str,
+    body: ClimateDecisionRequest,
+    *,
+    approve: bool,
+) -> JSONResponse:
+    require_scope(request, Scope.APPROVALS_DECIDE)
+    principal_id = _require_harness_profile(request, HarnessProfile.HOME_ACTION.value)
+    box = _box(request)
+    async with box.lock:
+        try:
+            record = box.store.decide_climate_approval(
+                turn_id,
+                body.action_digest,
+                approve=approve,
+                resolver=principal_id,
+            )
+        except StoreError as exc:
+            text = str(exc)
+            if "unknown" in text:
+                raise HTTPException(status_code=404, detail="not found") from exc
+            if "stale" in text:
+                raise HTTPException(status_code=409, detail="stale action digest") from exc
+            raise HTTPException(status_code=409, detail=text) from exc
+    return JSONResponse(status_code=200, content=_home_receipt(record).model_dump(mode="json"))
 
 
 async def _list_tasks(

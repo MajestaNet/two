@@ -1,0 +1,20 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example climate binding (ADR 0022). Copy to
+# $TWO_DATA_DIR/devices/climate.yaml and set enabled: true.
+# Put the token value in the named environment variable, not in this file.
+# The upstream must be a private or loopback IP. Hostnames are refused.
+
+enabled: false
+upstream: http://192.168.1.10:8123
+token_env: TWO_CLIMATE_TOKEN
+zones:
+  living:
+    entity_id: climate.living
+    min_celsius: 18
+    max_celsius: 26
+    # Quote off. Unquoted, YAML 1.1 reads it as a boolean.
+    modes:
+      - cool
+      - "off"
