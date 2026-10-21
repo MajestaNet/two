@@ -64,7 +64,7 @@ slice 1.
 1. **Package** `src/two/export/` (GitHub first). Isolated process or
    `two export` / `two task export` that lazy-imports like `two api`.
    It may push **only** the approved task ref. It does not import
-   Slack, Ollama, or the ACP worker.
+   Ollama or the ACP worker.
 2. **Credentials** from env on the development host (`TWO_GITHUB_*`
    placeholders in `.env.example`). Never in git, DSH env, or
    worktrees.

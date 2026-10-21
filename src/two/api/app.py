@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""ASGI application factory. Maps HTTP to store and ``two.approvals``. No git, no Slack."""
+"""ASGI application factory. Maps HTTP to store and ``two.approvals``. No git."""
 
 from __future__ import annotations
 

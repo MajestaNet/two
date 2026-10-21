@@ -39,13 +39,13 @@ class ArchitectureCase(StrEnum):
     HARNESS_KILL_TOOL = "harness-kill-before-after-tool"
     CONTROLLER_RESTART_LEASE = "controller-restart-active-lease"
     UNCERTAIN_RECONCILE = "uncertain-command-reconciliation"
-    SLACK_DISCONNECT = "slack-disconnect-duplicate"
+    CHANNEL_DISCONNECT = "channel-disconnect-duplicate"
     OVERNIGHT_PAUSE_RESUME = "overnight-pause-resume-other-channel"
     CANCEL_DURING_LONG_TEST = "cancel-during-long-test"
     SOAK_24H_INFERENCE = "soak-24h-inference"
     SOAK_8H_CONTROLLER = "soak-8h-controller"
     SOAK_REBOOT_RECOVERY = "soak-reboot-recovery"
-    SOAK_SLACK_NO_TERMINAL = "soak-slack-no-terminal"
+    SOAK_CLIENT_NO_TERMINAL = "soak-client-no-terminal"
     SOAK_STALE_APPROVAL = "soak-stale-approval-policy"
 
 
@@ -63,7 +63,7 @@ SECTION_18_CORPUS: tuple[ArchitectureCase, ...] = (
     ArchitectureCase.HARNESS_KILL_TOOL,
     ArchitectureCase.CONTROLLER_RESTART_LEASE,
     ArchitectureCase.UNCERTAIN_RECONCILE,
-    ArchitectureCase.SLACK_DISCONNECT,
+    ArchitectureCase.CHANNEL_DISCONNECT,
     ArchitectureCase.OVERNIGHT_PAUSE_RESUME,
     ArchitectureCase.CANCEL_DURING_LONG_TEST,
 )
@@ -72,7 +72,7 @@ PROMOTION_SOAKS: tuple[ArchitectureCase, ...] = (
     ArchitectureCase.SOAK_24H_INFERENCE,
     ArchitectureCase.SOAK_8H_CONTROLLER,
     ArchitectureCase.SOAK_REBOOT_RECOVERY,
-    ArchitectureCase.SOAK_SLACK_NO_TERMINAL,
+    ArchitectureCase.SOAK_CLIENT_NO_TERMINAL,
     ArchitectureCase.SOAK_STALE_APPROVAL,
 )
 

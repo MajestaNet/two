@@ -27,7 +27,7 @@ project is Majesta. Contributors should see one product name.
 
 ## Consequences
 
-README, NOTICE, Slack templates, agent instructions, and the CLI
+README, NOTICE, agent instructions, and the CLI
 `prog` all say Majesta Two / `two`. Historical commits may still
 mention the old working names. Architecture meaning is unchanged;
 only identity strings move.

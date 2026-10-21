@@ -16,7 +16,7 @@
 
 """Durable workflow controller. Ingests manifests and decides continue/retry/ask/stop.
 
-Does not talk to the model, import Slack, or import an Ollama client.
+Does not talk to the model or import an Ollama client.
 Terminal status is written only here, gated on independent B04 results.
 See docs/architecture.md §6.3.A, §7.1, §8.2, §9.
 """

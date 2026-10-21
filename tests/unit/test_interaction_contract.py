@@ -397,7 +397,7 @@ def test_cli_and_client_stay_thin() -> None:
         "two.worker",
         "git",
     )
-    forbidden_names = {"httpx", "openai", "ollama", "slack"}
+    forbidden_names = {"httpx", "openai", "ollama"}
     for path in CLIENT_SOURCES:
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
@@ -413,7 +413,6 @@ def test_cli_and_client_stay_thin() -> None:
             )
             token = name.split(".")[0].lower()
             assert token not in forbidden_names, f"{path.name} imports {name}"
-            assert "slack" not in name.lower()
             assert "ollama" not in name.lower()
         assert "httpx" not in source
         assert "MAC_QWEN" not in source

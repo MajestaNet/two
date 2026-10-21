@@ -94,7 +94,7 @@ Independent validation (B04) is authoritative.
 - [x] Validation failure cannot yield `complete`.
 - [x] Fresh review uses no implementation transcript.
 - [x] Budgets and no-progress limits enforced.
-- [x] Controller does not import Slack or Ollama clients.
+- [x] Controller does not import Ollama clients.
 
 ## Definition of done
 
@@ -121,7 +121,7 @@ Read first:
 5. `src/two/controller/`, `src/two/reporting/`, `src/two/types.py`, `src/two/manifest.py`
 6. Confirm B04, B05, B07, B08, B09 exist. If not, stop.
 
-Implement **only B10**. Do not add Slack or paid providers. Do not call the model from the controller.
+Implement **only B10**. Do not add paid providers. Do not call the model from the controller.
 
 Standing orders:
 

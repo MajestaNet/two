@@ -227,18 +227,16 @@ def test_build_dsh_argv_uses_pin() -> None:
     assert DSH_PIN in argv
 
 
-def test_worker_modules_do_not_import_slack_or_set_complete() -> None:
+def test_worker_modules_do_not_set_complete() -> None:
     root = Path(__file__).resolve().parents[2] / "src" / "two" / "worker"
     for path in sorted(root.glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert "slack" not in alias.name.lower()
                     assert alias.name != "two.channels"
             if isinstance(node, ast.ImportFrom):
                 module = node.module or ""
-                assert "slack" not in module.lower()
                 assert module != "two.channels" and not module.startswith("two.channels.")
             if isinstance(node, ast.Attribute) and node.attr == "COMPLETE":
                 raise AssertionError(f"{path} references COMPLETE")

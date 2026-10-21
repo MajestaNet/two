@@ -116,7 +116,7 @@ Implement **only B05**. Do not add a vector database. Do not drive DSH.
 Standing orders:
 
 - Architecture wins. Ask first / ADR before any embedding index.
-- `make ci` green. Offline tests. No live Mac/Slack.
+- `make ci` green. Offline tests. No live Mac.
 - No new runtime dependency. Call `rg` and `git` with argv lists.
 - Apache 2.0 headers. Do not reimplement the DSH loop.
 - Never put dependency directories or minified assets into packets.

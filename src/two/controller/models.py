@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Controller value objects. No I/O. No Slack or Ollama clients."""
+"""Controller value objects. No I/O. No Ollama clients."""
 
 from __future__ import annotations
 

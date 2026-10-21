@@ -144,5 +144,5 @@ These apply even if an agentic prompt is pasted without this README:
 - The secure mobile client is B14; this repo remains the backend and does not
   put workflow policy in any client.
 - Unit tests stay offline: no live Mac, mobile identity provider, push
-  provider, Slack, Ollama, GitHub, or
+  provider, Ollama, GitHub, or
   paid model.

@@ -1,11 +1,11 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
-id: eval-slack-disconnect
-architecture_case: slack-disconnect-duplicate
+id: eval-channel-disconnect
+architecture_case: channel-disconnect-duplicate
 mode: skip
 skip_reason: No messenger is selected (ADR 0021). Do not fake a green channel test.
 objective: Messenger disconnect, reconnect, and duplicate-event delivery
 acceptance_criteria:
-  - duplicate Slack events do not duplicate side effects
+  - duplicate vendor events do not duplicate side effects
   - adapter outage does not cancel a running task
-notes: Corpus id is historical. Skip until a messenger slot is shipped. Do not fake a green channel test.
+notes: Skip until a messenger slot is shipped. Do not fake a green channel test.

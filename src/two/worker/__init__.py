@@ -17,7 +17,7 @@
 """ACP supervisor, action ledger, session resume, and at-most-once replay.
 
 Local Qwen worker count is one. The worker supervises a DeepSeek Harness
-ACP child; it does not reimplement the agent loop, import Slack, or set
+ACP child; it does not reimplement the agent loop or set
 task lifecycle ``complete``. See docs/architecture.md §6.3.G, §10, §12.4–12.5.
 """
 

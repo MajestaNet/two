@@ -24,7 +24,7 @@ By contributing, you agree that your contribution is licensed to MajestaNet unde
 - [ ] No secrets, tokens, model weights, or real LAN hostnames
 - [ ] LICENSE and NOTICE are untouched unless you are doing license work
 - [ ] New Python lives under `src/two/`
-- [ ] Unit tests do not call a live Mac, Slack, or network model
+- [ ] Unit tests do not call a live Mac or network model
 
 ## Agent and automation limits
 

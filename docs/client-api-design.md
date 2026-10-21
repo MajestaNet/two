@@ -360,8 +360,6 @@ This design intentionally does not:
   client;
 - add a required `TaskManifest` field;
 - publish the API to the internet;
-- implement Slack. Slack may return later as an optional adapter using the
-  same redacted resources and scoped identity model.
 
 Implementation should be sliced into: contract/auth foundations (slice 1,
 landed), read-only GUI projections and SSE (slice 2, landed), typed config

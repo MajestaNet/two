@@ -499,7 +499,6 @@ def test_api_package_cannot_reach_the_model() -> None:
             assert not name.startswith("two.channels")
             assert not name.startswith("two.providers")
             assert not name.startswith("two.runtime")
-            assert "slack" not in name.lower()
             assert "ollama" not in name.lower()
             assert name != "openai"
             assert name != "httpx"

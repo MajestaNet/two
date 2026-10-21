@@ -109,7 +109,7 @@ Read first:
 3. `docs/backlog/README.md` and `docs/backlog/B06-sqlite-store.md`
 4. `src/two/store/__init__.py`, `src/two/types.py`
 
-Implement **only B06**. Do not add FastAPI, ACP, or Slack.
+Implement **only B06**. Do not add FastAPI or ACP.
 
 Standing orders:
 

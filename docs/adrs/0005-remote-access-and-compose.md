@@ -35,5 +35,5 @@ running the harness?
 ## Consequences
 
 Setup leads with the API and CLI. `deploy/compose` packages `api`, `scheduler`,
-and `worker` (the optional `slack` profile is a deferred legacy stub). Ollama is
+and `worker`. Ollama is
 never in this image. See [B12](../backlog/B12-dev-host-services.md).

@@ -9,7 +9,7 @@ Python package for the Majesta Two control plane.
 - `adapters.py` may read `config/adapters/catalog.yaml` (ADR 0021). No
   network, no store, no channel import. `two adapters` prints the menu.
   It does not enable a slot. Do not add `devices/` or `export/` until
-  the ADR for that slot. `channels/slack` is a legacy stub, not an MVP.
+  the ADR for that slot.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
   no I/O. `issue_edge` writes a private CA and Caddyfile under the data
@@ -34,12 +34,12 @@ Python package for the Majesta Two control plane.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
   including AF_UNIX). CLI task subcommands lazy-import it. Parse bodies with
   `two.projection`. Accept an injectable request callable for in-process
-  TestClient tests. Do not import the store, git, Slack, or Ollama.
+  TestClient tests. Do not import the store, git, or Ollama.
 - `cli_task.py` formats projections and dispatches `two task …`. No workflow
   policy.
 - `two.api/` maps HTTP to `two.store` and `two.approvals`. It must not import
-  `two.workspace` git operations, `two.channels.slack`, or an Ollama
-  client. Bind loopback or a Unix socket by default (ADR 0010). Request
+  `two.workspace` git operations or an Ollama client. Bind loopback or
+  a Unix socket by default (ADR 0010). Request
   and projection bodies live in `two.projection`. `two.api.principal`
   derives identity and scopes; request bodies cannot elevate authority.
   `two.api.contract` owns correlation, ETags, and idempotency-key replay.
@@ -49,15 +49,15 @@ Python package for the Majesta Two control plane.
   candidates (slice 3). They must not call git, the shell, Ollama, or ACP.
 - `approvals/` owns question/approval resolution and pause/resume/cancel
   lifecycle policy. Silence is never approval. Digests are immutable.
-  It does not import git, Slack, or the model.
+  It does not import git or the model.
 - `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
   budgets clock, and Mac health mapping. Inject a health probe and worker
   callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Messaging
-  adapters are deferred and none is selected. `channels.slack` is a
-  legacy stub, not an MVP. ADR 0015/B14 plans a first-party mobile API
-  client, not another `channels.*` agent runtime. Device adapters, when
-  a later protocol ADR creates them, live under `devices/`, not here.
+  adapters are deferred and none is selected. ADR 0015/B14 plans a
+  first-party mobile API client, not another `channels.*` agent runtime.
+  Device adapters, when a later protocol ADR creates them, live under
+  `devices/`, not here.
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
   It is not implemented. Do not add `push` to `workspace/`. Do not put
   GitHub tokens in `worker/` or `channels/`.
@@ -74,16 +74,16 @@ Python package for the Majesta Two control plane.
   repair/no-progress budgets, fresh review via `two.context.build_review_handoff`
   and `two.worker.plan_session`, and terminal status. Inject a worker and
   validation in tests. Production `two worker` drives this module
-  (`two.recovery.drive`). It does not call the model, import Slack, or
-  import an Ollama client.
+  (`two.recovery.drive`). It does not call the model or import an
+  Ollama client.
 - `graph/` is the no-I/O work-graph contract (ADR 0014): nodes, typed
   edges, linear compile, proposal apply, walker, digest, and node-scoped
-  harness handoff. It must not import the store, ACP worker, Slack, or an
+  harness handoff. It must not import the store, ACP worker, or an
   Ollama client. Persistence is `two.store` schema v5. Do not add
   LangGraph or a second agent runtime.
 - `worker/` supervises ACP children, the action ledger, and session resume.
-  Default pytest uses a JSONL fixture child (ADR 0011). It must not import
-  Slack or set lifecycle `complete`. Local Qwen worker count is one.
+  Default pytest uses a JSONL fixture child (ADR 0011). It must not set
+  lifecycle `complete`. Local Qwen worker count is one.
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. `run_worker` drives
   `WorkflowController` with `AcpPhaseWorker` and heartbeats the lease.
@@ -91,7 +91,7 @@ Python package for the Majesta Two control plane.
   (expired leases only). Human-paused tasks stay paused. Inject health
   and worktree probes in tests.
 - `evals/` runs the architecture §18 corpus against `evals/` data.
-  Offline by default. No Mac, Slack, production clones, or soak
+  Offline by default. No Mac, production clones, or soak
   auto-pass. Duplicate side effects must stay zero.
 - Use Pydantic v2 models with `extra="forbid"` for external payloads.
 - `mypy --strict` applies to this tree. Add explicit return types.

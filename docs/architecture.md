@@ -21,7 +21,7 @@ The system will separate **inference** from **software-development execution**. 
 - Majesta Two and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. They run on the same mini as separate processes from Ollama (`topology: colocated`). `split` remains optional when another host stays powered on. Linux Compose is that optional packaging, not the default.
 - They call Ollama through an OpenAI-compatible HTTP endpoint on `127.0.0.1`. The model process never mounts the repository and never executes commands. See ADR 0006 and `two topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
-- A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface and the only enabled slot in the install catalog (ADR 0021). Optional in-repo device adapters — home devices, wearables, and later private devices — are further control surfaces over the same installation. The first-party mobile GUI and the watch app are clients of this API; their native projects are not in this tree. Messaging clients remain possible optional adapters, but Slack is not selected and is not the MVP. Every client is a control surface over one durable task record, not a separate agent session.
+- A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface and the only enabled slot in the install catalog (ADR 0021). Optional in-repo device adapters — home devices, wearables, and later private devices — are further control surfaces over the same installation. The first-party mobile GUI and the watch app are clients of this API; their native projects are not in this tree. Every client is a control surface over one durable task record, not a separate agent session.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
 
 **Product subject (ADR 0017).** Majesta Two is a fully local, self-building system. The operator runs one installation of this repository. That installation is the development client and the only development subject: tasks change this tree, not unrelated projects. DeepSeek Harness stays the inner model/tool loop; its workspace is a worktree of this same repository. The executing tree is adopted from that worktree only after validation, fresh review, and an explicit approval, and only at a process restart. The open-source tree grows optional adapters for private local endpoints (home devices, wearables, and later similar devices) by that same loop.
@@ -106,7 +106,7 @@ These bounds stay in force after the original MVP:
 5. Target repositories use git and provide reproducible build/test commands or can be given an external repository profile containing them.
 6. One local model stays loaded, and one inference request is in flight at a time. Self-build, chat, and device-action profiles share that slot. A non-coding turn is admitted only at a model-turn boundary and does not hold the coding lease.
 7. The Mac mini remains powered on for overnight work and runs Majesta Two under a service manager rather than an interactive shell. A laptop is a client, not the durability host.
-8. A remote client or messaging adapter, if enabled, is an external control and notification channel. Its outage must not stop a running job. Remote output is governed by disclosure policy. The planned remote GUI is the first-party mobile client in ADR 0015; Slack is deferred.
+8. A remote client or messaging adapter, if enabled, is an external control and notification channel. Its outage must not stop a running job. Remote output is governed by disclosure policy. The planned remote GUI is the first-party mobile client in ADR 0015.
 9. The operator's local checkout of this repository is the installation under change. Self-build tasks use worktrees of that checkout. Adoption updates the running copy only through the ADR 0017 gate.
 
 ## 5. Architecture overview
@@ -174,7 +174,7 @@ Rules:
 - Adoption is a controller operation. It runs only after required validation, a fresh review with no blocking finding, and an approval whose digest is the candidate commit. It takes effect when the installation's processes restart onto that commit.
 - A candidate that changes gates, bind addresses, credential policy, or adapter permissions names those changes in the adoption approval. They stay inactive in the running process that produced the candidate.
 - Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. Merging adapter code into the tree does not enable it. The install menu is `config/adapters/catalog.yaml` (`two adapters`, ADR 0021). A slot is on only when that catalog says so. Today that is the CLI alone.
-- The first concrete device protocol is a later ADR. This section defines the slot, the trust limit, and the growth path. The reserved package path is `src/two/devices/<name>/`. That directory does not exist until the protocol ADR. `src/two/export/` is the same kind of reservation for ADR 0012. `two.channels.slack` is a legacy stub and is not a selected messenger.
+- The first concrete device protocol is a later ADR. This section defines the slot, the trust limit, and the growth path. The reserved package path is `src/two/devices/<name>/`. That directory does not exist until the protocol ADR. `src/two/export/` is the same kind of reservation for ADR 0012.
 
 ### 5.3 Mac mini installation
 
@@ -1183,8 +1183,6 @@ two/
 │   ├── mac/
 │   ├── dsh/
 │   ├── policies/
-│   ├── channels/
-│   │   └── slack-app-manifest.yaml.template  # legacy stub; not selected
 │   ├── repositories/
 │   ├── examples/
 │   └── runtime/
@@ -1193,8 +1191,7 @@ two/
 │       ├── adapters.py                 # catalog loader; starts nothing
 │       ├── api/
 │       ├── approvals/
-│       ├── channels/
-│       │   └── slack/                  # legacy stub; not selected
+│       ├── channels/                   # messenger slot; none selected
 │       ├── client.py
 │       ├── context/
 │       ├── controller/

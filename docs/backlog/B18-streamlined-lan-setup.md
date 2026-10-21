@@ -31,7 +31,7 @@ profile.
 
 - Changing catalog default topology or default inference profile.
 - Colocation as the default.
-- Public binds, Dockerized Ollama, Slack, Tailscale as a first-run step.
+- Public binds, Dockerized Ollama, Tailscale as a first-run step.
 - Unsigned `curl | sh` installers.
 - Reimplementing DeepSeek Harness.
 - Marking soaks passed in CI.
@@ -134,7 +134,7 @@ Standing orders:
   the store at import time. No workflow policy in the CLI.
 - Apache 2.0 header and `SPDX-License-Identifier: Apache-2.0` on new
   source files.
-- Unit tests must not call a live Mac, Slack, or network model.
+- Unit tests must not call a live Mac or network model.
 - Do not reimplement DeepSeek Harness.
 
 Concrete work:

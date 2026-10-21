@@ -17,7 +17,7 @@
 """Stdlib HTTP/Unix client for the channel-neutral control API.
 
 Talks only to ``/v1`` and parses bodies with ``two.projection``. No git,
-store, scheduler, Slack, or Ollama. Production transport is
+store, scheduler, or Ollama. Production transport is
 ``urllib.request`` / ``http.client`` (including ``AF_UNIX``). Tests inject
 a request callable, typically FastAPI ``TestClient.request``.
 """

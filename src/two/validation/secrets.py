@@ -26,7 +26,6 @@ from pathlib import Path
 _PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"AKIA[0-9A-Z]{16}"), "aws_access_key_id"),
     (re.compile(r"-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----"), "private_key"),
-    (re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"), "slack_token"),
     (
         re.compile(
             r"(?i)(?:api[_-]?key|secret|password|token)\s*[:=]\s*['\"]?[A-Za-z0-9/+=_\-]{20,}"

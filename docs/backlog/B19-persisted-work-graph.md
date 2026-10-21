@@ -39,7 +39,7 @@ projects it on `/v1`.
 - Parallel local Qwen nodes / subagent fan-out.
 - Manifest field changes; default profile/topology changes.
 - Raising overnight ceilings.
-- Slack, paid routes, GitHub export.
+- Paid routes, GitHub export.
 - HTTP checkpoint restore for clients.
 
 ## Implementation plan
@@ -90,7 +90,7 @@ and 2. This item landed all three together.
       transcript.
 - [x] Overnight task-level budgets still win over node slices.
 - [x] `/v1` `graph` is additive; `schema_version` stays 1.
-- [x] Controller still does not import Slack or Ollama clients.
+- [x] Controller still does not import Ollama clients.
 
 ## Definition of done
 

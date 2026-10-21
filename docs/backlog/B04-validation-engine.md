@@ -119,7 +119,7 @@ Implement **only B04**. Do not set task lifecycle to complete. Do not call Ollam
 Standing orders:
 
 - Architecture wins. Completion authority stays out of the model and out of this engine's write path.
-- `make ci` green. Tests offline, no live Mac/Slack.
+- `make ci` green. Tests offline, no live Mac.
 - No new runtime dependency unless you write an ADR. Prefer stdlib + existing PyYAML/Pydantic.
 - Run commands with argv lists in the worktree. Never interpolate message text into a shell.
 - Apache 2.0 headers on new Python files.

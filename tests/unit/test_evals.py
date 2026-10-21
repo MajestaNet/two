@@ -8,7 +8,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Offline evaluation corpus tests (B15). No live Mac, Slack, or production clones."""
+"""Offline evaluation corpus tests (B15). No live Mac or production clones."""
 
 from __future__ import annotations
 
@@ -40,8 +40,8 @@ def test_section_18_coverage() -> None:
     by_case = {task.architecture_case: task for task in tasks}
     assert by_case[ArchitectureCase.FORBIDDEN_PATH_COMMAND].mode is CaseMode.OFFLINE
     assert by_case[ArchitectureCase.UNCERTAIN_RECONCILE].mode is CaseMode.OFFLINE
-    assert by_case[ArchitectureCase.SLACK_DISCONNECT].mode is CaseMode.SKIP
-    reason = by_case[ArchitectureCase.SLACK_DISCONNECT].skip_reason or ""
+    assert by_case[ArchitectureCase.CHANNEL_DISCONNECT].mode is CaseMode.SKIP
+    reason = by_case[ArchitectureCase.CHANNEL_DISCONNECT].skip_reason or ""
     assert "messenger" in reason
     assert by_case[ArchitectureCase.MAC_RESTART_PAUSED].mode is CaseMode.LIVE
     for soak in PROMOTION_SOAKS:
@@ -59,7 +59,6 @@ def test_no_production_clones_or_secrets_in_evals() -> None:
         assert path.name not in forbidden_names
         text = path.read_text(encoding="utf-8", errors="replace")
         assert "BEGIN OPENSSH PRIVATE KEY" not in text
-        assert "xoxb-" not in text
 
 
 def test_offline_corpus_passes_and_duplicate_side_effects_are_zero(tmp_path: Path) -> None:
@@ -86,8 +85,8 @@ def test_offline_corpus_passes_and_duplicate_side_effects_are_zero(tmp_path: Pat
     assert restart.duplicate_side_effects == 0
     assert restart.lease_recovery_ms is not None
 
-    slack = by_id["eval-slack-disconnect"]
-    assert slack.outcome is CaseOutcome.SKIPPED
+    disconnected = by_id["eval-channel-disconnect"]
+    assert disconnected.outcome is CaseOutcome.SKIPPED
 
     mac = by_id["eval-mac-restart-paused"]
     assert mac.outcome is CaseOutcome.DOCUMENTED_LIVE
@@ -101,7 +100,7 @@ def test_offline_corpus_passes_and_duplicate_side_effects_are_zero(tmp_path: Pat
     passed_ids = {case.task_id for case in report.cases if case.outcome is CaseOutcome.PASSED}
     assert "soak-24h-inference" not in passed_ids
     assert "eval-mac-restart-paused" not in passed_ids
-    assert "eval-slack-disconnect" not in passed_ids
+    assert "eval-channel-disconnect" not in passed_ids
 
 
 def test_cli_soak_is_not_green() -> None:

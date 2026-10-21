@@ -9,17 +9,16 @@ execution.
 ## Context
 
 ADR 0007 made clients thin projections of one control API. ADR 0015
-retired Slack as the MVP client. ADR 0017 keeps device adapters in this
+plans a first-party mobile GUI. ADR 0017 keeps device adapters in this
 repository, off until an installation enables them. ADR 0012 puts GitHub
 export in `two.export`, not in `two.channels`. ADR 0020 makes the watch
 a first-party client of the API, not a device adapter.
 
 Those decisions were still easy to misread as one "adapters" bucket.
-`config/access/remote.yaml` named Slack the `mvp_adapter`. Package
-comments said the same. Architecture §19 showed a sketch that no longer
-matched the tree, and it had no place for a device slot. An install had
-no menu that said which surface exists, which package it would live in,
-and which harness profiles it may resume.
+Architecture §19 showed a sketch that no longer matched the tree, and it
+had no place for a device slot. An install had no menu that said which
+surface exists, which package it would live in, and which harness
+profiles it may resume.
 
 `POST /v1/voice/turns` already rejects `self-build` and returns
 `profile_not_executable` for `chat` and `home-action`. Nothing in the
@@ -37,9 +36,8 @@ messenger package would not give an installation a working path.
      adapter.
    - **Messenger.** `two.channels.<name>`. It maps one vendor onto typed
      API commands. It does not import workspace git, call the model, or
-     resume `self-build`. No messenger is selected. `two.channels.slack`
-     remains a legacy stub so old paths keep a name; it is not the MVP
-     and it is not enabled.
+     resume `self-build`. No messenger is selected. The package exists
+     and is empty.
    - **Device.** `two.devices.<name>`, created only by a later protocol
      ADR. Home and wearable adapters live there. They may resume `chat`
      or `home-action` only. They do not receive shell, git, or secrets.
@@ -74,9 +72,8 @@ messenger package would not give an installation a working path.
 
 - `docs/architecture.md` §1, §5.2, §6.3.H, §12.2, §12.6, §16, and §19
   carry this layout. `docs/adapters.md` is the operator page.
-- `config/access/remote.yaml` no longer names an MVP messenger.
-- Slack tokens in `.env.example` stay empty placeholders for the stub.
-  They are not an install step.
+- `config/access/remote.yaml` records bind policy and does not select a
+  messenger.
 - `two setup --plan` still does not enable an adapter. Its deferred
   list points at `two adapters`.
 
@@ -85,11 +82,7 @@ messenger package would not give an installation a working path.
 - **One `two.adapters` runtime package for every kind.** Export must be
   able to touch git. Channels must not. Devices must not receive the
   coding workspace. One package would erase that boundary.
-- **Delete the Slack stub in this change.** The stub is not a product,
-  but tests and Compose still name the path. Relabeling it is enough.
-  Removing it is a separate cleanup.
 - **Enable the watch because the edge exists.** Issuing a certificate
   is not executing a turn. The catalog keeps `watch` at `contract`.
-- **Pick the thermostat, Slack, or GitHub export as the next build.**
-  Each one needs an executor or a side effect the control plane cannot
-  route yet.
+- **Pick a device tool or GitHub export as the next build.** Each one
+  needs an executor or a side effect the control plane cannot route yet.

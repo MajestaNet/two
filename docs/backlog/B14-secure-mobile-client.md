@@ -55,8 +55,6 @@ do not attempt the entire item in one PR.
   operator-seeded baseline; ordinary clients cannot send secrets, host paths,
   YAML blobs, or shell strings. There is no native app (Slice 4) and no push
   (Slice 5).
-- Slack stubs may remain for compatibility, but Slack implementation is not
-  part of B14.
 
 ## Required delivery slices
 
@@ -143,7 +141,7 @@ Status: **implemented** (this item remains `in_progress` until later slices).
 - Offline approvals, background task creation, or notification-tap approval.
 - Reimplementing the DSH loop, graph walker, workflow policy, or state store
   in the client.
-- Slack, Matrix, Discord, or another vendor adapter.
+- A vendor messenger adapter.
 
 ## Acceptance criteria
 

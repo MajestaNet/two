@@ -144,7 +144,7 @@ env_file: ${ENV_FILE} (mode 0600)
 #   cd ${COMPOSE_DIR}
 #   docker compose up -d api scheduler worker
 #   docker compose run --rm two --help
-# Services: api, scheduler, worker (optional slack profile is a stub)
+# Services: api, scheduler, worker
 # No Ollama image. No public 11434/8741. Host network; API on 127.0.0.1.
 
 # Optional native systemd user units (templates, not installed in --dry-run)

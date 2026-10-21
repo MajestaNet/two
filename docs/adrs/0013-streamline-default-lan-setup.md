@@ -55,7 +55,7 @@ Pain on the current walkthrough:
    `python -m two.providers --check`, and `smoke-test.sh`.
 7. **YAML before first success.** A repository profile and a task manifest
    are required before the operator knows the API is alive.
-8. **Overlay and Slack in the same guide.** Necessary, but they are not
+8. **Overlay in the same guide as the LAN path.** Necessary, but it is not
    the default LAN story.
 
 ## Decision
@@ -279,7 +279,7 @@ soak/`models.lock` for that first interactive submit (P12).
 
 **Design.** `docs/setup.md` leads with the six-command LAN path. The
 current twelve-step walkthrough stays as the **full reference** (overlay,
-Compose, soaks, Slack). Contributor clone+`make ci` stays a separate
+Compose, soaks). Contributor clone+`make ci` stays a separate
 track, as the guide already claims but does not follow.
 
 ### P11 — Optional LAN discovery (later, not slice 1–4)

@@ -388,13 +388,13 @@ def test_heartbeat_extends_unexpired_lease(store: Store) -> None:
 
 def test_duplicate_source_event_id_rejected(store: Store) -> None:
     store.insert_task(_manifest(), now=T0)
-    binding = store.bind_channel("task-123", "slack", "C123.thread", "Ev111")
+    binding = store.bind_channel("task-123", "example", "C123.thread", "Ev111")
     assert binding.source_event_id == "Ev111"
     with pytest.raises(DuplicateSourceEventError):
-        store.bind_channel("task-123", "slack", "C123.other", "Ev111")
+        store.bind_channel("task-123", "example", "C123.other", "Ev111")
     store.insert_task(_manifest(id="task-456"), now=T0)
     with pytest.raises(DuplicateSourceEventError):
-        store.bind_channel("task-456", "slack", "C999.thread", "Ev111")
+        store.bind_channel("task-456", "example", "C999.thread", "Ev111")
     assert len(store.list_bindings("task-123")) == 1
 
 

@@ -31,7 +31,7 @@
   workflows). `work-graph.md` points at ADR 0014 (persisted nodes/edges
   around DeepSeek Harness). This repo is the backend; B14 is a secure
   first-party mobile client over the same API, not a second agent runtime.
-  Slack is deferred. The running installation is the development client
+  The running installation is the development client
   (ADR 0017); home and wearable adapters are a later in-repo slot, not a
   second agent. The Mac mini is the default always-on host (ADR 0019).
   The optional two-Mac list remains ADR 0013 / B18 (`two setup --current`).
