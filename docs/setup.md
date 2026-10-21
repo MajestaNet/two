@@ -36,11 +36,13 @@ the spec.
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
+| Harness profile `chat` | Specified, not executable. `POST /v1/voice/turns` still returns `profile_not_executable` and stores nothing. The resume slice is [B20](backlog/B20-chat-profile-resume.md). `home-action` stays refused |
 
 Last updated: 21 October 2026 (ADR 0021: `two adapters` is the install
 menu. Only the CLI is enabled. No messenger is selected.
 ADR 0020 watch edge, ADR 0017 adoption, harness-profile preload, and
-OIDC remain specified and not a running device or chat executor.)
+OIDC remain specified and not a running device or chat executor.
+Chat resume is planned as [B20](backlog/B20-chat-profile-resume.md).)
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 

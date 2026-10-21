@@ -7,9 +7,11 @@ Dedicated, agent-executable implementation items. One file per item.
   the original numbered items; B14 is now the secure first-party mobile
   client direction from ADR 0015. [B18](B18-streamlined-lan-setup.md)
   is operator-path convenience (ADR 0013). [B19](B19-persisted-work-graph.md)
-  is the persisted work graph around DeepSeek Harness (ADR 0014). Do not
-  merge two items in one PR unless the item file says they may land
-  together.
+  is the persisted work graph around DeepSeek Harness (ADR 0014).
+  [B20](B20-chat-profile-resume.md) resumes harness profile `chat` on
+  the single inference slot (ADR 0021) and leaves `home-action` refused.
+  Do not merge two items in one PR unless the item file says they may
+  land together.
 - Point at `docs/architecture.md` instead of copying it.
 - When an item is implemented, update its Status field and the index
   table in the same PR. Do not mark done unless `make ci` is green and

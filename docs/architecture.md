@@ -1219,7 +1219,7 @@ two/
 ## 20. Implementation sequence
 
 Dedicated, agent-executable slices of this sequence are tracked in
-[`docs/backlog/`](backlog/README.md) (B01–B19). The phase list below
+[`docs/backlog/`](backlog/README.md) (B01–B20). The phase list below
 remains the authority for order and intent; backlog files must not
 invent a second architecture.
 
@@ -1267,6 +1267,9 @@ invent a second architecture.
   health, idempotency, and scoped remote identity.
 - Build the secure first-party native mobile client as B14. The backend must
   run without it and without an OIDC issuer.
+- Persist and resume harness profile `chat` on the single inference slot
+  (ADR 0019, ADR 0021, B20). Leave `home-action` refused. This slice is
+  not a GUI and does not add a second agent loop.
 - Pass private-overlay disconnect, revocation, duplicate-mutation,
   authorization, stale-approval, disclosure, and no-terminal workflow tests.
 
@@ -1291,7 +1294,9 @@ parts (13–17), subject pinning and adoption (18–19), or the seamless install
 and shared chat slot (20). Items 13–17 remain open until B14's API and
 native-client slices are implemented and promoted. Items 18–19 remain open
 until the ADR 0017 slice is implemented and promoted. Item 20 remains open
-until the ADR 0018 slice is implemented and promoted.
+until the ADR 0018 slice is implemented and promoted. B20 is only the
+`chat` profile resume. Landing B20 does not close item 20:
+`home-action`, slot priority, and the seamless install remain open.
 
 1. The Mac automatically starts Ollama, loads the expected Qwen model, and serves it on the private network.
 2. The model remains resident and the Mac shows no sustained swap-out growth or unrecovered failure during the 24-hour promotion soak.

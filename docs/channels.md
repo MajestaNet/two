@@ -62,7 +62,9 @@ adapter and not a HomePod integration
 requires a client certificate and proxies to the loopback API. The
 watch principal cannot submit a self-build task. `chat` and
 `home-action` return `profile_not_executable` until a profile executor
-exists, and the turn is not stored. The Xcode app is not in this
+exists, and the turn is not stored. The `chat` executor is
+[B20](backlog/B20-chat-profile-resume.md) and is not landed.
+`home-action` stays refused in that item. The Xcode app is not in this
 repository. The catalog keeps `watch` at `contract`.
 
 ## Messengers (none selected)
