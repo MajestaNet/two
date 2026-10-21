@@ -2,15 +2,17 @@
 
 How a client on another network reaches the **Majesta Two backend**.
 Operator view of [architecture.md](architecture.md) §6.2 and §6.3.H.
-Messaging product rules are in [channels.md](channels.md).
+Messaging product rules are in [channels.md](channels.md). Which
+slots an install can turn on is [adapters.md](adapters.md).
 
-## Three paths
+## Paths
 
 | Client | How it reaches the host | Open an inbound port? |
 | --- | --- | --- |
 | CLI on the same machine | Unix socket or `127.0.0.1` | No |
 | CLI on another network | Private overlay plus token auth | Only on the overlay |
-| First-party mobile (planned) | HTTPS on a private overlay plus trusted OIDC | Only on the overlay |
+| Watch (edge in this repo; app is not) | Caddy mutual TLS on a private address; API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)) | Only that private address |
+| First-party mobile (API slices in this repo; app is not) | HTTPS on a private overlay plus trusted OIDC | Only on the overlay |
 | Optional future messenger | Adapter dials out where the vendor supports it | No |
 
 The inference API (Ollama) is never a remote-user endpoint. Only Majesta Two
@@ -28,6 +30,15 @@ with PKCE against an operator-configured OIDC issuer. It never embeds the
 shared CLI token and never calls Ollama or DeepSeek Harness directly.
 
 Do not “fix” phone access by opening the control API to the internet.
+
+## Watch on the private LAN
+
+`two edge plan` writes nothing. `two edge issue` writes a private CA and
+Caddyfile under the data directory. Caddy listens on a private address
+and proxies to the loopback API. The watch principal is `client:watch`.
+It cannot submit `self-build`. Voice turns are not executed yet. The
+native app is specified in [watch-client.md](watch-client.md) and is not
+in this repository.
 
 Installations without trusted remote authentication fail closed; local
 CLI/Unix access remains available. See

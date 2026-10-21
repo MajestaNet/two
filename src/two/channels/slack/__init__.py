@@ -14,8 +14,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Optional Slack MVP adapter (Socket Mode). Not the product.
+"""Legacy Slack stub. Not a selected adapter and not the product.
 
-Typed commands, allowlists, output policy. Must not import workspace git
-or call the model. Not implemented yet. See docs/channels.md.
+Typed commands, allowlists, output policy, if a later ADR implements
+this path. Must not import workspace git or call the model.
+Not implemented. See docs/channels.md and docs/adapters.md.
 """

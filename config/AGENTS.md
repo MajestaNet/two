@@ -17,8 +17,10 @@ Configuration is data. Do not put Python here.
   default, not a ceiling.
 - `deploy/topology.yaml` is physical placement (`split` vs `colocated`).
   Do not collapse Ollama into the harness.
-- `access/remote.yaml` records API bind policy. Slack under `channels/`
-  is the MVP adapter template, not a required service.
+- `access/remote.yaml` records API bind policy. It does not select a
+  messenger. `adapters/catalog.yaml` is the install menu (ADR 0021).
+  Slack under `channels/` is a legacy stub template, not a required
+  service and not the MVP.
 - GitHub App credentials, when they exist, are env-only. Do not add a
   local git forge under `config/` by default (ADR 0012).
 - Changing task-manifest fields, the default inference profile, or cloud

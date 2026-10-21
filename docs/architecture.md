@@ -5,8 +5,8 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adoption, device tools, and profile preload follow |
-| Version | 0.12 |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); adoption, device tools, and profile preload follow |
+| Version | 0.13 |
 | Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
@@ -21,7 +21,7 @@ The system will separate **inference** from **software-development execution**. 
 - Majesta Two and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. They run on the same mini as separate processes from Ollama (`topology: colocated`). `split` remains optional when another host stays powered on. Linux Compose is that optional packaging, not the default.
 - They call Ollama through an OpenAI-compatible HTTP endpoint on `127.0.0.1`. The model process never mounts the repository and never executes commands. See ADR 0006 and `two topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
-- A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface. Optional in-repo adapters — home devices, wearables, and a possible mobile surface — are further control surfaces over the same installation. Messaging clients remain possible optional adapters, but Slack is no longer the planned MVP. Every client is a control surface over one durable task record, not a separate agent session.
+- A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface and the only enabled slot in the install catalog (ADR 0021). Optional in-repo device adapters — home devices, wearables, and later private devices — are further control surfaces over the same installation. The first-party mobile GUI and the watch app are clients of this API; their native projects are not in this tree. Messaging clients remain possible optional adapters, but Slack is not selected and is not the MVP. Every client is a control surface over one durable task record, not a separate agent session.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
 
 **Product subject (ADR 0017).** Majesta Two is a fully local, self-building system. The operator runs one installation of this repository. That installation is the development client and the only development subject: tasks change this tree, not unrelated projects. DeepSeek Harness stays the inner model/tool loop; its workspace is a worktree of this same repository. The executing tree is adopted from that worktree only after validation, fresh review, and an explicit approval, and only at a process restart. The open-source tree grows optional adapters for private local endpoints (home devices, wearables, and later similar devices) by that same loop.
@@ -173,8 +173,8 @@ Rules:
 - Completion of a self-build task produces a candidate commit. It does not install that commit.
 - Adoption is a controller operation. It runs only after required validation, a fresh review with no blocking finding, and an approval whose digest is the candidate commit. It takes effect when the installation's processes restart onto that commit.
 - A candidate that changes gates, bind addresses, credential policy, or adapter permissions names those changes in the adoption approval. They stay inactive in the running process that produced the candidate.
-- Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. Merging adapter code into the tree does not enable it; the operator enables it in local configuration.
-- The first concrete device protocol is a later ADR. This section defines the slot, the trust limit, and the growth path.
+- Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. Merging adapter code into the tree does not enable it. The install menu is `config/adapters/catalog.yaml` (`two adapters`, ADR 0021). A slot is on only when that catalog says so. Today that is the CLI alone.
+- The first concrete device protocol is a later ADR. This section defines the slot, the trust limit, and the growth path. The reserved package path is `src/two/devices/<name>/`. That directory does not exist until the protocol ADR. `src/two/export/` is the same kind of reservation for ADR 0012. `two.channels.slack` is a legacy stub and is not a selected messenger.
 
 ### 5.3 Mac mini installation
 
@@ -531,6 +531,13 @@ Any cloud notification or messenger service is an external data processor:
 payloads suppress secrets, environment values, raw trajectories, source,
 approval details, and verbose logs by default.
 
+Four kinds stay separate (ADR 0021): first-party clients, messenger adapters
+(`two.channels`), device adapters (`two.devices`, reserved), and
+source-control export (`two.export`, reserved). `two.providers` is the
+model-provider contract, not a client. The committed catalog is the install
+menu. A slot that is not `shipped` cannot be selected, and landing the
+package does not enable it.
+
 ### 6.4 State and storage
 
 The MVP requires no separate network database; authoritative control-plane
@@ -860,7 +867,7 @@ Recommended processes:
 - SQLite task state;
 - lightweight health poller for the Mac endpoint.
 
-The API, scheduler, worker, and enabled adapters run on the Mac mini under launchd or `two up`, with automatic restart and bounded restart backoff (ADR 0019). Docker Compose (`deploy/compose`) remains the optional packaging when a separate Linux host stays on; a full VM is optional extra isolation. Ollama stays native on the mini in either case. The worker count for the local Qwen route is one. CLI/mobile from another network uses authenticated HTTPS over a private overlay, not a public bind. See ADR 0005, ADR 0015, `docs/channels.md`, and `docs/client-api-design.md`.
+The API, scheduler, worker, and any adapter the install catalog marks enabled run on the Mac mini under launchd or `two up`, with automatic restart and bounded restart backoff (ADR 0019, ADR 0021). Today the catalog enables the CLI only. Docker Compose (`deploy/compose`) remains the optional packaging when a separate Linux host stays on; a full VM is optional extra isolation. Ollama stays native on the mini in either case. The worker count for the local Qwen route is one. CLI/mobile from another network uses authenticated HTTPS over a private overlay, not a public bind. See ADR 0005, ADR 0015, `docs/channels.md`, and `docs/client-api-design.md`.
 
 ### 12.3 Health states
 
@@ -926,8 +933,9 @@ offline action never grants approval. Closing the app, losing connectivity,
 or revoking a device does not stop a controller-owned task.
 
 Future cloud messenger adapters may still dial out and project the same
-redacted API, but none is required or selected as the MVP. They must not
+redacted API, but none is required or selected. They must not
 publish the API, call the model or shell, or become a second state store.
+The install menu is `config/adapters/catalog.yaml` (`two adapters`).
 
 ### 12.7 Source-control export (GitHub App; post-MVP)
 
@@ -1052,6 +1060,7 @@ Default policy:
 | Self-modification | Worktree candidate, then adoption at process restart | The executing tree and its privilege boundary change only by a named approval |
 | Always-on install | Mac mini runs Ollama, the scaffold, and DeepSeek Harness (ADR 0019) | A laptop is a client; `split` is optional |
 | Shared inference | One resident model; persisted harness profiles share the slot | Chat and device actions resume a profile; they do not open Ollama |
+| Adapter install menu | Committed catalog; only the CLI is enabled (ADR 0021) | Kinds stay separate; landing a package does not turn a slot on |
 
 ## 17. Risks and mitigations
 
@@ -1127,7 +1136,11 @@ Before promoting unattended overnight mode, the system must also pass:
 - a private-overlay client test proving that a task can be started, inspected, answered, paused, resumed, cancelled, and completed without terminal access;
 - a policy test proving that a remote client cannot authorize a changed action by replaying an earlier approval.
 
-## 19. Proposed implementation-repository shape
+## 19. Implementation repository shape
+
+The tree below is the layout an installation is built from. Comments name
+reserved paths that are not directories yet (ADR 0021). `two adapters`
+prints which of those slots is enabled.
 
 ```text
 two/
@@ -1136,72 +1149,74 @@ two/
 ├── .env.example
 ├── Makefile
 ├── docs/
+│   ├── architecture.md
 │   ├── setup.md
-│   ├── local-16k.md
+│   ├── adapters.md                     # install menu (ADR 0021)
 │   ├── channels.md
 │   ├── client-api-design.md
 │   ├── client-threat-model.md
+│   ├── watch-client.md
+│   ├── work-graph.md
 │   ├── remote-access.md
-│   ├── architecture.md
 │   ├── operations.md
 │   ├── unattended-operations.md
 │   ├── interaction-contract.md
 │   ├── task-manifest.md
 │   ├── source-control-export.md
+│   ├── local-16k.md
+│   ├── viability.md
+│   ├── public-repo.md
+│   ├── backlog/
 │   └── adrs/
 ├── deploy/
-│   └── compose/
+│   ├── compose/                        # optional Linux control plane
+│   └── systemd/
 ├── config/
+│   ├── adapters/
+│   │   └── catalog.yaml                # install menu; only cli is enabled
 │   ├── inference/
 │   │   └── profiles.yaml
 │   ├── deploy/
 │   │   └── topology.yaml
 │   ├── access/
-│   │   └── remote.yaml
+│   │   └── remote.yaml                 # bind policy; no MVP messenger
 │   ├── mac/
-│   │   ├── Modelfile.16k
-│   │   ├── Modelfile.32k
-│   │   └── ollama.launchd.plist.template
 │   ├── dsh/
-│   │   ├── settings.yaml.template
-│   │   └── profile.patch.yml
 │   ├── policies/
-│   │   └── default.yaml
 │   ├── channels/
-│   │   └── slack-app-manifest.yaml.template  # deferred legacy stub
-│   └── repositories/
-│       ├── two.yaml
-│       └── example.yaml
+│   │   └── slack-app-manifest.yaml.template  # legacy stub; not selected
+│   ├── repositories/
+│   ├── examples/
+│   └── runtime/
 ├── src/
 │   └── two/
+│       ├── adapters.py                 # catalog loader; starts nothing
 │       ├── api/
-│       ├── controller/
-│       ├── graph/
-│       ├── scheduler/
-│       ├── worker/
-│       ├── workspace/
-│       ├── context/
-│       ├── validation/
-│       ├── providers/
 │       ├── approvals/
 │       ├── channels/
-│       │   └── slack/                        # deferred legacy stub
-│       ├── export/
-│       │   └── github/
-│       └── reporting/
+│       │   └── slack/                  # legacy stub; not selected
+│       ├── client.py
+│       ├── context/
+│       ├── controller/
+│       ├── edge.py                     # watch mTLS plan; not a device adapter
+│       ├── evals/
+│       ├── graph/
+│       ├── operator/
+│       ├── providers/                  # model contract; not a client slot
+│       ├── recovery/
+│       ├── reporting/
+│       ├── runtime/
+│       ├── scheduler/
+│       ├── store/
+│       ├── validation/
+│       ├── worker/
+│       └── workspace/
+│       # reserved, not created until their ADR:
+│       #   devices/<name>/             # device protocol ADR
+│       #   export/                     # ADR 0012
 ├── scripts/
-│   ├── bootstrap-mac.sh
-│   ├── bootstrap-dev-host.sh
-│   ├── health-check.sh
-│   └── smoke-test.sh
 ├── evals/
-│   ├── tasks/
-│   ├── fixtures/
-│   └── expected/
 └── tests/
-    ├── unit/
-    ├── contract/
-    └── integration/
 ```
 
 ## 20. Implementation sequence

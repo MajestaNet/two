@@ -41,7 +41,8 @@ def test_section_18_coverage() -> None:
     assert by_case[ArchitectureCase.FORBIDDEN_PATH_COMMAND].mode is CaseMode.OFFLINE
     assert by_case[ArchitectureCase.UNCERTAIN_RECONCILE].mode is CaseMode.OFFLINE
     assert by_case[ArchitectureCase.SLACK_DISCONNECT].mode is CaseMode.SKIP
-    assert "B14" in (by_case[ArchitectureCase.SLACK_DISCONNECT].skip_reason or "")
+    reason = by_case[ArchitectureCase.SLACK_DISCONNECT].skip_reason or ""
+    assert "messenger" in reason
     assert by_case[ArchitectureCase.MAC_RESTART_PAUSED].mode is CaseMode.LIVE
     for soak in PROMOTION_SOAKS:
         assert by_case[soak].mode is CaseMode.SOAK

@@ -16,7 +16,7 @@
 
 """Optional messaging adapters.
 
-This package is not a Slack product. Slack is the MVP adapter under
-``channels.slack``. Adapters call the control API only; they never run
-the model. See docs/channels.md and ADR 0007.
+No messenger is selected. ``channels.slack`` is a legacy stub, not an
+MVP and not enabled (ADR 0015, ADR 0021). Adapters call the control API
+only; they never run the model. See docs/channels.md and docs/adapters.md.
 """

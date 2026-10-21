@@ -24,6 +24,8 @@ from collections.abc import Callable
 from typing import Any
 
 from two import __version__
+from two.adapters import format_catalog as format_adapters
+from two.adapters import load_catalog as load_adapters
 from two.profiles import format_catalog, load_catalog
 from two.topology import format_catalog as format_topology
 from two.topology import load_catalog as load_topology
@@ -48,6 +50,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "topology",
         help="List deployment topologies (colocated default; split optional)",
+    )
+    subparsers.add_parser(
+        "adapters",
+        help="List client, messenger, device, and export slots (only cli is enabled)",
     )
     setup_cmd = subparsers.add_parser(
         "setup",
@@ -193,6 +199,9 @@ def main(
         return 0
     if args.command == "topology":
         print(format_topology(load_topology()))
+        return 0
+    if args.command == "adapters":
+        print(format_adapters(load_adapters()))
         return 0
     if args.command == "setup":
         return _run_setup(args)

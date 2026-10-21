@@ -19,7 +19,8 @@ the spec.
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
-| Messaging adapters | Optional and deferred; Slack stubs are not an implemented adapter |
+| Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. Slack is a stub. Device and GitHub export are reserved ([ADR 0021](adrs/0021-adapter-install-catalog.md), [adapters.md](adapters.md)) |
+| Messaging adapters | None selected. Slack stubs are not an implemented adapter and not the MVP |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
@@ -37,11 +38,10 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 20 October 2026 (ADR 0020: Caddy mutual TLS on a private
-address in front of the loopback API. `client:watch` cannot submit
-`self-build`. The watch app spec is [watch-client.md](watch-client.md).
-ADR 0017 adoption, harness-profile preload, and OIDC remain specified
-and not implemented.)
+Last updated: 20 October 2026 (ADR 0021: `two adapters` is the install
+menu. Only the CLI is enabled. Slack is a legacy stub, not an MVP.
+ADR 0020 watch edge, ADR 0017 adoption, harness-profile preload, and
+OIDC remain specified and not a running device or chat executor.)
 
 Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
@@ -213,6 +213,7 @@ or a real Mac address ([public-repo.md](public-repo.md)).
 | Repo profile | `config/repositories/<id>.yaml` | Validation gates | Copy `example.yaml`; set commands for **your** repo | No secrets. `forbidden_paths` should include `.env` |
 | Task request | YAML you pass to `two task submit` | Each job | Copy [config/examples/task.example.yaml](../config/examples/task.example.yaml) | Keep `cloud_allowed: false` unless B16 is enabled **and** you intend to send excerpts off-box |
 | Access policy | `config/access/remote.yaml` | Bind enforcement | Leave `allow_public_bind: false` | Flipping this to true is **refused** at runtime |
+| Adapter menu | `config/adapters/catalog.yaml` / `two adapters` | Which slots exist | Do not enable a slot that is not `shipped` | Landing a package does not turn it on |
 | DSH overlay | `config/dsh/profile.patch.yml` | Live harness | Usually leave as committed | Web fetch/search and telemetry stay **disabled** |
 | Disclosure policy | `config/policies/default.yaml` `channel_output` | Remote clients/adapters later | Summaries allowed; secrets/source suppressed | Keep defaults for B14 |
 | Legacy Slack tokens | `SLACK_*` in `.env` | Deferred adapter stub | Leave empty | Not used by B14. Never pass them to DSH |
@@ -265,6 +266,7 @@ make ci
 uv run two --help
 uv run two profiles
 uv run two topology
+uv run two adapters
 ```
 
 `make ci` is the required gate. Offline evals are included
