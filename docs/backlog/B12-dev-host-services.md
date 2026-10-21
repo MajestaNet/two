@@ -27,8 +27,7 @@ Mac — never in this image.
 
 ## Out of scope
 
-- Shipping any mobile/messaging client as a required service (the Slack
-  profile is a deferred legacy stub).
+- Shipping any mobile or messaging client as a required service.
 - Putting DSH inside the foundation image if interactive use still
   wants host toolchains — Phase 5 **may** add a worker service with
   explicit mounts (ADR 0005). Document both: Compose worker with
@@ -50,8 +49,6 @@ Mac — never in this image.
    - No `ports:` to `0.0.0.0`. Loopback-only if any publish.
    - Volumes: config ro, `var/` data, worktrees, optional host git
      mirrors. Explicit list in compose comments.
-   - Existing optional `profiles: [slack]` remains a disabled legacy stub,
-     not B14.
 
 3. **Startup recovery** (must be a real function called at worker
    or scheduler boot — architecture §12.5 steps 1–7). Tests with a
@@ -96,7 +93,7 @@ Read first:
 4. `docs/backlog/README.md` and `docs/backlog/B12-dev-host-services.md`
 5. `deploy/compose/*`, `scripts/bootstrap-dev-host.sh`
 
-Implement **only B12**. Do not implement Slack. Do not Dockerize Ollama.
+Implement **only B12**. Do not Dockerize Ollama.
 
 Standing orders:
 

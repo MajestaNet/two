@@ -16,7 +16,7 @@
 
 """ACP worker: scheduler callback and child supervisor.
 
-Does not implement workflow stages, import Slack, or set ``complete``.
+Does not implement workflow stages or set ``complete``.
 Completion certification is B10. This module supervises a DeepSeek Harness
 ACP child and the action ledger around it.
 """

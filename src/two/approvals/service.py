@@ -17,7 +17,7 @@
 """Durable questions, approvals, and cooperative pause/resume/cancel.
 
 Silence is never approval (architecture §8.4). The API and CLI call this
-module; it does not talk to git, Slack, or the model.
+module; it does not talk to git or the model.
 """
 
 from __future__ import annotations

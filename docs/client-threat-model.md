@@ -151,4 +151,4 @@ A device may be on coffee-shop Wi-Fi or a hostile LAN.
 - Building the native mobile app
 - Native-client push/promotion (B14 slices 4–5)
 - Persisting the work graph (B19; already a parallel item)
-- Slack or any messenger adapter
+- A messenger adapter

@@ -354,7 +354,7 @@ def test_fake_worker_can_release_slot(store: Store) -> None:
     assert second.running_id == "task-b"
 
 
-def test_scheduler_module_has_no_slack_acp_or_worktree_git() -> None:
+def test_scheduler_module_has_no_acp_or_worktree_git() -> None:
     root = Path("src/two/scheduler")
     imported: list[str] = []
     for path in sorted(root.glob("*.py")):
@@ -365,7 +365,6 @@ def test_scheduler_module_has_no_slack_acp_or_worktree_git() -> None:
                 imported.extend(alias.name for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.append(node.module)
-    assert all("slack" not in name.lower() for name in imported)
     assert all(not name.startswith("two.channels") for name in imported)
     assert all(not name.startswith("two.workspace") for name in imported)
     assert all("acp" not in name.lower() for name in imported)

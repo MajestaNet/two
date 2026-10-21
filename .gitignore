@@ -26,8 +26,6 @@ coverage.xml
 *.key
 id_rsa*
 id_ed25519*
-*slack*token*
-*SLACK*TOKEN*
 
 # Majesta Two runtime state (never commit)
 var/

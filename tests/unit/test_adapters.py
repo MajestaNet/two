@@ -32,22 +32,17 @@ def test_optional_slots_stay_off_and_separated() -> None:
     catalog = load_catalog()
     watch = catalog.slots["watch"]
     device = catalog.slots["device"]
-    slack = catalog.slots["slack"]
     github = catalog.slots["github"]
     assert watch.kind == "client"
     assert set(watch.harness_profiles) == {"chat", "home-action"}
     assert device.status == "reserved" and device.package == ""
-    assert slack.kind == "messenger" and slack.status == "stub"
-    assert slack.default_enabled is False and slack.selectable is False
     assert github.kind == "export" and github.package == ""
-    assert "self-build" not in slack.harness_profiles
     assert "self-build" not in device.harness_profiles
 
 
 def test_format_names_the_install_rule() -> None:
     text = format_catalog(load_catalog())
     assert text.startswith("install: cli is the only enabled slot")
-    assert "slack" in text and "messenger" in text and "stub" in text
     assert "device" in text and "reserved" in text
 
 
@@ -61,15 +56,14 @@ def test_cli_prints_catalog(capsys: pytest.CaptureFixture[str]) -> None:
 def test_remote_yaml_does_not_name_an_mvp_messenger() -> None:
     text = (REPO / "config/access/remote.yaml").read_text(encoding="utf-8")
     assert "mvp_adapter" not in text
-    assert "slack:" not in text
 
 
-def test_loader_rejects_enabling_a_stub(tmp_path: Path) -> None:
+def test_loader_rejects_enabling_a_reserved_slot(tmp_path: Path) -> None:
     source = (REPO / "config/adapters/catalog.yaml").read_text(encoding="utf-8")
     broken = source.replace(
-        "  slack:\n    kind: messenger\n    status: stub\n    package: two.channels.slack\n"
+        '  device:\n    kind: device\n    status: reserved\n    package: ""\n'
         "    default_enabled: false\n    selectable: false\n",
-        "  slack:\n    kind: messenger\n    status: stub\n    package: two.channels.slack\n"
+        '  device:\n    kind: device\n    status: reserved\n    package: ""\n'
         "    default_enabled: true\n    selectable: true\n",
         1,
     )

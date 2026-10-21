@@ -26,7 +26,7 @@ was sent externally. Never silently escalate a
 ## Out of scope
 
 - Making cloud the default.
-- Sending repo contents to a vendor from Slack.
+- Sending repo contents to a messenger.
 - Training or fine-tuning.
 
 ## Implementation plan
@@ -99,7 +99,7 @@ Standing orders:
 - Architecture wins. Never silently escalate `cloud_allowed: false`.
 - `make ci` green. Unit tests must not call paid APIs (fake client).
 - New vendor SDK = ADR + “Ask first” satisfied in that ADR.
-- Credentials on the development host only; never in the inference Mac config, Slack, or worktrees.
+- Credentials on the development host only; never in the inference Mac config or worktrees.
 - Apache 2.0 headers. Prefer cloud review before cloud tool execution.
 
 Concrete work:

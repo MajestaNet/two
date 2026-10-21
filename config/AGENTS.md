@@ -3,7 +3,7 @@
 Configuration is data. Do not put Python here.
 
 - Templates (`*.template`, `*.example`) use placeholders only.
-- Never commit real hostnames, Slack IDs, tokens, or model digests.
+- Never commit real hostnames, tokens, or model digests.
 - `repositories/two.yaml` is this repo's machine-readable validation
   profile. Keep it aligned with `Makefile` targets.
 - `repositories/example.yaml` is a fixture, not a live service.
@@ -19,8 +19,6 @@ Configuration is data. Do not put Python here.
   Do not collapse Ollama into the harness.
 - `access/remote.yaml` records API bind policy. It does not select a
   messenger. `adapters/catalog.yaml` is the install menu (ADR 0021).
-  Slack under `channels/` is a legacy stub template, not a required
-  service and not the MVP.
 - GitHub App credentials, when they exist, are env-only. Do not add a
   local git forge under `config/` by default (ADR 0012).
 - Changing task-manifest fields, the default inference profile, or cloud

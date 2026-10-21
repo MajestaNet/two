@@ -17,7 +17,7 @@
 """Report fragments and Stage 8 final reports.
 
 The controller, not the model, sets terminal status. This module formats
-gate evidence and assembled reports. It does not import Slack or Ollama.
+gate evidence and assembled reports. It does not import Ollama.
 """
 
 from __future__ import annotations

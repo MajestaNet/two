@@ -17,7 +17,7 @@
 """Durable workflow stage machine. Decides continue/retry/ask/stop.
 
 Walks the persisted work graph after Intake/Isolate. Does not call the
-model, import Slack, or import an Ollama client. Completion is this
+model or import an Ollama client. Completion is this
 module plus B04 gate results — never a model self-report.
 See docs/architecture.md §6.3.A, §7.1, §8.2, §8.5, ADR 0014.
 """

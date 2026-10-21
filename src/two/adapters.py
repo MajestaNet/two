@@ -35,7 +35,7 @@ AdapterKind = Literal["client", "messenger", "device", "export"]
 AdapterStatus = Literal["shipped", "contract", "stub", "reserved"]
 HarnessProfileName = Literal["self-build", "home-action", "chat"]
 
-_REQUIRED_IDS: tuple[str, ...] = ("cli", "mobile", "watch", "slack", "device", "github")
+_REQUIRED_IDS: tuple[str, ...] = ("cli", "mobile", "watch", "device", "github")
 _DEVICE_PROFILES: frozenset[str] = frozenset({"chat", "home-action"})
 
 
@@ -155,13 +155,6 @@ def validate_catalog(catalog: AdapterCatalog, repo_root: Path) -> None:
     _require(
         set(device.harness_profiles) == _DEVICE_PROFILES,
         "device profiles must be chat and home-action",
-    )
-    slack = catalog.slots["slack"]
-    _require(
-        slack.kind == "messenger"
-        and slack.status == "stub"
-        and slack.package == "two.channels.slack",
-        "slack stays a messenger stub",
     )
     github = catalog.slots["github"]
     _require(

@@ -47,17 +47,6 @@ slots:
       two edge issue writes a private CA. The Xcode app is not in this
       repo. chat and home-action return profile_not_executable.
 
-  slack:
-    kind: messenger
-    status: stub
-    package: two.channels.slack
-    default_enabled: false
-    selectable: false
-    harness_profiles: []
-    notes: >
-      Legacy package and Compose profile. Not selected. Not the MVP.
-      A messenger projects the API; it does not resume a harness profile.
-
   device:
     kind: device
     status: reserved

@@ -72,8 +72,7 @@ last paragraph.
 ## Kick off with a manifest, not a free-form prompt
 
 Submit work with `uv run two task submit MANIFEST.yaml`. A short prompt
-is useful only as intake that fills a manifest. Slack kickoff is not
-implemented.
+is useful only as intake that fills a manifest.
 
 Fill at least:
 
@@ -145,7 +144,7 @@ with the repository validation profile.
 
 Avoid as a **single** overnight task: whole-repo security audit,
 dependency upgrades, migrations, “add coverage until X%”, large
-refactors, anything that needs GitHub or Slack side effects.
+refactors, anything that needs GitHub or an external side effect.
 
 ## Morning handoff
 

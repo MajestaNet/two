@@ -67,11 +67,10 @@ repository. The catalog keeps `watch` at `contract`.
 
 ## Messengers (none selected)
 
-A future Slack, Matrix, Discord, or other adapter should authenticate one
-vendor, map events to typed Majesta Two commands, apply disclosure policy,
-and remain unable to reach Ollama, shell, or git. No messaging adapter is
-selected. The Slack package and Compose profile are a legacy stub. They
-are not an MVP and they are not enabled. See [adapters.md](adapters.md).
+A future messenger adapter should authenticate one vendor, map events to
+typed Majesta Two commands, apply disclosure policy, and remain unable to
+reach Ollama, shell, or git. None is selected. See
+[adapters.md](adapters.md).
 
 GitHub pull-request export is **not** a channel. It is a post-MVP
 source-control adapter ([source-control-export.md](source-control-export.md),

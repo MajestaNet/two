@@ -19,8 +19,7 @@ the spec.
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
-| Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. Slack is a stub. Device and GitHub export are reserved ([ADR 0021](adrs/0021-adapter-install-catalog.md), [adapters.md](adapters.md)) |
-| Messaging adapters | None selected. Slack stubs are not an implemented adapter and not the MVP |
+| Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. Device and GitHub export are reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
@@ -38,8 +37,8 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 
-Last updated: 20 October 2026 (ADR 0021: `two adapters` is the install
-menu. Only the CLI is enabled. Slack is a legacy stub, not an MVP.
+Last updated: 21 October 2026 (ADR 0021: `two adapters` is the install
+menu. Only the CLI is enabled. No messenger is selected.
 ADR 0020 watch edge, ADR 0017 adoption, harness-profile preload, and
 OIDC remain specified and not a running device or chat executor.)
 
@@ -216,7 +215,6 @@ or a real Mac address ([public-repo.md](public-repo.md)).
 | Adapter menu | `config/adapters/catalog.yaml` / `two adapters` | Which slots exist | Do not enable a slot that is not `shipped` | Landing a package does not turn it on |
 | DSH overlay | `config/dsh/profile.patch.yml` | Live harness | Usually leave as committed | Web fetch/search and telemetry stay **disabled** |
 | Disclosure policy | `config/policies/default.yaml` `channel_output` | Remote clients/adapters later | Summaries allowed; secrets/source suppressed | Keep defaults for B14 |
-| Legacy Slack tokens | `SLACK_*` in `.env` | Deferred adapter stub | Leave empty | Not used by B14. Never pass them to DSH |
 
 `config/inference/profiles.yaml` and `config/deploy/topology.yaml` are
 catalogs. Do not put a real LAN hostname in those committed files.
@@ -270,7 +268,7 @@ uv run two adapters
 ```
 
 `make ci` is the required gate. Offline evals are included
-(`make eval-offline`). This path never calls Ollama, Slack, or a paid model.
+(`make eval-offline`). This path never calls Ollama or a paid model.
 
 ### 2. Choose topology
 
@@ -344,7 +342,7 @@ set -a && source .env && set +a
 ```
 
 > **Privacy.** Never commit `.env`. `MAC_QWEN_API_KEY=ollama` is a dummy
-> OpenAI-client field; Ollama ignores it. Leave `SLACK_*` empty.
+> OpenAI-client field; Ollama ignores it.
 > Leave `TWO_API_TOKEN` unset while the API stays on loopback.
 
 > **Network.** Replace `mac-inference.internal` with a name that only
@@ -574,8 +572,6 @@ and pass `--token`. Never bind a public Ethernet/WAN address.
 
 ### 12. Future remote clients
 
-Leave the legacy Slack stub off and its tokens empty. It is not B14.
-
 The watch path is [ADR 0020](adrs/0020-watch-edge-mtls.md). Print the
 plan, then issue a private CA and Caddyfile. Replace `PRIVATE-LAN-IP`
 with an address of the mini. Do not commit that address or the files
@@ -618,7 +614,6 @@ docker compose --env-file ../../.env up -d api scheduler worker
 | `scheduler` | `two scheduler` | Startup recovery, then the tick loop. |
 | `worker` | `two worker` | One local-Qwen ACP supervisor. Explicit volume list. |
 | `two` | CLI helper | `docker compose run --rm two --help` (profile `cli`). |
-| `slack` | legacy stub | Deferred; no implementation backlog commitment. |
 
 Volumes: `config/` read-only, named volume `two-data` (`TWO_DATA_DIR`),
 named volume `two-worktrees`. Optional host git mirrors:
@@ -670,7 +665,7 @@ controller plus validation gates, never a model self-report.
 - Do not merge, push, or deploy from the agent loop. GitHub export is
   [ADR 0012](adrs/0012-github-export-adapter.md) and is not implemented
 - Do not set `cloud_allowed: true` “to make it work”
-- Do not send Slack tokens or GitHub App tokens into the worker environment
+- Do not send GitHub App tokens into the worker environment
 - Do not treat a model self-report as task completion
 - Do not queue a whole-repo overnight audit on 16K; see
   [local-16k.md](local-16k.md)

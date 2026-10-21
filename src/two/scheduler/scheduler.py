@@ -16,7 +16,7 @@
 
 """Durable queue, single local-model slot, leases, retry_wait, and Mac health.
 
-This module does not run git, worktrees, ACP, or Slack. Worker count for
+This module does not run git, worktrees, or ACP. Worker count for
 the local Qwen route is one (architecture §12.2). Automatic cloud failover
 is disabled. See docs/architecture.md §6.3.G and §12.2–12.5.
 """

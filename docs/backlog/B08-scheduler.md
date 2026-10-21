@@ -14,8 +14,7 @@
 Own the single local-model execution slot: queue order, renewable
 leases, heartbeats, `retry_wait`, releasing the slot on
 `awaiting_input`, and Mac health states (Healthy/Cold/Busy/Degraded/
-Unavailable). The scheduler does not run ACP and does not talk to
-Slack.
+Unavailable). The scheduler does not run ACP.
 
 ## Current tree
 
@@ -83,7 +82,7 @@ Slack.
 - [x] One local inference slot.
 - [x] Expired leases only are reclaimed.
 - [x] Human-paused and awaiting-input tasks are not auto-started.
-- [x] No Slack, no ACP in this module.
+- [x] No ACP in this module.
 
 ## Definition of done
 
@@ -109,7 +108,7 @@ Read first:
 4. `src/two/scheduler/`, `src/two/types.py`
 5. B06 store + B01 health classifier if present. If B06 is missing, stop.
 
-Implement **only B08**. Do not spawn DeepSeek Harness. Do not import Slack.
+Implement **only B08**. Do not spawn DeepSeek Harness.
 
 Standing orders:
 

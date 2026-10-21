@@ -21,7 +21,7 @@ and any messenger adapter (B14). Field names match architecture §6.3.H.
 ``schema_version`` is additive: new optional fields may appear on /v1;
 breaking changes require /v2 and an ADR.
 
-Do not import FastAPI, the store, git, Slack, or Ollama here.
+Do not import FastAPI, the store, git, or Ollama here.
 """
 
 from __future__ import annotations
@@ -270,7 +270,7 @@ class TaskMessage(BaseModel):
     """Follow-up message or answer attached to an existing task.
 
     Persisted as event type ``task.message``. There is no messages table.
-    ``principal`` is an opaque actor id (CLI user, ``slack:U…``); adapters fill it.
+    ``principal`` is an opaque actor id (for example ``cli:local``); adapters fill it.
     """
 
     model_config = ConfigDict(extra="forbid")

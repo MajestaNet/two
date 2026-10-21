@@ -8,8 +8,7 @@ Accepted
 
 The architecture spec does not choose an implementation language. DeepSeek
 Harness publishes a Python SDK (`deepseek-harness-sdk`) and a TypeScript SDK.
-Majesta Two is a small control plane: CLI, API, scheduler, worker, SQLite, optional
-Slack adapter.
+Majesta Two is a small control plane: CLI, API, scheduler, worker, and SQLite.
 
 ## Decision
 

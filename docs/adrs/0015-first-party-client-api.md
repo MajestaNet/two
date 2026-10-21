@@ -6,10 +6,9 @@ Accepted (design direction; implementation is [B14](../backlog/B14-secure-mobile
 
 ## Context
 
-[ADR 0007](0007-backend-first-channels.md) correctly made Majesta Two a
-backend instead of a Slack product, but selected Slack as the first optional
-client. The durable task API, approvals, CLI, and work-graph contract now
-exist. The more valuable next surface is a first-party GUI that can show the
+[ADR 0007](0007-backend-first-channels.md) made Majesta Two the backend.
+The durable task API, approvals, CLI, and work-graph contract now exist.
+The more valuable next surface is a first-party GUI that can show the
 development loop directly: conversation, repository/project configuration,
 persisted graph, validation evidence, and system health.
 
@@ -46,13 +45,10 @@ would also be an unacceptable credential model.
    YAML, sends secret values, or supplies arbitrary filesystem paths.
 8. Stream durable controller summaries, not model tokens or raw Harness
    trajectories. Client disconnect remains independent from task lifetime.
-9. Defer Slack. It may later be implemented as an optional adapter over the
-   same API, but it is no longer the MVP client and has no committed backlog
-   slot.
 
-This decision supersedes ADR 0007 only where it names Slack as the MVP
-adapter and places first-party client UX out of scope. ADR 0007's
-backend-first boundary and thin-adapter rules remain accepted.
+This decision supersedes ADR 0007 where it placed first-party client UX
+out of scope. ADR 0007's backend-first boundary and thin-adapter rules
+remain accepted.
 
 ## Consequences
 
@@ -73,9 +69,8 @@ backend-first boundary and thin-adapter rules remain accepted.
 
 ## Alternatives rejected
 
-- **Keep Slack first.** It offers convenient phone notifications but cannot
-  provide the intended graph, config, evidence, and health experience without
-  turning vendor messages into a poor GUI.
+- **Use a messenger as the GUI.** Vendor messages cannot show the graph,
+  config, evidence, and health views this client needs.
 - **Embed the shared bearer token in the app.** A long-lived, broadly
   privileged secret is difficult to revoke per device and unsafe in mobile
   storage or backups.

@@ -18,7 +18,7 @@
 
 No I/O. SQLite persistence is B19. The controller remains the only writer
 of terminal task status. This package must not import the store, ACP
-worker, Slack, or an Ollama client.
+worker, or an Ollama client.
 """
 
 from two.graph.compile import (

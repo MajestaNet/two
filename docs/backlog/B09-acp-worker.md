@@ -82,7 +82,7 @@ task lifetime; DSH does not.
 - [x] At-most-once automatic replay proven in tests.
 - [x] Worktree never auto-discarded on cancel/crash.
 - [x] Task identity preserved across child restart.
-- [x] Worker does not import Slack or set `complete`.
+- [x] Worker does not set `complete`.
 
 ## Definition of done
 
@@ -108,7 +108,7 @@ Read first:
 5. `src/two/worker/`
 6. Confirm B02 pin notes, B03 workspace, B06 actions table, B08 slot. If any are missing, stop.
 
-Implement **only B09**. Do not implement workflow stages, Slack, or completion certification.
+Implement **only B09**. Do not implement workflow stages or completion certification.
 
 Standing orders:
 

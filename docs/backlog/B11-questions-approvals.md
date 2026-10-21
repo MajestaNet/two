@@ -97,7 +97,7 @@ Read first:
 4. `src/two/approvals/`
 5. B06 tables and B07 routes. If missing, stop.
 
-Implement **only B11**. Do not add a Slack adapter. Do not call the model.
+Implement **only B11**. Do not call the model.
 
 Standing orders:
 

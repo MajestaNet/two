@@ -29,8 +29,6 @@ def test_compose_has_control_plane_services_without_ollama_or_public_ports() -> 
     assert "scheduler" in services
     assert "worker" in services
     assert "two" in services
-    assert "slack" in services
-    assert services["slack"].get("profiles") == ["slack"]
 
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     assert "FROM ollama" not in dockerfile

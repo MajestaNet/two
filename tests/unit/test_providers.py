@@ -71,7 +71,6 @@ def test_render_matches_architectural_template_keys() -> None:
     assert "apiKey" not in provider
     text = render_mac_qwen_yaml()
     assert "apiKey:" not in text
-    assert "SLACK_BOT_TOKEN" not in text
 
 
 def test_render_uses_env_url_and_profile(monkeypatch: pytest.MonkeyPatch) -> None:

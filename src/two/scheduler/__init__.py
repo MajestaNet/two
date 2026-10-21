@@ -17,7 +17,7 @@
 """Queue, single local-model slot, lease reclaim, and Mac health polls.
 
 Worker count for the local Qwen route is one. The scheduler does not run
-ACP, import Slack, or contain git worktree logic. Inject a health probe
+ACP or contain git worktree logic. Inject a health probe
 and a worker callback; unit tests must stay offline.
 
 See docs/architecture.md §6.3.G and §12.2–12.5.

@@ -20,7 +20,7 @@ process. Copying a package into the tree does not enable it.
 | Kind | Where it lives | What an install may do |
 | --- | --- | --- |
 | Client | CLI in this repo. Mobile and watch apps are specified here and built elsewhere. Watch edge is `two.edge`. | CLI is on. Mobile and watch stay `contract` until their executors exist. |
-| Messenger | `two.channels.<name>` | None selected. The Slack directory is a legacy stub and stays off. |
+| Messenger | `two.channels.<name>` | None selected. |
 | Device | `src/two/devices/<name>/` after a protocol ADR | Reserved. No package yet. `chat` and `home-action` only. |
 | Export | `src/two/export/` ([ADR 0012](adrs/0012-github-export-adapter.md)) | Reserved. Not a channel. |
 

@@ -470,7 +470,7 @@ def test_cloud_allowed_false_never_escalates(store: Store, tmp_path: Path) -> No
     assert intake.payload["cloud_allowed"] is False
 
 
-def test_controller_package_does_not_import_slack_or_ollama() -> None:
+def test_controller_package_does_not_import_ollama() -> None:
     for path in sorted(CONTROLLER_DIR.glob("*.py")):
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
@@ -482,7 +482,6 @@ def test_controller_package_does_not_import_slack_or_ollama() -> None:
                 imported.append(node.module)
         for name in imported:
             assert not name.startswith("two.channels")
-            assert "slack" not in name.lower()
             assert "ollama" not in name.lower()
             assert name != "openai"
         assert "MAC_QWEN" not in source

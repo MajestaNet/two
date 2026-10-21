@@ -16,7 +16,6 @@
 
 """Optional messaging adapters.
 
-No messenger is selected. ``channels.slack`` is a legacy stub, not an
-MVP and not enabled (ADR 0015, ADR 0021). Adapters call the control API
-only; they never run the model. See docs/channels.md and docs/adapters.md.
+None is selected. An adapter calls the control API only and never runs
+the model. See docs/channels.md and docs/adapters.md.
 """

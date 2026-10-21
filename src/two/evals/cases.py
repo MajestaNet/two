@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Offline §18 case handlers. Fakes only; no Mac, Slack, or production clones."""
+"""Offline §18 case handlers. Fakes only; no Mac or production clones."""
 
 from __future__ import annotations
 

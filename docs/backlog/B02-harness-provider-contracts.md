@@ -125,7 +125,7 @@ Read first:
 4. `docs/backlog/README.md` and `docs/backlog/B02-harness-provider-contracts.md`
 5. `config/dsh/settings.yaml.template`, `config/dsh/profile.patch.yml`, `src/two/providers/`
 
-Implement **only B02**. Do not build the ACP worker, scheduler, or Slack adapter.
+Implement **only B02**. Do not build the ACP worker or scheduler.
 
 Standing orders:
 

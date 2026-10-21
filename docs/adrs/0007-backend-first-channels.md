@@ -3,17 +3,13 @@
 ## Status
 
 Accepted in part (supersedes the product-identity parts of ADR 0005).
-[ADR 0015](0015-first-party-client-api.md) supersedes the Slack-MVP and
-out-of-tree first-party UX decisions; the backend-first boundary remains.
+[ADR 0015](0015-first-party-client-api.md) supersedes the out-of-tree
+first-party UX decision; the backend-first boundary remains.
 
 ## Context
 
-Early docs treated Slack as *the* remote client: phone access, diagrams,
-and setup all assumed Slack. Operators who use Matrix, Discord, iMessage,
-or nothing should not feel they are using a Slack product.
-
-This repository should ship a control plane. Which messenger someone
-uses is their choice.
+A messenger is optional. This repository ships a control plane. People
+who use no messenger are using the product as specified.
 
 ## Decision
 
@@ -23,15 +19,13 @@ uses is their choice.
 2. **Messaging clients are adapters.** They translate a vendor’s events
    into typed API commands and project summaries back. They never call
    the model, shell, or git.
-3. **Original decision, superseded by ADR 0015:** Slack was selected as the
-   MVP adapter because Socket Mode is outbound. The planned rich client is
-   now a secure first-party mobile GUI over the control API; Slack is
-   deferred.
+3. **The planned rich client is first-party.** ADR 0015 plans a secure
+   mobile GUI over the control API.
 4. **Vendor UX remains out of the backend.** First-party client UX may live
    in a separate first-party repository while this repository owns the API
    and authorization contract.
-5. A later adapter (Matrix, Discord, email, …) implements the same
-   gateway contract. Do not fork the controller for a new messenger.
+5. A later messenger implements the same gateway contract. Do not fork
+   the controller for a new messenger.
 
 ## Consequences
 

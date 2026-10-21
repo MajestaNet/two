@@ -154,7 +154,7 @@ Standing orders:
 - SQLite does not belong in this item. CLI stays thin; you may add `two health` later — prefer scripts for B01.
 - Apache 2.0 header and `SPDX-License-Identifier: Apache-2.0` on new source files.
 - Never bind Ollama to a public interface. Never commit `.env`, tokens, real Mac addresses, or model weights.
-- Unit tests must not call a live Mac, Slack, or network model.
+- Unit tests must not call a live Mac or network model.
 - Do not merge, push, release, or deploy from automation.
 - Do not reimplement DeepSeek Harness.
 
