@@ -186,6 +186,7 @@ def proposed_lan_plan(ollama_host: str = "127.0.0.1") -> SetupPlan:
             "mDNS/_two-ollama._tcp browse with explicit --accept (P11)",
             "Darwin LaunchAgents for the control plane (P8)",
             "bundled smoke task against evals/fixtures (P9)",
+            "optional adapters stay off; uv run two adapters (ADR 0021)",
         ),
     )
 

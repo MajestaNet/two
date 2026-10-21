@@ -1,0 +1,83 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Install menu for clients and adapters (ADR 0021).
+# Presence in this file does not start a process.
+# default_enabled is true only for the CLI.
+# selectable is true only when status is shipped.
+# Kinds stay separate: client, messenger, device, export.
+# two.providers is not a slot in this catalog.
+
+slots:
+  cli:
+    kind: client
+    status: shipped
+    package: two.cli
+    default_enabled: true
+    selectable: true
+    harness_profiles:
+      - self-build
+    notes: >
+      Local operator surface. Always on. Submits coding tasks.
+      Not a device or messenger process.
+
+  mobile:
+    kind: client
+    status: contract
+    package: two.api
+    default_enabled: false
+    selectable: false
+    harness_profiles:
+      - self-build
+    notes: >
+      API slices for the first-party GUI live in this repo (ADR 0015, B14).
+      The native app does not. OIDC is not accepted (ADR 0016).
+
+  watch:
+    kind: client
+    status: contract
+    package: two.edge
+    default_enabled: false
+    selectable: false
+    harness_profiles:
+      - chat
+      - home-action
+    notes: >
+      First-party client, not a device adapter (ADR 0020).
+      two edge issue writes a private CA. The Xcode app is not in this
+      repo. chat and home-action return profile_not_executable.
+
+  slack:
+    kind: messenger
+    status: stub
+    package: two.channels.slack
+    default_enabled: false
+    selectable: false
+    harness_profiles: []
+    notes: >
+      Legacy package and Compose profile. Not selected. Not the MVP.
+      A messenger projects the API; it does not resume a harness profile.
+
+  device:
+    kind: device
+    status: reserved
+    package: ""
+    default_enabled: false
+    selectable: false
+    harness_profiles:
+      - chat
+      - home-action
+    notes: >
+      Reserved path src/two/devices/<name>/. No package until a protocol
+      ADR. May resume chat or home-action only. Default off on an install.
+
+  github:
+    kind: export
+    status: reserved
+    package: ""
+    default_enabled: false
+    selectable: false
+    harness_profiles: []
+    notes: >
+      Reserved path src/two/export/ (ADR 0012, B17). Not a channel.
+      Not created. Approval-gated draft PR export, never a merge.

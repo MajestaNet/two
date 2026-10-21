@@ -6,6 +6,10 @@ Python package for the Majesta Two control plane.
   those modules. `projection.py` is the /v1 client contract (no I/O, no
   FastAPI). CLI and `channels.*` import it.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
+- `adapters.py` may read `config/adapters/catalog.yaml` (ADR 0021). No
+  network, no store, no channel import. `two adapters` prints the menu.
+  It does not enable a slot. Do not add `devices/` or `export/` until
+  the ADR for that slot. `channels/slack` is a legacy stub, not an MVP.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
   no I/O. `issue_edge` writes a private CA and Caddyfile under the data
@@ -50,8 +54,10 @@ Python package for the Majesta Two control plane.
   budgets clock, and Mac health mapping. Inject a health probe and worker
   callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Messaging
-  adapters are deferred; ADR 0015/B14 plans a first-party mobile API client,
-  not another `channels.*` agent runtime.
+  adapters are deferred and none is selected. `channels.slack` is a
+  legacy stub, not an MVP. ADR 0015/B14 plans a first-party mobile API
+  client, not another `channels.*` agent runtime. Device adapters, when
+  a later protocol ADR creates them, live under `devices/`, not here.
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
   It is not implemented. Do not add `push` to `workspace/`. Do not put
   GitHub tokens in `worker/` or `channels/`.

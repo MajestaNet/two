@@ -9,15 +9,11 @@ api:
   allow_public_bind: false
   overlay_interface_example: tailscale0
 
+# No messenger is selected. Slots and enablement: config/adapters/catalog.yaml.
 channels:
   required: false
-  mvp_adapter: slack
   inbound_http_callbacks: false
   require_allowlists: true
-
-# Slack MVP adapter only. Leave unused if you do not run a messenger.
-slack:
-  mode: socket
 
 ollama:
   publish_to_clients: false

@@ -3,7 +3,8 @@
 This repository is the **Majesta Two backend**. People interact with it
 through clients of one control API. A messenger is optional and deferred.
 
-Operator walkthrough: [setup.md](setup.md). CLI on the development host
+Operator walkthrough: [setup.md](setup.md). The install menu is
+[adapters.md](adapters.md) (`two adapters`). CLI on the development host
 is enough; this page is the channel contract.
 
 The contract is [architecture.md](architecture.md) §6.3.H and §8.3: one
@@ -33,14 +34,17 @@ Closing or disconnecting the app does not stop a task. The app projects the
 persisted graph and controller evidence; it does not run a model/tool loop,
 shell, git, or validation.
 
-## Local device adapters (planned)
+## Local device adapters (reserved)
 
 Home, wearable, and later private-device adapters are an in-repo slot on
 the self-building installation
 ([ADR 0017](adrs/0017-local-self-building-system.md),
-[architecture.md](architecture.md) §5.2). They are not messengers, not a
-second agent, and not implemented. They default off, stay on the private
-network, and cannot reach shell, git, or secrets. They do not open Ollama.
+[architecture.md](architecture.md) §5.2,
+[ADR 0021](adrs/0021-adapter-install-catalog.md)). The catalog id is
+`device`. The package path `src/two/devices/<name>/` does not exist yet.
+They are not messengers, not a second agent, and not implemented. They
+default off, stay on the private network, and cannot reach shell, git, or
+secrets. They do not open Ollama.
 A later wearable adapter submits text turns through the control API.
 The controller resumes a persisted DeepSeek Harness profile
 ([ADR 0019](adrs/0019-mini-resident-control-plane.md),
@@ -56,16 +60,18 @@ adapter and not a HomePod integration
 ([ADR 0020](adrs/0020-watch-edge-mtls.md),
 [watch-client.md](watch-client.md)). Caddy on a private address
 requires a client certificate and proxies to the loopback API. The
-watch principal cannot submit a self-build task. The Xcode app is not
-in this repository.
+watch principal cannot submit a self-build task. `chat` and
+`home-action` return `profile_not_executable` until a profile executor
+exists, and the turn is not stored. The Xcode app is not in this
+repository. The catalog keeps `watch` at `contract`.
 
-## Adapters (optional, deferred)
+## Messengers (none selected)
 
 A future Slack, Matrix, Discord, or other adapter should authenticate one
 vendor, map events to typed Majesta Two commands, apply disclosure policy,
 and remain unable to reach Ollama, shell, or git. No messaging adapter is
-currently selected for implementation. Existing Slack stubs do not imply a
-shipped or planned product.
+selected. The Slack package and Compose profile are a legacy stub. They
+are not an MVP and they are not enabled. See [adapters.md](adapters.md).
 
 GitHub pull-request export is **not** a channel. It is a post-MVP
 source-control adapter ([source-control-export.md](source-control-export.md),

@@ -10,4 +10,4 @@ acceptance_criteria:
   - a stale approval digest is rejected
 allowed_paths:
   - src/**
-notes: Simulates another channel via principal=api. Slack itself is B14.
+notes: Simulates another channel via principal=api. No messenger is selected.

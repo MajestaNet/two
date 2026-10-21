@@ -21,7 +21,10 @@ the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
 The workflow controller owns stage policy, budgets, fresh review, the
 persisted work-graph walker, and terminal status. Messaging adapters are
-optional and not implemented; Slack is deferred.
+optional and not implemented; Slack is a deferred stub, not a selected
+product. `two adapters` prints the install menu (ADR 0021). Only the CLI
+slot is enabled. Device and GitHub export paths are reserved and are not
+packages.
 GitHub export of task branches is post-MVP (ADR 0012) and is not implemented.
 
 ## Stack
@@ -45,6 +48,7 @@ make eval-offline
 uv run two --help
 uv run two profiles
 uv run two topology
+uv run two adapters
 uv run two setup --plan
 uv run two setup --ollama-url URL
 uv run two up
@@ -100,6 +104,12 @@ listed in `config/repositories/two.yaml`.
  and idempotency helpers live in `two.api.contract`. Conversation and
  SSE mapping live in `two.api.conversation`; health/queue/repo/diff/artifact
  builders live in `two.api.gui`.
+ `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
+ `two adapters` prints it and writes nothing. Only the `cli` slot is
+ enabled. `watch` and `mobile` are clients at `contract`. `slack` is a
+ messenger stub and is not selected. `device` and `github` are reserved
+ paths (`src/two/devices/<name>/`, `src/two/export/`) and are not
+ packages. Do not enable a slot by adding a directory.
  `src/two/edge.py` is the watch edge plan (ADR 0020): private CA,
  Caddy mutual TLS, loopback upstream. `two edge plan` writes nothing.
  `two edge issue` writes under `$TWO_DATA_DIR/edge`. The watch principal
