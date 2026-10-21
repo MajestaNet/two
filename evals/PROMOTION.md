@@ -9,9 +9,9 @@ Live Mac cases: `TWO_LIVE_EVAL=1` on Darwin only. `python -m two.evals --soak`
 exits 2 so a soak is never a silent green.
 
 Do not declare a model alias production-ready from an agent. Record the
-promoted digest in `config/runtime/models.lock` only after these soaks.
-
-Compare tags with [COMPARE.md](COMPARE.md). Raw token speed is secondary.
+digest of the selected profile's one upstream tag in
+`config/runtime/models.lock` only after these soaks (ADR 0023). Raw
+token speed is secondary.
 
 ## Metrics to record (do not invent values)
 
@@ -39,7 +39,7 @@ Operator: ________  Date: ________  Alias: ________  Host: (do not commit)
 - [ ] Alias stayed loaded (`GET /api/ps`, `GET /v1/models`)
 - [ ] No sustained page-out growth during ordinary inference
 - [ ] Unrecovered model failure count is zero
-- [ ] Compared tags were **not** loaded at the same time
+- [ ] Only the selected profile alias was loaded (`OLLAMA_MAX_LOADED_MODELS=1`)
 
 Dry-run in CI (`./scripts/soak-inference.sh --dry-run`) only prints this
 plan. A dry-run is not a passed soak.
@@ -85,7 +85,8 @@ this from CI.
 Offline digest mismatch is covered by `eval-overnight-pause-resume`.
 The remote-client replay path is still this soak.
 
-## After both comparison tags
+## After the soak
 
-See [COMPARE.md](COMPARE.md). Leave winner cells empty until a human
-records soaks for `qwen3.8:27b-mlx` and `qwen3.8:27b` Q4 at 16K/q8 KV.
+Record `ollama_version`, `upstream_digest`, and `alias_digest` in
+`config/runtime/models.lock` (copy from the example). The digest is the
+selected profile's single upstream tag. Do not invent a SHA.

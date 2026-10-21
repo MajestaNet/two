@@ -168,8 +168,6 @@ export OLLAMA_MAX_QUEUE OLLAMA_KEEP_ALIVE OLLAMA_NO_CLOUD
 
 echo "+ ${OLLAMA_BIN} pull ${UPSTREAM_MODEL}"
 "${OLLAMA_BIN}" pull "${UPSTREAM_MODEL}"
-echo "+ ${OLLAMA_BIN} pull ${COMPARISON_TAG}"
-"${OLLAMA_BIN}" pull "${COMPARISON_TAG}"
 echo "+ ${OLLAMA_BIN} create ${ALIAS} -f ${MODELFILE}"
 "${OLLAMA_BIN}" create "${ALIAS}" -f "${MODELFILE}"
 

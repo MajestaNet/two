@@ -56,12 +56,9 @@ Checklist (must stay green before unattended promotion):
   4. Queue and latency
      - One loaded model, OLLAMA_NUM_PARALLEL=1, OLLAMA_MAX_QUEUE=8
      - Note stalled responses (Degraded) versus legitimately slow reasoning
-  5. Comparison tags (architecture §18; not loaded at the same time)
-     - qwen3.8:27b-mlx at 16K/q8 KV
-     - official qwen3.8:27b Q4_K_M/MTP at 16K/q8 KV
-  6. Record results in config/runtime/models.lock (copy from the example)
-     - ollama_version, upstream_digest, alias_digest after a real pin
-     - Do not invent SHAs
+  5. Record results in config/runtime/models.lock (copy from the example)
+     - ollama_version, upstream_digest, alias_digest for the selected alias
+     - Do not invent SHAs. Do not pull a second tag (ADR 0023)
 
 This helper always exits 0 on --dry-run. Do not run the 24-hour loop in GitHub Actions.
 EOF

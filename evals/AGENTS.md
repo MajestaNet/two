@@ -12,5 +12,6 @@ Evaluation corpus and promotion-gate runner (architecture §18).
 - Offline: `make eval-offline` (also part of `make ci`).
 - Live: `TWO_LIVE_EVAL=1` on Darwin. Soaks are operator checklists in
   [PROMOTION.md](PROMOTION.md); `python -m two.evals --soak` exits 2.
-- Tag comparison: [COMPARE.md](COMPARE.md). Do not invent winner digests.
+- One upstream tag per profile (ADR 0023). Record its digest after soak.
+  Do not invent digests. Do not pull a second tag for comparison.
 - Implementation item: [docs/backlog/B15-evaluation-corpus.md](../docs/backlog/B15-evaluation-corpus.md).

@@ -23,7 +23,7 @@ the spec.
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
-| Mac mini default install | Specified ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). Catalog default is `colocated`. `two setup --plan` prints the mini path. The installer selects the inference profile. Device-profile preload is not implemented |
+| Mac mini default install | Specified ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). Catalog default is `colocated`. `two setup --plan` prints the mini path. The installer selects the inference profile and pulls that profile's one upstream tag ([ADR 0023](adrs/0023-single-upstream-model.md)). Device-profile preload is not implemented |
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
@@ -39,7 +39,9 @@ the spec.
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
 | Harness profile `home-action` | Works when `$TWO_DATA_DIR/devices/climate.yaml` enables a private climate upstream (`two climate send/show/approve/reject`). The control plane performs `climate.read`, `climate.set_setpoint`, and `climate.set_mode`. Out-of-band writes wait for a digest. Without the binding the turn is refused and not stored ([ADR 0022](adrs/0022-climate-device-protocol.md), [B21](backlog/B21-climate-home-action.md)) |
 
-Last updated: 21 October 2026 (B21: `home-action` performs the closed
+Last updated: 21 October 2026 (ADR 0023: `bootstrap-mac.sh` pulls only
+the selected profile's upstream tag. The Q4 comparison tag is not
+installed. B21: `home-action` performs the closed
 climate tools when a local binding enables them, schema v8. The
 climate slot stays off. B20: `two chat` resumes harness profile
 `chat` on the single slot. ADR 0021: `two adapters` is the install
@@ -313,7 +315,7 @@ uv run two profiles
 | `m24-qwen38-32k` | 24 GB | 32K | Same host, larger window; soak before production |
 | `m36-qwen38-32k` | 36 GB | 32K | Comfortable 32K on a larger Mac |
 | `m48-qwen38-64k` | 48 GB | 64K | Larger window; measure swap-outs |
-| `m64-qwen38-plus` | 64 GB | operator | Higher-quality quant or a larger official Qwen |
+| `m64-qwen38-plus` | 64 GB | operator | Larger official Qwen as this profile's only upstream |
 | `custom` | operator | operator | Anything else, still official weights |
 
 > **Config.** Set `TWO_INFERENCE_PROFILE` in `.env`. Do not run two local
@@ -378,9 +380,12 @@ install uv and retry (do not `PYTHONPATH=src python3 …`).
 ./scripts/bootstrap-mac.sh --profile m24-qwen38-16k --topology split --bind YOUR-PRIVATE-MAC-NAME
 ```
 
-`bootstrap-mac.sh` pulls the profile upstream tag and `qwen3.8:27b`
-(architecture §18), creates alias `qwen38-agent-16k` for the 24 GB
-profile, installs a LaunchAgent, and preloads with indefinite keep-alive.
+`bootstrap-mac.sh` pulls the selected profile's upstream tag
+(`qwen3.8:27b-mlx` for `m24-qwen38-16k`; [ADR 0023](adrs/0023-single-upstream-model.md)),
+creates alias `qwen38-agent-16k` for the 24 GB profile, installs a
+LaunchAgent, and preloads with indefinite keep-alive. It does not pull
+a second model. If an older bootstrap left `qwen3.8:27b` on disk,
+`ollama rm qwen3.8:27b` removes that tag. The alias stays.
 
 **Health from the Linux host:**
 
@@ -652,9 +657,9 @@ because it is easier to reproduce.
 Offline corpus: `make eval-offline` or `./scripts/run-evals.sh --offline`.
 Live Mac cases need `TWO_LIVE_EVAL=1`. Promotion soaks are operator
 checklists in [evals/PROMOTION.md](../evals/PROMOTION.md); CI never marks
-them passed. Compare `qwen3.8:27b-mlx` vs `qwen3.8:27b` Q4 at 16K/q8 KV
-using [evals/COMPARE.md](../evals/COMPARE.md) after soaks. Do not invent
-a winner digest.
+them passed. Soak the selected profile's one alias. Do not invent a
+digest, and do not pull a second tag for comparison
+([ADR 0023](adrs/0023-single-upstream-model.md)).
 
 The workflow controller can drive a fake unattended fixture offline:
 `uv run pytest tests/unit/test_controller.py`. Completion is the

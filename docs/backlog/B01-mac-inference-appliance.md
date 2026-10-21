@@ -63,8 +63,8 @@ development host can call. Unit CI must stay offline.
    - Print the commands to install/pin native Ollama (do not curl
      unsigned installers in a way that hides the pin; record the
      intended version in the lock example comments).
-   - Pull `upstream_model` from the selected profile and the comparison
-     tag `qwen3.8:27b` (architecture §18) when not `--dry-run`.
+   - Pull `upstream_model` from the selected profile when not
+     `--dry-run` (ADR 0023). Do not pull a second comparison tag.
    - `ollama create` the alias from the matching Modelfile.
    - Install launchd plist to a user LaunchAgent path (document it;
      do not write to `/Library` without an explicit flag).
@@ -161,7 +161,7 @@ Standing orders:
 Concrete work:
 
 1. Add a Pydantic lock-file model and unit tests that parse `config/runtime/models.lock.example`.
-2. Implement `scripts/bootstrap-mac.sh` with `--dry-run`, `--profile`, `--topology`, `--bind`. Live Ollama steps only on Darwin without `--dry-run`. Create the profile alias from the Modelfile. Install a LaunchAgent from the template. Preload with indefinite keep-alive.
+2. Implement `scripts/bootstrap-mac.sh` with `--dry-run`, `--profile`, `--topology`, `--bind`. Live Ollama steps only on Darwin without `--dry-run`. Pull only that profile's upstream model (ADR 0023). Create the profile alias from the Modelfile. Install a LaunchAgent from the template. Preload with indefinite keep-alive.
 3. Implement `scripts/health-check.sh` that classifies Healthy/Cold/Busy/Degraded/Unavailable from `/api/version`, `/api/ps`, `/v1/models`. Support a fixture/offline mode for tests.
 4. Add `scripts/soak-inference.sh` as a documented 24-hour soak helper that `--dry-run`s in CI.
 5. Honor `split` vs `colocated` bind rules. Refuse public binds.

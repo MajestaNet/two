@@ -22,7 +22,7 @@ alias requires the §18 metrics, not token speed.
 - `evals/fixtures/` holds tiny synthetic trees (git-initialized at runtime).
 - `evals/expected/` holds oracle overlays and notes.
 - Runner: `src/two/evals/` and `scripts/run-evals.sh`.
-- Promotion checklists: `evals/PROMOTION.md`. Tag comparison: `evals/COMPARE.md`.
+- Promotion checklists: `evals/PROMOTION.md`. One upstream tag per profile (ADR 0023).
 
 ## Out of scope
 
@@ -74,9 +74,9 @@ alias requires the §18 metrics, not token speed.
    mobile no-terminal path, stale-approval policy test. Operators
    tick boxes; CI does not fake green soaks.
 
-6. **Compare two tags**  
-   Document running `qwen3.8:27b-mlx` vs `qwen3.8:27b` Q4 at 16K/q8
-   KV. Do not invent winner digests.
+6. **One upstream tag**  
+   Soaks run against the selected profile alias. ADR 0023 withdrew the
+   second-tag comparison. Do not invent digests.
 
 ## Acceptance criteria
 

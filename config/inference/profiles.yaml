@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Named inference profiles. 24 GB / 16K is the default reference, not a ceiling.
-# Larger context or a larger official Qwen tag is configuration plus soak tests.
-# See docs/adrs/0004-inference-profiles.md and docs/setup.md.
+# Each profile names one upstream_model. Live bootstrap pulls that tag only
+# (ADR 0023). A different official tag replaces it. Do not keep a second
+# weight set. See docs/adrs/0004-inference-profiles.md and docs/setup.md.
 
 default: m24-qwen38-16k
 
@@ -57,9 +58,9 @@ profiles:
     kv_cache: q8_0
     flash_attention: true
     notes: >-
-      Operator may switch upstream_model to a higher-quality official quant
-      or a larger official Qwen tag that fits. Pin the digest after soak.
-      Do not load a second model.
+      One upstream tag. A larger official Qwen tag may replace
+      upstream_model after a soak. Bootstrap pulls that tag only.
+      Do not keep a second weight set.
 
   custom:
     min_unified_memory_gb: 24

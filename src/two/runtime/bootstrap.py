@@ -24,7 +24,6 @@ from pathlib import Path
 
 from two.runtime.env import (
     BIND_PLACEHOLDER,
-    COMPARISON_UPSTREAM_TAG,
     DEFAULT_PROFILE_ID,
     PublicBindError,
     generated_modelfile,
@@ -47,7 +46,6 @@ _OLLAMA_INSTALL_NOTES = """\
 def format_plan(values: dict[str, str], *, rendered_plist: str) -> str:
     alias = values["ALIAS"]
     upstream = values["UPSTREAM_MODEL"]
-    comparison = values.get("COMPARISON_TAG", COMPARISON_UPSTREAM_TAG)
     bind = values["BIND_ADDRESS"]
     modelfile = values["MODELFILE"]
     plist_path = values["LAUNCHD_PLIST"]
@@ -62,7 +60,6 @@ def format_plan(values: dict[str, str], *, rendered_plist: str) -> str:
         f"topology: {values['TOPOLOGY_ID']}",
         f"alias: {alias}",
         f"upstream_model: {upstream}",
-        f"comparison_tag: {comparison}",
         f"bind: {bind}",
         f"OLLAMA_HOST={values['OLLAMA_HOST']}",
         f"OLLAMA_CONTEXT_LENGTH={values['OLLAMA_CONTEXT_LENGTH']}",
@@ -76,9 +73,8 @@ def format_plan(values: dict[str, str], *, rendered_plist: str) -> str:
         "",
         _OLLAMA_INSTALL_NOTES.rstrip(),
         "",
-        "# Pull official candidate tags (architecture §18)",
+        "# Pull the selected profile upstream only (ADR 0023)",
         f"ollama pull {upstream}",
-        f"ollama pull {comparison}",
         "",
         f"# Create production alias {alias}",
         f"ollama create {alias} -f {modelfile}",
