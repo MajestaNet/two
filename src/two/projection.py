@@ -26,10 +26,11 @@ Do not import FastAPI, the store, git, or Ollama here.
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from two.types import (
     EdgeKind,
@@ -472,17 +473,83 @@ class SystemCapabilities(BaseModel):
 
 
 class VoiceTurnRequest(BaseModel):
-    """One spoken turn from the watch client. Text only. No audio.
+    """One spoken turn from a client. Text only. No audio.
 
     ``self-build`` is accepted by the schema so a stolen or confused client
-    is rejected by authorization (403) rather than by a 422. The server
-    does not execute ``chat`` or ``home-action`` until that profile exists.
+    is rejected by authorization (403) rather than by a 422. ``chat`` is
+    stored and resumed. ``home-action`` stays unauthorized for execution.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(min_length=1, max_length=4_000)
     profile: Literal["self-build", "home-action", "chat"]
+
+
+def encode_turn_cursor(seq: int) -> str:
+    """Opaque cursor for one chat turn. Encodes ``seq`` and nothing else."""
+    if seq < 1:
+        raise ValueError("turn seq must be positive")
+    raw = base64.urlsafe_b64encode(str(seq).encode("ascii")).decode("ascii")
+    return raw.rstrip("=")
+
+
+class VoiceTurnReceipt(BaseModel):
+    """Client-safe result of one ``chat`` turn. Plain text only.
+
+    ``reply`` is set only when ``status`` is ``complete``. ``error_code`` is
+    set only when ``status`` is ``failed``. Host paths and session ids stay off
+    this body.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn_id: str = Field(min_length=1)
+    profile: Literal["chat"]
+    status: Literal["queued", "running", "complete", "failed"]
+    reply: str | None = Field(default=None, min_length=1, max_length=4_000)
+    error_code: ErrorCode | None = None
+    cursor: str = Field(min_length=1)
+    revision: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _terminal_fields(self) -> Self:
+        if self.status == "complete":
+            if self.reply is None or self.error_code is not None:
+                raise ValueError("complete receipt has reply and no error_code")
+        elif self.status == "failed":
+            if self.error_code is None or self.reply is not None:
+                raise ValueError("failed receipt has error_code and no reply")
+        elif self.reply is not None or self.error_code is not None:
+            raise ValueError("reply and error_code are terminal")
+        return self
+
+
+def voice_turn_receipt(
+    *,
+    turn_id: str,
+    status: str,
+    reply: str | None,
+    error_code: str | None,
+    seq: int,
+    revision: int,
+) -> VoiceTurnReceipt:
+    """Build a receipt. Non-terminal rows never expose reply or error_code."""
+    shown_reply = reply if status == "complete" else None
+    shown_error = error_code if status == "failed" else None
+    if shown_reply is not None and len(shown_reply) > 4000:
+        shown_reply = shown_reply[:4000]
+    return VoiceTurnReceipt.model_validate(
+        {
+            "turn_id": turn_id,
+            "profile": "chat",
+            "status": status,
+            "reply": shown_reply,
+            "error_code": shown_error,
+            "cursor": encode_turn_cursor(seq),
+            "revision": revision,
+        }
+    )
 
 
 class ConversationItem(BaseModel):

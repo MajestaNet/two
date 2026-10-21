@@ -155,8 +155,9 @@ the transcript only.
 
 | Status | `error.code` | What the UI does |
 | --- | --- | --- |
+| 202 | — | `profile: chat` is stored. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. Do not speak `reply` in this build. A chat turn does not add a coding-task row. |
 | 403 | `forbidden` | The profile is not allowed. If the detail is `client cannot submit self-build`, the app tried the coding path. That is a bug in the app. Do not retry. |
-| 409 | `profile_not_executable` | The edge accepted the client. The mini has no chat or home-action executor yet. Tell the operator the pipe works and the turn was not stored. |
+| 409 | `profile_not_executable` | `home-action` is still not executable and was not stored. Tell the operator the pipe works. |
 | 401 | `unauthorized` | Enrollment or the edge token on the mini is wrong. Send the operator back to enrollment. |
 | 422 | `validation_error` | The transcript was empty or the JSON gained a field. |
 
@@ -208,9 +209,10 @@ locale as unavailable and do not send audio to Apple or to the mini.
 The request body is the transcript string. Do not upload audio, a
 partial hypothesis stream, or a recording file.
 
-Playback of a reply is out of scope until a turn returns text. Do not
-AirPlay to a HomePod in this build. When a later response carries
-reply text, speak it with `AVSpeechSynthesizer` on the watch.
+A chat receipt may include `reply` when the turn is `complete`. Do not
+speak it in this build. Playback stays later. Do not AirPlay to a
+HomePod. When a later build is told to speak, use `AVSpeechSynthesizer`
+on the watch.
 
 ## Screens
 
@@ -258,8 +260,9 @@ On a watch simulator or a device, with Caddy and `two api` running on
 the mini or a stand-in that speaks this JSON:
 
 - Enrollment, then capabilities shows `client:watch`.
-- A chat turn returns `profile_not_executable` and the coding task list
-  does not gain a row.
+- A chat turn returns `202` and a receipt. The coding task list does
+  not gain a row. Do not speak `reply`. `home-action` still returns
+  `409` `profile_not_executable` and stores nothing.
 - Approve and reject against a fixture approval, including a stale
   digest.
 - Airplane mode shows unreachable, and does not queue an approval

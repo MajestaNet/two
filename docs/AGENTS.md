@@ -16,10 +16,11 @@
   Point at architecture §5.3 and §5.4. Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
-- `backlog/` holds dedicated implementation items (B01–B20). B20 is
-  the planned `chat` profile resume. Status
-  tables there are the tracker. Each item file ends with an agentic
-  prompt. Do not copy the spec into those files; point at sections.
+- `backlog/` holds dedicated implementation items (B01–B20). B20
+  resumes harness profile `chat` and leaves `home-action` refused.
+  Status tables there are the tracker. Each item file ends with an
+  agentic prompt. Do not copy the spec into those files; point at
+  sections.
 - Thin siblings (`operations.md`, `unattended-operations.md`,
   `interaction-contract.md`, `task-manifest.md`, `channels.md`,
   `adapters.md`, `source-control-export.md`, `remote-access.md`,

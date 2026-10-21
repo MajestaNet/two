@@ -59,6 +59,16 @@ class SessionPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class ChatSessionPlan:
+    """Resume the chat profile or start fresh. No worktree and no tools."""
+
+    mode: SessionMode
+    session_id: str | None
+    transcript: str
+    prompt: str
+
+
+@dataclass(frozen=True, slots=True)
 class RepairDecision:
     """Next step after invalid or repeated tool JSON."""
 

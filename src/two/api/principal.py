@@ -34,7 +34,9 @@ WATCH_PRINCIPAL_ID = "client:watch"
 SELF_BUILD_DENIED = "client cannot submit self-build"
 PROFILE_NOT_EXECUTABLE = "harness profile is not executable yet"
 AuthMethod = Literal["local_trust", "bearer_token", "edge_client"]
-OPERATOR_HARNESS_PROFILES: frozenset[str] = frozenset({HarnessProfile.SELF_BUILD.value})
+OPERATOR_HARNESS_PROFILES: frozenset[str] = frozenset(
+    {HarnessProfile.SELF_BUILD.value, HarnessProfile.CHAT.value}
+)
 WATCH_HARNESS_PROFILES: frozenset[str] = frozenset(
     {HarnessProfile.CHAT.value, HarnessProfile.HOME_ACTION.value}
 )

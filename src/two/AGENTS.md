@@ -29,14 +29,17 @@ Python package for the Majesta Two control plane.
   path. Do not reimplement the DSH agent loop.
 - `store/` is the SQLite WAL store (`open_store`). Schema v5 persists
   `work_nodes` / `work_edges`. Schema v6 persists projects and immutable
-  config candidates (B14 slice 3). Do not open databases from `cli.py` at
-  import time. The `two api` subcommand lazy-imports `two.api.server`.
+  config candidates (B14 slice 3). Schema v7 persists one `chat`
+  harness session and `chat_turns` (B20). Do not open databases from
+  `cli.py` at import time. The `two api` subcommand lazy-imports
+  `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
   including AF_UNIX). CLI task subcommands lazy-import it. Parse bodies with
   `two.projection`. Accept an injectable request callable for in-process
   TestClient tests. Do not import the store, git, or Ollama.
 - `cli_task.py` formats projections and dispatches `two task …`. No workflow
-  policy.
+  policy. `cli_chat.py` dispatches `two chat send` / `two chat show`.
+  It talks only to the control API.
 - `two.api/` maps HTTP to `two.store` and `two.approvals`. It must not import
   `two.workspace` git operations or an Ollama client. Bind loopback or
   a Unix socket by default (ADR 0010). Request
@@ -51,7 +54,8 @@ Python package for the Majesta Two control plane.
   lifecycle policy. Silence is never approval. Digests are immutable.
   It does not import git or the model.
 - `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
-  budgets clock, and Mac health mapping. Inject a health probe and worker
+  budgets clock, and Mac health mapping. It admits a queued chat turn only
+  when no coding lease is held. Inject a health probe and worker
   callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Messaging
   adapters are deferred and none is selected. ADR 0015/B14 plans a
@@ -83,7 +87,9 @@ Python package for the Majesta Two control plane.
   LangGraph or a second agent runtime.
 - `worker/` supervises ACP children, the action ledger, and session resume.
   Default pytest uses a JSONL fixture child (ADR 0011). It must not set
-  lifecycle `complete`. Local Qwen worker count is one.
+  lifecycle `complete`. Local Qwen worker count is one. Profile `chat`
+  resumes `harness_sessions` with no worktree and no tools. A tool
+  request fails the turn and is not executed.
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. `run_worker` drives
   `WorkflowController` with `AcpPhaseWorker` and heartbeats the lease.

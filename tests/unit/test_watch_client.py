@@ -61,8 +61,8 @@ def store(tmp_path: Path) -> Iterator[Store]:
 
 
 @pytest.fixture
-def client(store: Store) -> Iterator[TestClient]:
-    app = create_app(store=store, edge_token=EDGE)
+def client(store: Store, tmp_path: Path) -> Iterator[TestClient]:
+    app = create_app(store=store, edge_token=EDGE, data_dir=tmp_path)
     with TestClient(app) as test_client:
         yield test_client
 
@@ -109,7 +109,7 @@ def test_client_id_without_edge_token_stays_local_trust(client: TestClient) -> N
     body = response.json()
     assert body["principal"] == "local"
     assert body["auth"]["method"] == "local_trust"
-    assert body["allowed_harness_profiles"] == ["self-build"]
+    assert body["allowed_harness_profiles"] == ["chat", "self-build"]
 
 
 def test_bad_edge_token_is_401(client: TestClient) -> None:
@@ -133,7 +133,7 @@ def test_local_trust_can_still_submit(client: TestClient) -> None:
     assert response.status_code == 201
 
 
-def test_watch_voice_turn_rejects_self_build_and_holds_chat(client: TestClient) -> None:
+def test_watch_voice_turn_rejects_self_build_and_holds_home_action(client: TestClient) -> None:
     denied = client.post(
         "/v1/voice/turns",
         json={"text": "set the air con to 20", "profile": "self-build"},
@@ -153,16 +153,25 @@ def test_watch_voice_turn_rejects_self_build_and_holds_chat(client: TestClient) 
         json={"text": "hello", "profile": "chat"},
         headers=EDGE_HEADERS,
     )
-    assert chat.status_code == 409
+    assert chat.status_code == 202
+    assert chat.json()["profile"] == "chat"
+    assert chat.json()["status"] == "queued"
+    assert chat.json()["reply"] is None
 
 
-def test_operator_voice_turn_cannot_use_chat(client: TestClient) -> None:
+def test_operator_can_send_chat_but_not_home_action(client: TestClient) -> None:
     response = client.post(
         "/v1/voice/turns",
         json={"text": "hello", "profile": "chat"},
     )
-    assert response.status_code == 403
-    assert "chat" in response.json()["detail"]
+    assert response.status_code == 202
+    assert response.json()["status"] == "queued"
+    denied = client.post(
+        "/v1/voice/turns",
+        json={"text": "set the air con to 20", "profile": "home-action"},
+    )
+    assert denied.status_code == 403
+    assert "home-action" in denied.json()["detail"]
 
 
 def test_watch_cannot_pause_or_read_source(client: TestClient, store: Store) -> None:

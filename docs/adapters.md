@@ -32,9 +32,9 @@ one of these slots.
 A slot is on only when the catalog says `default_enabled: true`. Today
 that is `cli` alone. `selectable` is true only for `shipped` slots, so
 an installation cannot turn on `contract`, `stub`, or `reserved`.
-Persisting and resuming profile `chat` is
-[B20](backlog/B20-chat-profile-resume.md) and is not implemented.
-`home-action` stays refused.
+Profile `chat` is resumed by the control plane
+([B20](backlog/B20-chat-profile-resume.md)). `home-action` stays refused.
+That does not enable the watch slot.
 
 Channel behavior for messengers stays in [channels.md](channels.md).
 The watch client spec stays in [watch-client.md](watch-client.md).

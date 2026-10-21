@@ -20,6 +20,7 @@ A successful commit is required before any UI acknowledgement
 (architecture §6.4). The factory is ``open_store``; ``two.cli`` must not
 open the database. Schema v5 persists ``work_nodes`` / ``work_edges``.
 Schema v6 persists projects and immutable config candidates (B14 slice 3).
+Schema v7 persists one ``chat`` harness session and its turn log (B20).
 See docs/architecture.md §6.3.G, §8.4, §8.5, and §12.5.
 """
 
@@ -47,9 +48,12 @@ from two.store.models import (
     ActionStatus,
     ApprovalRecord,
     ChannelBinding,
+    ChatTurnRecord,
+    ChatTurnStatus,
     ConfigApprovalRecord,
     ConfigCandidateRecord,
     EventRecord,
+    HarnessSessionRecord,
     IdempotencyRecord,
     LeaseRecord,
     ProjectRecord,
@@ -70,6 +74,9 @@ __all__ = [
     "ApprovalNotFoundError",
     "ApprovalRecord",
     "ChannelBinding",
+    "ChatTurnRecord",
+    "ChatTurnStatus",
+    "HarnessSessionRecord",
     "ConfigApprovalRecord",
     "ConfigCandidateRecord",
     "DuplicateActionError",

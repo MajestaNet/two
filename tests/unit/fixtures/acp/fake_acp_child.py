@@ -155,6 +155,43 @@ def mode_long_command() -> int:
         time.sleep(0.02)
 
 
+def mode_chat_reply(text: str) -> int:
+    _session()
+    _emit({"type": "assistant_text", "text": text})
+    return 0
+
+
+def mode_chat_tool(invoke_out: str | None) -> int:
+    _emit(
+        {
+            "type": "tool_request",
+            "action_id": "act-chat",
+            "intent": {"tool": "shell", "arguments": {}},
+        }
+    )
+    while True:
+        cmd = _read_command(timeout=0.05)
+        if cmd is None:
+            continue
+        kind = cmd.get("type")
+        if kind == "execute":
+            if invoke_out:
+                Path(invoke_out).write_text("execute\n", encoding="utf-8")
+            return 0
+        if kind in {"cancel", "skip"}:
+            return 0
+
+
+def mode_chat_silent() -> int:
+    _session()
+    return 0
+
+
+def mode_assistant_only(text: str) -> int:
+    _emit({"type": "assistant_text", "text": text})
+    return 0
+
+
 def mode_invalid_json() -> int:
     _heartbeat()
     _emit({"type": "invalid_tool_json", "detail": "not json"})
@@ -185,8 +222,14 @@ def main(argv: list[str] | None = None) -> int:
             "tool-crash",
             "long-command",
             "invalid-json",
+            "chat-reply",
+            "chat-tool",
+            "chat-silent",
+            "assistant-only",
         ),
     )
+    parser.add_argument("--text", default="hello from chat")
+    parser.add_argument("--invoke-out", default=None)
     args = parser.parse_args(argv)
     if args.mode == "heartbeat-once":
         return mode_heartbeat_once()
@@ -200,6 +243,15 @@ def main(argv: list[str] | None = None) -> int:
         return mode_long_command()
     if args.mode == "invalid-json":
         return mode_invalid_json()
+    if args.mode == "chat-reply":
+        return mode_chat_reply(str(args.text))
+    if args.mode == "chat-tool":
+        invoke_out = args.invoke_out if isinstance(args.invoke_out, str) else None
+        return mode_chat_tool(invoke_out)
+    if args.mode == "chat-silent":
+        return mode_chat_silent()
+    if args.mode == "assistant-only":
+        return mode_assistant_only(str(args.text))
     return 2
 
 

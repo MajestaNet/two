@@ -10,6 +10,7 @@ Dedicated, agent-executable implementation items. One file per item.
   is the persisted work graph around DeepSeek Harness (ADR 0014).
   [B20](B20-chat-profile-resume.md) resumes harness profile `chat` on
   the single inference slot (ADR 0021) and leaves `home-action` refused.
+  It is done. Landing it does not close architecture §21 item 20.
   Do not merge two items in one PR unless the item file says they may
   land together.
 - Point at `docs/architecture.md` instead of copying it.

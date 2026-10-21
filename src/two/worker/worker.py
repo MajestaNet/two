@@ -31,9 +31,10 @@ from two.context.errors import MemoryPersistenceError
 from two.context.persist import load_task_memory
 from two.providers import DSH_PIN
 from two.scheduler.models import WorkerOutcome, WorkerResult
-from two.store.models import ActionStatus, TaskRecord
+from two.store.models import ActionStatus, ChatTurnRecord, TaskRecord
 from two.store.store import Store
 from two.validation.results import ValidationResult
+from two.worker.chat import ChatArgvFactory, run_chat_turn
 from two.worker.child import SupervisedChild, build_dsh_argv, default_child_env
 from two.worker.errors import ActionReplayError, ChildError, WorkerError
 from two.worker.events import (
@@ -75,6 +76,8 @@ class AcpWorker:
         *,
         argv: Sequence[str] | None = None,
         argv_factory: ArgvFactory | None = None,
+        chat_argv: Sequence[str] | None = None,
+        chat_argv_factory: ChatArgvFactory | None = None,
         child_env: Mapping[str, str] | None = None,
         child_config: ChildConfig | None = None,
         session_is_valid: SessionValidator | None = None,
@@ -87,6 +90,8 @@ class AcpWorker:
         self._store = store
         self._argv = list(argv) if argv is not None else None
         self._argv_factory = argv_factory
+        self._chat_argv = list(chat_argv) if chat_argv is not None else None
+        self._chat_argv_factory = chat_argv_factory
         self._child_env = dict(child_env) if child_env is not None else None
         self._child_config = child_config if child_config is not None else ChildConfig()
         self._session_is_valid = session_is_valid
@@ -124,6 +129,19 @@ class AcpWorker:
             self._force_fresh = False
             self._diff_summary = ""
             self._validation = None
+
+    def run_chat(self, turn_id: str, *, now: datetime | None = None) -> ChatTurnRecord:
+        """Resume the chat profile for one admitted turn. Not ``plan_session``."""
+        return run_chat_turn(
+            self._store,
+            turn_id,
+            now=now,
+            data_dir=self._data_dir,
+            argv=self._chat_argv,
+            argv_factory=self._chat_argv_factory,
+            child_config=self._child_config,
+            session_is_valid=self._session_is_valid,
+        )
 
     def _run(self, task_id: str, *, now: datetime | None) -> WorkerResult:
         """Launch or resume an ACP child for ``task_id`` and drain one session."""

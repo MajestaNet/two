@@ -14,8 +14,9 @@ and it does not develop unrelated repositories. The CLI is the local surface
 today; ADR 0015/B14 plans a secure first-party mobile client over the same
 API. In-repo home and wearable adapters are specified and not implemented.
 The SQLite WAL store (`two.store`)
-persists tasks, events, leases, the work graph (schema v5), and
-projects/config candidates (schema v6).
+persists tasks, events, leases, the work graph (schema v5),
+projects/config candidates (schema v6), and the chat harness session
+plus turn log (schema v7).
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
@@ -69,6 +70,8 @@ uv run two task approve ID APPROVAL_ID --digest ...
 uv run two task reject ID APPROVAL_ID --digest ...
 uv run two task answer ID QUESTION_ID --text ...
 uv run two task report ID
+uv run two chat send --text TEXT
+uv run two chat show TURN_ID
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
 ./scripts/bootstrap-dev-host.sh --dry-run
@@ -92,7 +95,8 @@ listed in `config/repositories/two.yaml`.
  graph). CLI does not open it at import time. Schema v5 adds `work_nodes`
  and `work_edges` (v4 is B14 idempotency). Schema v6 adds `projects`,
  `repository_config_state`, `config_candidates`, and `config_approvals`
- (B14 slice 3).
+ (B14 slice 3). Schema v7 adds `harness_sessions` and `chat_turns` (B20).
+ A chat turn is not a task and never takes a coding lease.
  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
  `two api` lazy-imports it so `two profiles` does not load the store.
  Additive B14 slice 2 routes include conversation, SSE, aggregate health,
@@ -119,15 +123,17 @@ listed in `config/repositories/two.yaml`.
  `SystemCapabilities`, additive `TaskProjection.revision`, and slice 2
  GUI projection types. `TaskProjection.graph` may be null (B19).
   `src/two/client.py` is the stdlib HTTP/Unix control-API client (B13).
-  Task subcommands in `cli.py` / `cli_task.py` lazy-import it the same way
-  `two api` lazy-imports the server. Tests inject FastAPI TestClient.
+  Task subcommands in `cli.py` / `cli_task.py` and `two chat` in
+  `cli_chat.py` lazy-import it the same way `two api` lazy-imports the
+  server. Tests inject FastAPI TestClient.
   `src/two/approvals/` is durable questions, approvals, and cooperative
   pause/resume/cancel (first-writer-wins; silence is never approval).
   `src/two/scheduler/` owns the single local-model queue slot, lease
-  heartbeat/reclaim, retry_wait backoff, and Mac health mapping.
+  heartbeat/reclaim, retry_wait backoff, and Mac health mapping. It admits
+  one queued chat turn only when no coding lease is held.
   `src/two/worker/` supervises a pinned ACP child, the action ledger, and
-  session resume. Default tests use a fake child (`@pytest.mark.live_dsh`
-  is opt-in).
+  session resume, including the no-tools `chat` profile. Default tests use
+  a fake child (`@pytest.mark.live_dsh` is opt-in).
   `src/two/controller/` drives the durable workflow, binds budgets, walks
   the persisted work graph, starts a fresh review session, and is the only
   writer of terminal status.

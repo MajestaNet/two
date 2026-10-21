@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -309,6 +309,44 @@ _V6_STATEMENTS = (
     "CREATE INDEX idx_config_approvals_digest ON config_approvals (action_digest)",
 )
 
+# Version 7: one persisted chat harness session and its turn log (B20).
+# Chat is not a task. Do not reuse v4, v5, or v6. home-action stays out.
+_V7_STATEMENTS = (
+    """
+    CREATE TABLE harness_sessions (
+        profile TEXT PRIMARY KEY,
+        session_id TEXT,
+        data_relpath TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (profile = 'chat')
+    )
+    """,
+    """
+    CREATE TABLE chat_turns (
+        id TEXT PRIMARY KEY,
+        profile TEXT NOT NULL,
+        seq INTEGER NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        request_text TEXT NOT NULL,
+        reply_text TEXT,
+        error_code TEXT,
+        principal TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (profile = 'chat'),
+        CHECK (status IN ('queued', 'running', 'complete', 'failed')),
+        CHECK (length(request_text) BETWEEN 1 AND 4000),
+        CHECK (reply_text IS NULL OR length(reply_text) BETWEEN 1 AND 4000)
+    )
+    """,
+    """
+    CREATE UNIQUE INDEX idx_chat_turns_one_running
+        ON chat_turns (status) WHERE status = 'running'
+    """,
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1_STATEMENTS),
     (2, _V2_STATEMENTS),
@@ -316,6 +354,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (4, _V4_STATEMENTS),
     (5, _V5_STATEMENTS),
     (6, _V6_STATEMENTS),
+    (7, _V7_STATEMENTS),
 )
 
 
