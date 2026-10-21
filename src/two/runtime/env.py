@@ -45,7 +45,6 @@ from two.topology import load_catalog as load_topology_catalog
 from two.types import DeploymentTopologyId
 
 OLLAMA_PORT = 11434
-COMPARISON_UPSTREAM_TAG = "qwen3.8:27b"
 DEFAULT_ALIAS = "qwen38-agent-16k"
 DEFAULT_PROFILE_ID = "m24-qwen38-16k"
 BIND_PLACEHOLDER = "MAC_INFERENCE_BIND_ADDRESS"
@@ -273,7 +272,6 @@ def plan_variables(
         "TOPOLOGY_ID": topology_id,
         "ALIAS": profile.alias,
         "UPSTREAM_MODEL": profile.upstream_model,
-        "COMPARISON_TAG": COMPARISON_UPSTREAM_TAG,
         "BIND_ADDRESS": bind_address,
         "MODELFILE": str(modelfile),
         "NUM_CTX": str(profile.num_ctx),

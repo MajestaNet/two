@@ -9,8 +9,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Production alias: qwen38-agent-16k
-# Evaluate qwen3.8:27b-mlx against official qwen3.8:27b before promotion.
-# Record the selected digest in config/runtime/models.lock (not this example).
+# One upstream tag (ADR 0023). Record its digest in config/runtime/models.lock.
 
 FROM qwen3.8:27b-mlx
 PARAMETER num_ctx 16384

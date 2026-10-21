@@ -99,7 +99,7 @@ These bounds stay in force after the original MVP:
 
 ## 4. Assumptions
 
-1. “Original Qwen3.8-27B” means the official post-trained Qwen model rather than an abliterated, uncensored, merged, or task-specific derivative. The default 24 GB profile requires a 4-bit runtime representation. Larger unified memory may use a higher-quality official quant or a larger official Qwen tag after soak tests. One local model remains loaded at a time.
+1. “Original Qwen3.8-27B” means the official post-trained Qwen model rather than an abliterated, uncensored, merged, or task-specific derivative. The default 24 GB profile requires a 4-bit runtime representation. A larger profile may name one larger official Qwen tag after soak tests. Bootstrap pulls that profile's upstream tag only (ADR 0023). One local model remains loaded at a time.
 2. In `split` topology the Mac and development host can reach each other over a trusted private LAN or overlay. In `colocated` topology the endpoint is loopback on one Mac.
 3. The inference API trust boundary is that private path (LAN, overlay, or localhost). No public bind. Application auth is still required once any non-loopback client exists.
 4. The Mac mini is the always-on host (ADR 0019). Ollama, this scaffold, and DeepSeek Harness run there as separate processes. The installer selects the inference profile. `split` and Linux Compose remain available when a second host stays powered on.
@@ -218,9 +218,9 @@ Initial candidate:
 qwen3.8:27b-mlx
 ```
 
-This is the official Ollama MLX-tagged 18 GB model. Before final promotion, it must be evaluated against the official `qwen3.8:27b` Q4_K_M/MTP tag on the actual M4 Mini. The selected production alias must use the official checkpoint and be recorded by digest.
+This is the official Ollama MLX-tagged 18 GB model. Bootstrap pulls this tag only and creates the production alias from it (ADR 0023). Record the alias digest after soak. A different official tag replaces this profile's `upstream_model`. The installer does not keep a second weight set.
 
-The architecture starts with MLX because it is the Mac-specific path. It does not assume that higher token throughput automatically means better agent behavior; tool-call correctness and accepted-task rate are promotion gates.
+The architecture starts with MLX because it is the Mac-specific path. Tool-call correctness and accepted-task rate remain promotion gates for that single alias.
 
 #### Production model alias
 
@@ -1108,10 +1108,7 @@ Before unattended use, create a representative evaluation corpus containing:
 - cancellation during a long-running build or test;
 - a self-build candidate that changes only a worktree of this repository and leaves the executing tree unchanged until adoption.
 
-Compare at least:
-
-1. `qwen3.8:27b-mlx` at 16K/q8 KV;
-2. official `qwen3.8:27b` Q4_K_M/MTP at 16K/q8 KV.
+Soak the single loaded alias from the selected profile (ADR 0023). The default is `qwen3.8:27b-mlx` at 16K/q8 KV. Do not pull a second tag for comparison.
 
 Promotion is based on:
 
@@ -1341,6 +1338,7 @@ and the seamless install remain open.
 - [Majesta Two local self-building installation (ADR 0017)](adrs/0017-local-self-building-system.md)
 - [Majesta Two seamless Mac install and shared inference (ADR 0018)](adrs/0018-seamless-mac-install-and-shared-inference.md)
 - [Majesta Two mini-resident control plane (ADR 0019)](adrs/0019-mini-resident-control-plane.md)
+- [Majesta Two single upstream model (ADR 0023)](adrs/0023-single-upstream-model.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

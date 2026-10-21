@@ -47,8 +47,10 @@ def test_bootstrap_dry_run_exits_zero_and_mentions_default_alias() -> None:
     assert "OLLAMA_KEEP_ALIVE=-1" in result.stdout
     assert "OLLAMA_NO_CLOUD=1" in result.stdout
     assert "0.0.0.0" not in result.stdout
-    assert "qwen3.8:27b-mlx" in result.stdout
-    assert "qwen3.8:27b" in result.stdout
+    pulls = [line for line in result.stdout.splitlines() if line.startswith("ollama pull ")]
+    assert pulls == ["ollama pull qwen3.8:27b-mlx"]
+    assert "comparison_tag" not in result.stdout
+    assert "ollama create qwen38-agent-16k" in result.stdout
     assert "two setup --ollama-url" in result.stdout
     assert "uv run" in TWO_PYTHON.read_text()
     assert 'python3 "$@"' not in BOOTSTRAP.read_text()

@@ -20,7 +20,6 @@ No network. Unit tests stay offline. See docs/architecture.md §6.1 and §12.
 """
 
 from two.runtime.env import (
-    COMPARISON_UPSTREAM_TAG,
     DEFAULT_ALIAS,
     ollama_environment,
     resolve_bind_address,
@@ -30,7 +29,6 @@ from two.runtime.launchd import render_launchd_plist
 from two.runtime.lock import ModelsLock, parse_models_lock
 
 __all__ = [
-    "COMPARISON_UPSTREAM_TAG",
     "DEFAULT_ALIAS",
     "HealthState",
     "ModelsLock",
