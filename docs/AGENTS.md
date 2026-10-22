@@ -26,6 +26,9 @@
 - `adrs/0025-chat-acp-client.md` launches pinned `dsh --profile acp`
   for a chat turn. Coding tasks stay on the JSONL fixture. Do not
   paste that ADR here.
+- `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
+  transport behind the closed climate tools. The slot stays off.
+  Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
 - `backlog/` holds dedicated implementation items (B01–B21). B20

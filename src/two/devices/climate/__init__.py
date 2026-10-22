@@ -14,14 +14,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Climate device package (ADR 0022). Importing it does not enable the slot."""
+"""Climate device package (ADR 0022, ADR 0027). Importing it does not enable the slot."""
 
+from two.devices.climate.broker import open_climate_broker
 from two.devices.climate.config import climate_config_path, load_climate_config
 from two.devices.climate.contract import (
     CLIMATE_TOOLS,
     ClimateInstall,
     ClimateReadback,
     interpret_tool,
+)
+from two.devices.climate.echonet import (
+    DiscoveredUnit,
+    EchonetClimate,
+    discover_home_air_conditioners,
 )
 from two.devices.climate.home_assistant import ClimateUpstreamError, HomeAssistantClimate
 
@@ -30,8 +36,12 @@ __all__ = [
     "ClimateInstall",
     "ClimateReadback",
     "ClimateUpstreamError",
+    "DiscoveredUnit",
+    "EchonetClimate",
     "HomeAssistantClimate",
     "climate_config_path",
+    "discover_home_air_conditioners",
     "interpret_tool",
     "load_climate_config",
+    "open_climate_broker",
 ]

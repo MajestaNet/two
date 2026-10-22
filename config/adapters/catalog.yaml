@@ -71,7 +71,8 @@ slots:
       - home-action
     notes: >
       Closed climate tools (ADR 0022). Default off. An install enables it
-      with $TWO_DATA_DIR/devices/climate.yaml. The model does not call
+      with $TWO_DATA_DIR/devices/climate.yaml. The transport is Home
+      Assistant REST or ECHONET Lite (ADR 0027). The model does not call
       the upstream. The control plane performs the read-back.
 
   github:

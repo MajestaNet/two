@@ -29,17 +29,18 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from two.devices.climate.broker import open_climate_broker
 from two.devices.climate.config import load_climate_config
 from two.devices.climate.contract import (
     ClimateBroker,
     ClimateInstall,
     ClimateReadback,
+    ClimateUpstreamError,
     StagedCall,
     home_prompt,
     interpret_tool,
     readback_reply,
 )
-from two.devices.climate.home_assistant import ClimateUpstreamError, HomeAssistantClimate
 from two.providers import DSH_PIN
 from two.store.models import HomeActionTurnRecord, HomeActionTurnStatus
 from two.store.store import Store
@@ -389,10 +390,7 @@ def _perform(
 
 
 def _default_broker(install: ClimateInstall) -> ClimateBroker:
-    token = os.environ.get(install.token_env, "")
-    if token.strip() == "":
-        raise ClimateUpstreamError("missing climate token")
-    return HomeAssistantClimate(install.upstream, token)
+    return open_climate_broker(install)
 
 
 def _parse_intent(message: Mapping[str, object]) -> tuple[str, dict[str, object]] | None:

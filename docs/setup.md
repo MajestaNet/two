@@ -37,9 +37,11 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
-| Harness profile `home-action` | Works when `$TWO_DATA_DIR/devices/climate.yaml` enables a private climate upstream (`two climate send/show/approve/reject`). The control plane performs `climate.read`, `climate.set_setpoint`, and `climate.set_mode`. Out-of-band writes wait for a digest. Without the binding the turn is refused and not stored ([ADR 0022](adrs/0022-climate-device-protocol.md), [B21](backlog/B21-climate-home-action.md)) |
+| Harness profile `home-action` | Works when `$TWO_DATA_DIR/devices/climate.yaml` enables a private climate upstream (`two climate send/show/approve/reject`). The control plane performs `climate.read`, `climate.set_setpoint`, and `climate.set_mode`. The binding transport is Home Assistant REST or ECHONET Lite. Out-of-band writes wait for a digest. Without the binding the turn is refused and not stored ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [B21](backlog/B21-climate-home-action.md)) |
 
-Last updated: 22 October 2026 (ADR 0026: the default profile serves
+Last updated: 22 October 2026 (ADR 0027: a climate binding may speak
+ECHONET Lite to a Wi-Fi air conditioner on the private LAN. The slot
+stays off until that file enables it. ADR 0026: the default profile serves
 `qwen3.5:9b-mlx`. ADR 0024: that profile does not create a second
 Ollama tag. ADR 0023:
 `bootstrap-mac.sh` pulls only the selected profile's upstream tag. The
@@ -674,6 +676,53 @@ The workflow controller can drive a fake unattended fixture offline:
 controller plus validation gates, never a model self-report.
 
 ---
+
+## Air conditioners on the LAN
+
+The closed tools stay `climate.read`, `climate.set_setpoint`, and
+`climate.set_mode` ([ADR 0022](adrs/0022-climate-device-protocol.md)).
+A Mitsubishi Electric unit with a MAC-568IF-E, MAC-578IF-E, or
+MAC-588IF-E interface can skip Home Assistant and use ECHONET Lite
+([ADR 0027](adrs/0027-echonet-air-conditioner.md)). Copy
+[config/devices/climate-echonet.example.yaml](../config/devices/climate-echonet.example.yaml)
+to `$TWO_DATA_DIR/devices/climate.yaml`, set each unit's private IPv4
+address, then set `enabled: true`. Restart `two worker`. The slot stays
+off until that file is enabled. `two climate` still talks only to the
+control API.
+
+Do this on the unit before expecting a reply:
+
+1. Read the Wi-Fi interface model on the indoor unit or the adapter.
+   This transport answers only the three interface models above.
+2. In the Mitsubishi Wi-Fi Control app, open Edit Unit and enable
+   ECHONET Lite. It ships off. The app is the only switch. This
+   repository cannot turn it on.
+3. Give the Mac mini and the units the same private LAN. Turn off
+   AP and client isolation for those devices. Allow UDP port 3610
+   from the mini to each unit and the reply back. ECHONET Lite has
+   no password, so a guest network that can reach the unit can send
+   the same writes.
+4. Reserve a DHCP address for each unit and write that address in the
+   binding. One indoor unit is one zone. A second indoor unit on the
+   same adapter uses the same host and `instance: 2`.
+5. Use whole degrees. A request for 20.5 fails the turn. The vendor
+   app's half-degree steps are not on this protocol.
+6. Restart `two worker` after the file changes. Then
+   `two climate send --text "what is the living room temperature"`.
+
+These units will not answer this transport:
+
+- MAC-567IF-E and the MELCloud app. Local control in that app still
+  goes through Mitsubishi's cloud. This installation does not call
+  that cloud.
+- MAC-577IF-2E and MAC-587. They speak a different local HTTP dialect.
+  That dialect is not implemented. Do not enable telnet on the adapter
+  and do not use a debug password to reach it.
+
+Home Assistant remains the other binding
+([config/devices/climate.example.yaml](../config/devices/climate.example.yaml)).
+Use one file. A hostname, a public address, and a token on the ECHONET
+binding are refused, and `home-action` is not stored.
 
 ## What not to do
 

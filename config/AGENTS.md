@@ -19,8 +19,10 @@ Configuration is data. Do not put Python here.
   Do not collapse Ollama into the harness.
 - `access/remote.yaml` records API bind policy. It does not select a
   messenger. `adapters/catalog.yaml` is the install menu (ADR 0021).
-  `devices/climate.example.yaml` is the climate binding template
-  (ADR 0022). Copy it under `$TWO_DATA_DIR` before enabling it.
+  `devices/climate.example.yaml` is the Home Assistant climate binding
+  (ADR 0022). `devices/climate-echonet.example.yaml` is the direct
+  air-conditioner binding (ADR 0027). Copy one under `$TWO_DATA_DIR`
+  before enabling it. Do not enable both.
 - GitHub App credentials, when they exist, are env-only. Do not add a
   local git forge under `config/` by default (ADR 0012).
 - Changing task-manifest fields, the default inference profile, or cloud
