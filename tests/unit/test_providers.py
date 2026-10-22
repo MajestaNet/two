@@ -53,7 +53,7 @@ def test_pin_is_exact_not_latest() -> None:
 def test_render_matches_architectural_template_keys() -> None:
     validate_rendered_against_template()
     provider = _mac_qwen(render_mac_qwen_settings())
-    assert provider["displayName"] == "Mac mini Qwen 3.8"
+    assert provider["displayName"] == "Mac mini Qwen"
     assert provider["apiKeyEnv"] == "MAC_QWEN_API_KEY"
     assert provider["api"] == "openai-completions"
     assert provider["baseURL"] == COLOCATED_BASE_URL
@@ -65,7 +65,7 @@ def test_render_matches_architectural_template_keys() -> None:
     assert isinstance(models, list)
     model = models[0]
     assert isinstance(model, dict)
-    assert model["id"] == "qwen38-agent-16k"
+    assert model["id"] == "qwen3.5:9b-mlx"
     assert model["contextWindow"] == 16384
     assert model["reasoningEfforts"] == REASONING_EFFORTS
     assert "apiKey" not in provider

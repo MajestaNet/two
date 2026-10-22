@@ -34,7 +34,7 @@ TEMPLATE = (REPO_ROOT / "config/mac/ollama.launchd.plist.template").read_text(en
 def test_catalog_default_profile_is_still_24gb_16k() -> None:
     catalog = load_catalog()
     assert catalog.default == InferenceProfileId.M24_QWEN38_16K
-    assert catalog.default_profile().alias == "qwen38-agent-16k"
+    assert catalog.default_profile().alias == "qwen3.5:9b-mlx"
 
 
 def test_colocated_bind_is_loopback() -> None:

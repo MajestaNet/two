@@ -42,7 +42,7 @@ API_KEY_ENV = "MAC_QWEN_API_KEY"
 DUMMY_API_KEY = "ollama"
 PROVIDER_ID = "mac-qwen"
 PROVIDER_API = "openai-completions"
-DISPLAY_NAME = "Mac mini Qwen 3.8"
+DISPLAY_NAME = "Mac mini Qwen"
 DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TEMPLATE_RELATIVE = Path("config/dsh/settings.yaml.template")
 
@@ -101,7 +101,11 @@ def resolve_dummy_api_key(environ: Mapping[str, str] | None = None) -> str:
 
 
 def _model_name(profile: InferenceProfile) -> str:
-    return f"Qwen 3.8 27B Local {context_label(profile.num_ctx)}"
+    if profile.upstream_model == "qwen3.5:9b-mlx":
+        family = "Qwen 3.5 9B"
+    else:
+        family = "Qwen 3.8 27B"
+    return f"{family} Local {context_label(profile.num_ctx)}"
 
 
 def render_mac_qwen_settings(

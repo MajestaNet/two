@@ -49,7 +49,12 @@ EDGE_HEADERS = {
     "X-Two-Edge-Token": EDGE,
     "X-Two-Client-Id": "watch",
 }
-FAST_CHILD = ChildConfig(cooperative_seconds=0.4, grace_seconds=0.4)
+FAST_CHILD = ChildConfig(
+    cooperative_seconds=0.4,
+    grace_seconds=0.4,
+    inference_timeout_seconds=2.0,
+    stream_liveness_seconds=0.2,
+)
 
 
 def _manifest(task_id: str) -> TaskManifest:
@@ -411,24 +416,52 @@ def test_chat_child_argv_has_no_workspace_and_env_is_allow_listed(
     argv_out = tmp_path / "argv.txt"
     env_out = tmp_path / "env.txt"
     cwd_out = tmp_path / "cwd.txt"
+    methods_out = tmp_path / "methods.jsonl"
     script = bin_dir / "dsh"
     script.write_text(
         "\n".join(
             [
                 f"#!{sys.executable}",
                 "import json, os, sys",
-                f"open({str(argv_out)!r}, 'w', encoding='utf-8').write('\\n'.join(sys.argv))",
+                (
+                    f"open({str(argv_out)!r}, 'a', encoding='utf-8')"
+                    ".write('\\n'.join(sys.argv) + '\\n---\\n')"
+                ),
                 (
                     f"open({str(env_out)!r}, 'w', encoding='utf-8').write("
                     "'\\n'.join(f'{k}={v}' for k, v in sorted(os.environ.items()))"
                     ")"
                 ),
                 f"open({str(cwd_out)!r}, 'w', encoding='utf-8').write(os.getcwd())",
-                "session = {'type': 'session', 'session_id': 'sess-from-dsh'}",
-                "sys.stdout.write(json.dumps(session) + '\\n')",
-                "reply = {'type': 'assistant_text', 'text': 'ok'}",
-                "sys.stdout.write(json.dumps(reply) + '\\n')",
-                "sys.stdout.flush()",
+                "def send(payload):",
+                "    sys.stdout.write(json.dumps(payload) + '\\n')",
+                "    sys.stdout.flush()",
+                "for raw in sys.stdin:",
+                "    msg = json.loads(raw)",
+                "    method = msg.get('method')",
+                (
+                    f"    open({str(methods_out)!r}, 'a', encoding='utf-8')"
+                    ".write(json.dumps(msg) + '\\n')"
+                ),
+                "    mid = msg.get('id')",
+                "    if method == 'initialize':",
+                "        send({'jsonrpc': '2.0', 'id': mid, 'result': {'protocolVersion': 1}})",
+                "    elif method == 'session/new':",
+                (
+                    "        send({'jsonrpc': '2.0', 'id': mid, "
+                    "'result': {'sessionId': 'sess-from-dsh'}})"
+                ),
+                "    elif method == 'session/resume':",
+                "        send({'jsonrpc': '2.0', 'id': mid, 'result': {}})",
+                "    elif method == 'session/prompt':",
+                (
+                    "        send({'jsonrpc': '2.0', 'method': 'session/update', "
+                    "'params': {'sessionId': 'sess-from-dsh', 'update': {"
+                    "'sessionUpdate': 'agent_message_chunk', 'content': "
+                    "{'type': 'text', 'text': 'ok'}}}})"
+                ),
+                "        send({'jsonrpc': '2.0', 'id': mid, 'result': {'stopReason': 'end_turn'}})",
+                "        break",
                 "",
             ]
         ),
@@ -446,9 +479,9 @@ def test_chat_child_argv_has_no_workspace_and_env_is_allow_listed(
     argv = argv_out.read_text(encoding="utf-8")
     assert "--workspace" not in argv
     assert "--profile" in argv.splitlines()
-    assert "chat" in argv.splitlines()
+    assert "acp" in argv.splitlines()
     assert "--session-id" not in argv.splitlines()
-    assert DSH_PIN in argv.splitlines()
+    assert DSH_PIN not in argv.splitlines()
     env_text = env_out.read_text(encoding="utf-8")
     assert "GITHUB_TOKEN" not in env_text
     assert "TWO_MESSENGER_TOKEN" not in env_text
@@ -457,6 +490,11 @@ def test_chat_child_argv_has_no_workspace_and_env_is_allow_listed(
     assert "TWO_ACP_PROMPT" not in env_text
     assert "TWO_PROFILE=chat" in env_text
     assert f"TWO_DSH_PIN={DSH_PIN}" in env_text
+    assert "DSH_HOME=" in env_text
+    assert "MAC_QWEN_API_KEY=ollama" in env_text
+    patch = (tmp_path / "harness" / "home" / "cordis.patch.yml").read_text(encoding="utf-8")
+    assert "id: tool-bash" in patch
+    assert "name: '@deepseek-ai/dsh-tools'\n  disabled: true" not in patch
     cwd = Path(cwd_out.read_text(encoding="utf-8"))
     assert cwd.resolve() == (tmp_path / "profiles" / "chat").resolve()
     assert stat.S_IMODE((tmp_path / "profiles" / "chat").stat().st_mode) == 0o700
@@ -464,10 +502,67 @@ def test_chat_child_argv_has_no_workspace_and_env_is_allow_listed(
     store.insert_chat_turn("next", "local", turn_id="c2", now=T0)
     assert Scheduler(store).dispatch(now=T0) is None
     worker.run_chat("c2", now=T0)
-    resumed = argv_out.read_text(encoding="utf-8").splitlines()
-    assert "--session-id" in resumed
-    assert "sess-from-dsh" in resumed
-    assert "--workspace" not in resumed
+    resumed = [
+        json.loads(line) for line in methods_out.read_text(encoding="utf-8").splitlines() if line
+    ]
+    resume = [item for item in resumed if item.get("method") == "session/resume"]
+    assert resume[-1]["params"]["sessionId"] == "sess-from-dsh"
+    assert "--workspace" not in argv_out.read_text(encoding="utf-8")
+
+
+def test_stale_session_resume_starts_fresh(
+    store: Store,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    script = bin_dir / "dsh"
+    script.write_text(
+        "\n".join(
+            [
+                f"#!{sys.executable}",
+                "import json, sys",
+                "def send(payload):",
+                "    sys.stdout.write(json.dumps(payload) + '\\n')",
+                "    sys.stdout.flush()",
+                "for raw in sys.stdin:",
+                "    msg = json.loads(raw)",
+                "    method = msg.get('method')",
+                "    mid = msg.get('id')",
+                "    if method == 'initialize':",
+                "        send({'jsonrpc': '2.0', 'id': mid, 'result': {'protocolVersion': 1}})",
+                "    elif method == 'session/resume':",
+                "        send({'jsonrpc': '2.0', 'id': mid, 'error': {'message': 'no model'}})",
+                "    elif method == 'session/new':",
+                (
+                    "        send({'jsonrpc': '2.0', 'id': mid, "
+                    "'result': {'sessionId': 'sess-fresh'}})"
+                ),
+                "    elif method == 'session/prompt':",
+                "        chunk = {'sessionUpdate': 'agent_message_chunk',",
+                "                 'content': {'type': 'text', 'text': 'hi'}}",
+                "        send({'jsonrpc': '2.0', 'method': 'session/update',",
+                "              'params': {'update': chunk}})",
+                "        send({'jsonrpc': '2.0', 'id': mid,",
+                "              'result': {'stopReason': 'end_turn'}})",
+                "        break",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    store.set_chat_session_id("old-model", now=T0)
+    store.insert_chat_turn("hello", "local", turn_id="c1", now=T0)
+    assert Scheduler(store).dispatch(now=T0) is None
+    finished = AcpWorker(store, data_dir=tmp_path, child_config=FAST_CHILD).run_chat("c1", now=T0)
+    assert finished.status is ChatTurnStatus.COMPLETE
+    assert finished.reply_text == "hi"
+    session = store.get_harness_session()
+    assert session is not None
+    assert session.session_id == "sess-fresh"
 
 
 def test_tool_request_fails_closed(store: Store, tmp_path: Path) -> None:
@@ -672,12 +767,7 @@ def test_plan_and_argv_are_chat_only() -> None:
     assert dead.mode is SessionMode.FRESH
     argv = build_chat_argv()
     assert "--workspace" not in argv
-    assert "--profile" in argv
-    assert "chat" in argv
-    assert DSH_PIN in argv
-    with_session = build_chat_argv(session_id="sess-1")
-    assert with_session[with_session.index("--session-id") + 1] == "sess-1"
-    assert "--workspace" not in with_session
+    assert argv[-2:] == ["--profile", "acp"]
 
 
 def test_cli_send_and_show(client: TestClient, capsys: pytest.CaptureFixture[str]) -> None:

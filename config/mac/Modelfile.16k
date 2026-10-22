@@ -8,8 +8,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# Production alias: qwen38-agent-16k
-# One upstream tag (ADR 0023). Record its digest in config/runtime/models.lock.
+# Used only when a profile alias differs from the upstream tag.
+# The default profile serves qwen3.8:27b-mlx directly (ADR 0024).
 
 FROM qwen3.8:27b-mlx
 PARAMETER num_ctx 16384

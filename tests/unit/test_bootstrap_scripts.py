@@ -43,19 +43,34 @@ def test_bootstrap_dry_run_exits_zero_and_mentions_default_alias() -> None:
         "split",
     )
     assert result.returncode == 0, result.stderr
-    assert "qwen38-agent-16k" in result.stdout
+    assert "alias: qwen3.5:9b-mlx" in result.stdout
     assert "OLLAMA_KEEP_ALIVE=-1" in result.stdout
     assert "OLLAMA_NO_CLOUD=1" in result.stdout
     assert "0.0.0.0" not in result.stdout
     pulls = [line for line in result.stdout.splitlines() if line.startswith("ollama pull ")]
-    assert pulls == ["ollama pull qwen3.8:27b-mlx"]
+    assert pulls == ["ollama pull qwen3.5:9b-mlx"]
     assert "comparison_tag" not in result.stdout
-    assert "ollama create qwen38-agent-16k" in result.stdout
+    assert "ollama create " not in result.stdout
+    assert "No second Ollama model" in result.stdout
     assert "two setup --ollama-url" in result.stdout
     assert "uv run" in TWO_PYTHON.read_text()
     assert 'python3 "$@"' not in BOOTSTRAP.read_text()
     assert "lib/two-python.sh" in BOOTSTRAP.read_text()
     assert "lib/two-python.sh" in HEALTH.read_text()
+
+
+def test_bootstrap_dry_run_wider_context_still_creates_alias() -> None:
+    result = _run(
+        BOOTSTRAP,
+        "--dry-run",
+        "--profile",
+        "m24-qwen38-32k",
+        "--topology",
+        "split",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ollama create qwen38-agent-32k" in result.stdout
+    assert "ollama pull qwen3.8:27b-mlx" in result.stdout
 
 
 def test_bootstrap_dry_run_colocated_binds_loopback() -> None:
@@ -118,7 +133,7 @@ def test_soak_dry_run_exits_zero() -> None:
     result = _run(SOAK, "--dry-run")
     assert result.returncode == 0, result.stderr
     assert "page-out" in result.stdout.lower() or "page-outs" in result.stdout
-    assert "qwen38-agent-16k" in result.stdout
+    assert "qwen3.5:9b-mlx" in result.stdout
 
 
 def test_bootstrap_dev_host_dry_run_exits_zero() -> None:

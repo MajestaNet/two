@@ -18,6 +18,12 @@
           "owned_by": "library"
         },
         {
+          "id": "qwen3.5:9b-mlx",
+          "object": "model",
+          "created": 1756531200,
+          "owned_by": "library"
+        },
+        {
           "id": "qwen3.8:27b-mlx",
           "object": "model",
           "created": 1756531200,

@@ -17,7 +17,7 @@ Install path: [setup.md](setup.md).
 ## What 16K is for
 
 16K with a q8 KV cache is the **stability** default on 24 GB unified
-memory: one 4-bit Qwen 3.8 27B (~18 GB), one loaded model, one inference
+memory: one Qwen 3.5 9B MLX (~9 GB), one loaded model, one inference
 request. Native 262K context on that host is an architecture non-goal.
 Large repositories are supported by retrieval and iteration (git, `rg`,
 optional LSP, structured task memory), not by placing the tree in the
@@ -36,8 +36,8 @@ turns, 6 repair cycles). RAM is not.
 
 The Mac mini is the always-on host, so the control plane runs there
 ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). 16K remains the
-reference profile because an 18 GB model plus the harness is tight. If
-the mini swaps, select a smaller profile. Do not move the control plane
+reference profile. The 27B tag swapped this Mac hard enough that the
+default is the 9B (ADR 0026). Do not move the control plane
 onto a machine that sleeps.
 
 `m24-qwen38-32k` is the same host with a larger window. Soak it before

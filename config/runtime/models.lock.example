@@ -11,9 +11,9 @@
 # soak promotion. `deepseek_harness_version` is the B02 pin, not `latest`.
 
 ollama_version: ""
-upstream_model: qwen3.8:27b-mlx
+upstream_model: qwen3.5:9b-mlx
 upstream_digest: ""
-alias: qwen38-agent-16k
+alias: qwen3.5:9b-mlx
 alias_digest: ""
 context_window: 16384
 kv_cache: q8_0

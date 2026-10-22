@@ -45,7 +45,7 @@ from two.topology import load_catalog as load_topology_catalog
 from two.types import DeploymentTopologyId
 
 OLLAMA_PORT = 11434
-DEFAULT_ALIAS = "qwen38-agent-16k"
+DEFAULT_ALIAS = "qwen3.5:9b-mlx"
 DEFAULT_PROFILE_ID = "m24-qwen38-16k"
 BIND_PLACEHOLDER = "MAC_INFERENCE_BIND_ADDRESS"
 LAUNCHD_LABEL = "local.two.ollama"

@@ -23,7 +23,7 @@ the spec.
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
-| Mac mini default install | Specified ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). Catalog default is `colocated`. `two setup --plan` prints the mini path. The installer selects the inference profile and pulls that profile's one upstream tag ([ADR 0023](adrs/0023-single-upstream-model.md)). Device-profile preload is not implemented |
+| Mac mini default install | Specified ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). Catalog default is `colocated`. `two setup --plan` prints the mini path. The installer selects the inference profile and pulls that profile's one upstream tag ([ADR 0023](adrs/0023-single-upstream-model.md)). The default profile serves `qwen3.5:9b-mlx` and does not create a second tag ([ADR 0026](adrs/0026-default-qwen35-9b.md)). Device-profile preload is not implemented |
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
@@ -39,9 +39,11 @@ the spec.
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
 | Harness profile `home-action` | Works when `$TWO_DATA_DIR/devices/climate.yaml` enables a private climate upstream (`two climate send/show/approve/reject`). The control plane performs `climate.read`, `climate.set_setpoint`, and `climate.set_mode`. Out-of-band writes wait for a digest. Without the binding the turn is refused and not stored ([ADR 0022](adrs/0022-climate-device-protocol.md), [B21](backlog/B21-climate-home-action.md)) |
 
-Last updated: 21 October 2026 (ADR 0023: `bootstrap-mac.sh` pulls only
-the selected profile's upstream tag. The Q4 comparison tag is not
-installed. B21: `home-action` performs the closed
+Last updated: 22 October 2026 (ADR 0026: the default profile serves
+`qwen3.5:9b-mlx`. ADR 0024: that profile does not create a second
+Ollama tag. ADR 0023:
+`bootstrap-mac.sh` pulls only the selected profile's upstream tag. The
+Q4 comparison tag is not installed. B21: `home-action` performs the closed
 climate tools when a local binding enables them, schema v8. The
 climate slot stays off. B20: `two chat` resumes harness profile
 `chat` on the single slot. ADR 0021: `two adapters` is the install
@@ -311,7 +313,7 @@ uv run two profiles
 
 | Profile | Min RAM | Default context | When to use |
 | --- | ---: | ---: | --- |
-| `m24-qwen38-16k` | 24 GB | 16K | Default. Conservative 24/7 on a 24 GB Mini |
+| `m24-qwen38-16k` | 24 GB | 16K | Default. `qwen3.5:9b-mlx` on a 24 GB Mini |
 | `m24-qwen38-32k` | 24 GB | 32K | Same host, larger window; soak before production |
 | `m36-qwen38-32k` | 36 GB | 32K | Comfortable 32K on a larger Mac |
 | `m48-qwen38-64k` | 48 GB | 64K | Larger window; measure swap-outs |
@@ -381,11 +383,13 @@ install uv and retry (do not `PYTHONPATH=src python3 …`).
 ```
 
 `bootstrap-mac.sh` pulls the selected profile's upstream tag
-(`qwen3.8:27b-mlx` for `m24-qwen38-16k`; [ADR 0023](adrs/0023-single-upstream-model.md)),
-creates alias `qwen38-agent-16k` for the 24 GB profile, installs a
-LaunchAgent, and preloads with indefinite keep-alive. It does not pull
-a second model. If an older bootstrap left `qwen3.8:27b` on disk,
-`ollama rm qwen3.8:27b` removes that tag. The alias stays.
+(`qwen3.5:9b-mlx` for `m24-qwen38-16k`; [ADR 0026](adrs/0026-default-qwen35-9b.md))
+and preloads that same tag ([ADR 0024](adrs/0024-serve-upstream-model.md)).
+It does not create a second Ollama model for the default profile. Context
+is `OLLAMA_CONTEXT_LENGTH`. A wider profile whose alias differs from the
+upstream tag still gets one local tag. It does not pull a second weight
+set. If an older bootstrap left `qwen38-agent-16k` or `qwen3.8:27b` on
+disk, `ollama rm` removes that tag.
 
 **Health from the Linux host:**
 
@@ -446,15 +450,19 @@ TWO_LIVE_MAC=1 MAC_QWEN_BASE_URL=http://YOUR-PRIVATE-MAC-NAME:11434/v1 \
   ./scripts/smoke-test.sh
 ```
 
-> **Config / honesty (ADR 0011).** Default pytest uses a JSONL fake ACP
-> child. `two worker` currently launches `dsh acp --task-id …`, which the
-> pinned Harness does **not** speak (real ACP is JSON-RPC over stdio).
-> You can still start the control plane and CLI today. A stock `dsh`
-> binary will not complete a live coding task until an ACP adapter lands.
-> Do not reimplement the Harness agent loop in this repo.
+> **Config / honesty (ADR 0011, ADR 0025).** Default pytest uses a JSONL
+> fake child. A live chat turn launches the pinned checkout as
+> `dsh --profile acp` and speaks newline JSON-RPC (`initialize`,
+> `session/new` or `session/resume`, `session/prompt`). The child is
+> `dsh-v0.1.2-alpha.1` under `$TWO_DATA_DIR/harness`, run with Node 22.
+> Provider `mac-qwen` points at the served Ollama tag. Chat still refuses
+> tools. Coding tasks still launch the placeholder `dsh acp --task-id …`,
+> which this pin does not speak. Do not reimplement the Harness agent loop.
 
-Put `dsh` on `PATH` only when you are ready for a live child; keep
-messenger tokens out of that environment.
+Chat uses `$TWO_DATA_DIR/harness/bin/dsh` (Node 22). The pinned checkout
+needs one host build, `pnpm run build:lib:host`, before that wrapper
+can boot. A `dsh` already on `PATH` wins, which is how tests inject a
+fake. Keep messenger tokens out of that environment.
 
 ### 8. Task YAML for this installation
 
@@ -645,7 +653,7 @@ because it is easier to reproduce.
 | Flag | Meaning |
 | --- | --- |
 | `--dry-run` | Print the plan and exit 0. No Darwin, no install. |
-| `--profile` | Catalog id. Default `m24-qwen38-16k` (alias `qwen38-agent-16k`). |
+| `--profile` | Catalog id. Default `m24-qwen38-16k` (served model `qwen3.5:9b-mlx`). |
 | `--topology` | `split` (private LAN/overlay) or `colocated` (`127.0.0.1`). |
 | `--bind` | Ollama bind host. Required for live `split`. Never a public interface. |
 | `--system` | Install `/Library/LaunchDaemons/local.two.ollama.plist`. Default is the user LaunchAgent `~/Library/LaunchAgents/local.two.ollama.plist`. |
