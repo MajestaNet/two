@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from two.runtime.env import DEFAULT_ALIAS
 from two.runtime.health import HealthState, classify_from_fixture_dir, classify_health
 
 CONNECT_TIMEOUT_SECONDS = 2.0
@@ -44,7 +45,7 @@ def probe_mac_health(
     base_url: str,
     *,
     timeout: float = CONNECT_TIMEOUT_SECONDS,
-    expected_alias: str = "qwen38-agent-16k",
+    expected_alias: str = DEFAULT_ALIAS,
     expected_digest: str = "",
 ) -> HealthState:
     """GET /api/version, /api/ps, and /v1/models. No retry. Offline tests inject."""

@@ -79,15 +79,13 @@ def plan_chat_session(
 
 def build_chat_argv(
     *,
-    session_id: str | None = None,
-    pin: str = DSH_PIN,
     binary: str = "dsh",
+    data_dir: Path | str | None = None,
 ) -> list[str]:
-    """Pinned harness argv for profile ``chat``. No ``--workspace``."""
-    argv = [binary, "acp", "--profile", "chat", "--pin", pin]
-    if session_id:
-        argv.extend(["--session-id", session_id])
-    return argv
+    """Pinned ``dsh --profile acp``. No workspace. Resume is ``session/resume``."""
+    from two.worker.acp_chat import resolve_chat_binary
+
+    return [resolve_chat_binary(binary, data_dir), "--profile", "acp"]
 
 
 def chat_child_env(*, pin: str = DSH_PIN) -> dict[str, str]:
@@ -127,12 +125,22 @@ def run_chat_turn(
         stored_session_id=stored,
         session_is_valid=session_is_valid,
     )
+    if argv_factory is None and argv is None:
+        from two.worker.acp_chat import run_pinned_acp_chat
+
+        return run_pinned_acp_chat(
+            store,
+            turn_id,
+            now=now,
+            data_dir=data_dir,
+            child_env=child_env,
+            child_config=child_config,
+            session_is_valid=session_is_valid,
+        )
     if argv_factory is not None:
         launched = list(argv_factory(plan))
-    elif argv is not None:
-        launched = list(argv)
     else:
-        launched = build_chat_argv(session_id=plan.session_id)
+        launched = list(argv or [])
     profile_dir = ensure_chat_profile_dir(data_dir)
     env = dict(child_env) if child_env is not None else chat_child_env()
     config = child_config if child_config is not None else ChildConfig()

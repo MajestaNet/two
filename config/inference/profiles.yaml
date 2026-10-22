@@ -12,12 +12,15 @@ profiles:
   m24-qwen38-16k:
     min_unified_memory_gb: 24
     recommended_unified_memory_gb: 24
-    upstream_model: qwen3.8:27b-mlx
-    alias: qwen38-agent-16k
+    upstream_model: qwen3.5:9b-mlx
+    alias: qwen3.5:9b-mlx
     num_ctx: 16384
     kv_cache: q8_0
     flash_attention: true
-    notes: Default 24/7 profile on a 24 GB Mac. Conservative KV and context.
+    notes: >-
+      Default 24/7 profile on a 24 GB Mac. Served tag is qwen3.5:9b-mlx
+      (ADR 0026). Context comes from OLLAMA_CONTEXT_LENGTH. No second
+      Ollama model.
 
   m24-qwen38-32k:
     min_unified_memory_gb: 24

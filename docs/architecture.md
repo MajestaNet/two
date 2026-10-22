@@ -205,7 +205,7 @@ A device action is a typed tool request from `home-action`. The controller perfo
 #### Responsibilities
 
 - Run native Ollama on macOS with Apple Silicon acceleration.
-- Keep one official Qwen3.8-27B model resident.
+- Keep one official Qwen model resident.
 - Expose OpenAI-compatible chat completions, streaming, reasoning-effort control, and tool calls.
 - Report model/process state for health checks.
 - Restart automatically after login/reboot and preload the model.
@@ -215,29 +215,29 @@ A device action is a typed tool request from `home-action`. The controller perfo
 Initial candidate:
 
 ```text
-qwen3.8:27b-mlx
+qwen3.5:9b-mlx
 ```
 
-This is the official Ollama MLX-tagged 18 GB model. Bootstrap pulls this tag only and creates the production alias from it (ADR 0023). Record the alias digest after soak. A different official tag replaces this profile's `upstream_model`. The installer does not keep a second weight set.
+This is the official Ollama MLX tag for the 24 GB default, about 9 GB (ADR 0026). Bootstrap pulls this tag only and serves it under that same name (ADR 0023, ADR 0024, ADR 0026). The tag advertises a 262,144 context. The Ollama server sets `OLLAMA_CONTEXT_LENGTH` to the profile window so a request cannot allocate that full window. Record the upstream digest after soak. A different official tag replaces this profile's `upstream_model`. The installer does not keep a second weight set. Wider profiles may still name `qwen3.8:27b-mlx` for a larger Mac.
 
-The architecture starts with MLX because it is the Mac-specific path. Tool-call correctness and accepted-task rate remain promotion gates for that single alias.
+The architecture starts with MLX because it is the Mac-specific path. Tool-call correctness and accepted-task rate remain promotion gates for that single loaded tag.
 
-#### Production model alias
+#### Served model name
 
-The OpenAI-compatible API cannot set context size per request. The deployment therefore creates a stable Ollama model alias with an explicit context window:
+The default 24 GB profile's served name is the upstream tag:
 
 ```text
-qwen38-agent-16k
+qwen3.5:9b-mlx
 ```
 
-Conceptual Modelfile:
+The OpenAI-compatible API cannot set context size per request. On this profile the server environment carries the window (`OLLAMA_CONTEXT_LENGTH=16384`). A profile whose alias differs from `upstream_model` still gets one local Ollama tag, for example a 32K window:
 
 ```dockerfile
 FROM qwen3.8:27b-mlx
-PARAMETER num_ctx 16384
+PARAMETER num_ctx 32768
 ```
 
-The exact upstream model digest, Ollama version, generated alias digest, and sampling contract are recorded in a lock file in the implementation repository.
+The exact upstream model digest, Ollama version, and sampling contract are recorded in a lock file in the implementation repository.
 
 #### Runtime profile
 
@@ -249,7 +249,7 @@ The exact upstream model digest, Ollama version, generated alias digest, and sam
 | Loaded models | 1 | Prevents model eviction and memory overcommit |
 | Parallel requests | 1 | Avoids multiplying context memory |
 | Queue | 8 | Provides bounded back-pressure rather than uncontrolled demand |
-| Keep alive | Indefinite | Avoids repeated 18 GB model loads |
+| Keep alive | Indefinite | Avoids repeated model loads |
 | Cloud features | Disabled | Keeps the appliance local-only |
 | Input modalities | Text in MVP | Avoids unnecessary vision-path complexity |
 
@@ -356,15 +356,15 @@ DeepSeek Harness uses a custom OpenAI-completions provider pointing at Ollama:
 llm-pi-ai:
   providers:
     mac-qwen:
-      displayName: Mac mini Qwen 3.8
+      displayName: Mac mini Qwen
       apiKeyEnv: MAC_QWEN_API_KEY
       api: openai-completions
       baseURL: http://127.0.0.1:11434/v1
       compat:
         supportsDeveloperRole: false
       models:
-        - id: qwen38-agent-16k
-          name: Qwen 3.8 27B Local 16K
+        - id: qwen3.5:9b-mlx
+          name: Qwen 3.5 9B Local 16K
           contextWindow: 16384
           maxTokens: 8192
           input: [text]
@@ -848,7 +848,7 @@ The implementation will provide a native macOS launch configuration that:
 1. starts Ollama with the production environment;
 2. waits for `/api/version`;
 3. verifies the expected model digest;
-4. preloads `qwen38-agent-16k` with indefinite keep-alive;
+4. preloads `qwen3.5:9b-mlx` with indefinite keep-alive;
 5. records startup/health failures;
 6. restarts the process if it exits unexpectedly.
 
@@ -1108,7 +1108,7 @@ Before unattended use, create a representative evaluation corpus containing:
 - cancellation during a long-running build or test;
 - a self-build candidate that changes only a worktree of this repository and leaves the executing tree unchanged until adoption.
 
-Soak the single loaded alias from the selected profile (ADR 0023). The default is `qwen3.8:27b-mlx` at 16K/q8 KV. Do not pull a second tag for comparison.
+Soak the single loaded alias from the selected profile (ADR 0023). The default is `qwen3.5:9b-mlx` at 16K/q8 KV (ADR 0026). Do not pull a second tag for comparison.
 
 Promotion is based on:
 
@@ -1323,6 +1323,7 @@ and the seamless install remain open.
 ## 22. References
 
 - [Official Qwen3.8-27B model card](https://huggingface.co/Qwen/Qwen3.8-27B)
+- [Official Ollama Qwen3.5-9B MLX tag](https://ollama.com/library/qwen3.5:9b-mlx)
 - [Official Ollama Qwen3.8-27B MLX tag](https://ollama.com/library/qwen3.8:27b-mlx)
 - [Ollama Qwen3.8 tag catalogue](https://ollama.com/library/qwen3.8/tags)
 - [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility)
@@ -1339,6 +1340,9 @@ and the seamless install remain open.
 - [Majesta Two seamless Mac install and shared inference (ADR 0018)](adrs/0018-seamless-mac-install-and-shared-inference.md)
 - [Majesta Two mini-resident control plane (ADR 0019)](adrs/0019-mini-resident-control-plane.md)
 - [Majesta Two single upstream model (ADR 0023)](adrs/0023-single-upstream-model.md)
+- [Majesta Two serve the upstream model tag (ADR 0024)](adrs/0024-serve-upstream-model.md)
+- [Majesta Two chat ACP client (ADR 0025)](adrs/0025-chat-acp-client.md)
+- [Majesta Two default Qwen 3.5 9B (ADR 0026)](adrs/0026-default-qwen35-9b.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

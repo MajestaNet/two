@@ -25,8 +25,8 @@ EXAMPLE_LOCK = REPO_ROOT / "config/runtime/models.lock.example"
 def test_parse_models_lock_example() -> None:
     document = EXAMPLE_LOCK.read_text(encoding="utf-8")
     lock = parse_models_lock(document)
-    assert lock.upstream_model == "qwen3.8:27b-mlx"
-    assert lock.alias == "qwen38-agent-16k"
+    assert lock.upstream_model == "qwen3.5:9b-mlx"
+    assert lock.alias == "qwen3.5:9b-mlx"
     assert lock.context_window == 16384
     assert lock.kv_cache == "q8_0"
     assert lock.flash_attention is True

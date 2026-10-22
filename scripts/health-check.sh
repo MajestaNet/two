@@ -17,7 +17,7 @@ DRY_RUN=0
 BASE_URL="${MAC_QWEN_BASE_URL:-}"
 FIXTURE_DIR=""
 STDIN=0
-EXPECTED_ALIAS="${TWO_EXPECTED_ALIAS:-qwen38-agent-16k}"
+EXPECTED_ALIAS="${TWO_EXPECTED_ALIAS:-qwen3.5:9b-mlx}"
 EXPECTED_DIGEST="${TWO_EXPECTED_DIGEST:-}"
 
 usage() {
@@ -37,7 +37,7 @@ Exit:   0 healthy; 1 cold/busy (retryable); 2 degraded/unavailable
                     (default: MAC_QWEN_BASE_URL)
   --fixture-dir     Offline JSON directory (version.json, ps.json, models.json)
   --stdin           Classify a JSON object from stdin
-  --expected-alias  Production alias (default: qwen38-agent-16k)
+  --expected-alias  Served model (default: qwen3.5:9b-mlx)
 
 Run this from the Linux development host against the Mac (or 127.0.0.1 when
 colocated). Do not probe a public bind. two-api process health is

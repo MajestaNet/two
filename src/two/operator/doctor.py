@@ -114,7 +114,7 @@ def run_doctor(
                 env[key] = value
     checks.append(_env_check(found_env, env))
     checks.append(_bind_check(found_env, env))
-    checks.append(_dsh_check(root, which if which is not None else shutil.which))
+    checks.append(_dsh_check(root, which if which is not None else shutil.which, env))
 
     mac_state: HealthState | None = None
     api_ok = False
@@ -272,7 +272,11 @@ def _bind_check(path: Path | None, environ: Mapping[str, str]) -> DoctorCheck:
     return DoctorCheck(name="bind", ok=True, detail="no public bind strings")
 
 
-def _dsh_check(root: Path | None, which: WhichFn) -> DoctorCheck:
+def _dsh_check(
+    root: Path | None,
+    which: WhichFn,
+    environ: Mapping[str, str],
+) -> DoctorCheck:
     expected = ""
     if root is not None:
         lock_path = root / DEFAULT_LOCK_RELATIVE
@@ -281,6 +285,11 @@ def _dsh_check(root: Path | None, which: WhichFn) -> DoctorCheck:
             expected = lock.deepseek_harness_version
     path = which("dsh")
     if path is None:
+        data = environ.get("TWO_DATA_DIR", "").strip()
+        launcher = Path(data) / "harness" / "bin" / "dsh" if data else None
+        if launcher is not None and launcher.is_file():
+            detail = f"pinned launcher present (pin {expected or 'dsh-v0.1.2-alpha.1'})"
+            return DoctorCheck(name="dsh", ok=True, detail=detail, required=False)
         detail = f"dsh not on PATH (pin {expected or 'dsh-v0.1.2-alpha.1'})"
         return DoctorCheck(name="dsh", ok=True, detail=detail, required=False)
     detail = f"dsh={path}"

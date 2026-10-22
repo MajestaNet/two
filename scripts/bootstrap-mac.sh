@@ -33,7 +33,7 @@ Idempotent Mac inference bootstrap (architecture §6.1 / §12.1).
                 Never 0.0.0.0. Required on live split if auto-bind fails.
   --system      Install LaunchDaemon under /Library (default: user LaunchAgent)
 
-Default alias for the 24 GB profile: qwen38-agent-16k
+Default served model for the 24 GB profile: qwen3.5:9b-mlx
 User LaunchAgent: ~/Library/LaunchAgents/local.two.ollama.plist
 
 Needs uv (or a .venv that can import yaml). Never uses system python3.
@@ -168,8 +168,12 @@ export OLLAMA_MAX_QUEUE OLLAMA_KEEP_ALIVE OLLAMA_NO_CLOUD
 
 echo "+ ${OLLAMA_BIN} pull ${UPSTREAM_MODEL}"
 "${OLLAMA_BIN}" pull "${UPSTREAM_MODEL}"
-echo "+ ${OLLAMA_BIN} create ${ALIAS} -f ${MODELFILE}"
-"${OLLAMA_BIN}" create "${ALIAS}" -f "${MODELFILE}"
+if [[ "${ALIAS}" != "${UPSTREAM_MODEL}" ]]; then
+  echo "+ ${OLLAMA_BIN} create ${ALIAS} -f ${MODELFILE}"
+  "${OLLAMA_BIN}" create "${ALIAS}" -f "${MODELFILE}"
+else
+  echo "+ serve ${UPSTREAM_MODEL} (no second Ollama tag)"
+fi
 
 plist_out="${LAUNCHD_PLIST}"
 if [[ "$SYSTEM" -eq 1 ]]; then

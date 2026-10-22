@@ -15,7 +15,7 @@ cd "$ROOT"
 
 DRY_RUN=1
 HOURS=24
-ALIAS="${TWO_EXPECTED_ALIAS:-qwen38-agent-16k}"
+ALIAS="${TWO_EXPECTED_ALIAS:-qwen3.5:9b-mlx}"
 BASE_URL="${MAC_QWEN_BASE_URL:-}"
 
 usage() {

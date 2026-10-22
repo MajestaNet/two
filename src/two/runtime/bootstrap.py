@@ -43,6 +43,19 @@ _OLLAMA_INSTALL_NOTES = """\
 """
 
 
+def _alias_plan(alias: str, upstream: str, modelfile: str) -> list[str]:
+    """Second Ollama tag only when the profile name differs from upstream."""
+    if alias == upstream:
+        return [
+            "# Served model is the upstream tag (ADR 0024). No second Ollama model.",
+            "# Context is OLLAMA_CONTEXT_LENGTH on the Ollama server.",
+        ]
+    return [
+        f"# Create production alias {alias}",
+        f"ollama create {alias} -f {modelfile}",
+    ]
+
+
 def format_plan(values: dict[str, str], *, rendered_plist: str) -> str:
     alias = values["ALIAS"]
     upstream = values["UPSTREAM_MODEL"]
@@ -76,8 +89,7 @@ def format_plan(values: dict[str, str], *, rendered_plist: str) -> str:
         "# Pull the selected profile upstream only (ADR 0023)",
         f"ollama pull {upstream}",
         "",
-        f"# Create production alias {alias}",
-        f"ollama create {alias} -f {modelfile}",
+        *_alias_plan(alias, upstream, modelfile),
         "",
         "# launchd (user LaunchAgent by default; --system writes /Library)",
         f"# scope: {scope}",

@@ -17,6 +17,15 @@
 - `adrs/0023-single-upstream-model.md` withdraws the second-tag
   comparison pull. Bootstrap pulls the selected profile's upstream tag
   only. Point at architecture §6.1 and §18. Do not paste that ADR here.
+- `adrs/0024-serve-upstream-model.md` serves the upstream tag for the
+  default profile. A second Ollama tag is created only when the profile
+  alias differs from that upstream tag. Point at architecture §6.1.
+  Do not paste that ADR here.
+- `adrs/0026-default-qwen35-9b.md` serves `qwen3.5:9b-mlx` on the
+  default 24 GB profile. Do not paste that ADR here.
+- `adrs/0025-chat-acp-client.md` launches pinned `dsh --profile acp`
+  for a chat turn. Coding tasks stay on the JSONL fixture. Do not
+  paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
 - `backlog/` holds dedicated implementation items (B01–B21). B20
