@@ -13,7 +13,8 @@ runs at a time. This repository is not a messenger product
 and it does not develop unrelated repositories. The CLI is the local surface
 today; ADR 0015/B14 plans a secure first-party mobile client over the same
 API. The climate device package is in-repo and default off (ADR 0022).
-Speech and other device protocols are specified and not implemented.
+A binding may use Home Assistant REST or ECHONET Lite (ADR 0027).
+Speech remains specified and not implemented.
 The SQLite WAL store (`two.store`)
 persists tasks, events, leases, the work graph (schema v5),
 projects/config candidates (schema v6), and the chat harness session
@@ -118,7 +119,7 @@ listed in `config/repositories/two.yaml`.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. Only the `cli` slot is
  enabled. `watch` and `mobile` are clients at `contract`. `climate`
- is shipped and off (`src/two/devices/climate/`, ADR 0022). The
+ is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027). The
  kind-level `device` slot and `github` (`src/two/export/`) stay
  reserved. Do not enable a slot by adding a directory.
  `src/two/edge.py` is the watch edge plan (ADR 0020): private CA,

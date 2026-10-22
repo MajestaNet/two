@@ -3,6 +3,8 @@
 #
 # Example climate binding (ADR 0022). Copy to
 # $TWO_DATA_DIR/devices/climate.yaml and set enabled: true.
+# A Mitsubishi Electric unit that speaks ECHONET Lite uses
+# climate-echonet.example.yaml instead (ADR 0027).
 # Put the token value in the named environment variable, not in this file.
 # The upstream must be a private or loopback IP. Hostnames are refused.
 

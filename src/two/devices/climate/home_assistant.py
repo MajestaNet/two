@@ -31,6 +31,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from two.devices.climate.contract import (
     ClimateReadback,
+    ClimateUpstreamError,
     finite_or_none,
     parse_mode,
     require_entity_id,
@@ -44,6 +45,8 @@ def _celsius_unit(unit: object) -> bool:
     text = str(unit).strip()
     return text in {"°C", "℃"} or text.upper() in _CELSIUS_UNITS
 
+
+__all__ = ["ClimateUpstreamError", "HomeAssistantClimate"]
 
 _TIMEOUT_SECONDS = 5.0
 
@@ -64,14 +67,6 @@ class _RefuseRedirect(HTTPRedirectHandler):
     ) -> Request | None:
         del req, fp, code, msg, headers, newurl
         raise ClimateUpstreamError("climate upstream redirect refused")
-
-
-class ClimateUpstreamError(Exception):
-    """The device call failed or the read-back was not observable.
-
-    The message is for logs inside this process. Callers store an error
-    code, not this text.
-    """
 
 
 class HomeAssistantClimate:

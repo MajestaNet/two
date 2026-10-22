@@ -24,6 +24,7 @@ the file and does not read the token value.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -31,10 +32,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from two.devices.climate.contract import (
     SANITY_MAX_CELSIUS,
     SANITY_MIN_CELSIUS,
+    TRANSPORT_ECHONET,
+    TRANSPORT_HOME_ASSISTANT,
     ClimateInstall,
     ZoneBounds,
     ZonePolicy,
     require_entity_id,
+    require_private_host,
     require_private_upstream,
     require_token_env,
     require_zone_id,
@@ -50,6 +54,7 @@ class _Document(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool
+    transport: Literal["home_assistant", "echonet"] = TRANSPORT_HOME_ASSISTANT
     upstream: str = ""
     token_env: str = ""
     zones: dict[str, ZoneBounds] = Field(default_factory=dict)
@@ -102,6 +107,24 @@ def _untangle_yaml_off(raw: dict[object, object]) -> None:
 
 
 def _install(document: _Document) -> ClimateInstall:
+    if document.transport == TRANSPORT_ECHONET:
+        return _echonet_install(document)
+    return _home_assistant_install(document)
+
+
+def _zone_band(zone: str, bounds: ZoneBounds) -> tuple[float, float, frozenset[str]]:
+    if bounds.min_celsius > bounds.max_celsius:
+        raise ClimateConfigError(f"{zone} min_celsius exceeds max_celsius")
+    if bounds.min_celsius < SANITY_MIN_CELSIUS or bounds.max_celsius > SANITY_MAX_CELSIUS:
+        raise ClimateConfigError(f"{zone} band is outside the sanity range")
+    return (
+        round(float(bounds.min_celsius), 1),
+        round(float(bounds.max_celsius), 1),
+        frozenset(bounds.modes),
+    )
+
+
+def _home_assistant_install(document: _Document) -> ClimateInstall:
     upstream = require_private_upstream(document.upstream)
     token_env = require_token_env(document.token_env)
     if not document.zones:
@@ -109,15 +132,53 @@ def _install(document: _Document) -> ClimateInstall:
     zones: dict[str, ZonePolicy] = {}
     for key, bounds in document.zones.items():
         zone = require_zone_id(key)
-        if bounds.min_celsius > bounds.max_celsius:
-            raise ClimateConfigError(f"{zone} min_celsius exceeds max_celsius")
-        if bounds.min_celsius < SANITY_MIN_CELSIUS or bounds.max_celsius > SANITY_MAX_CELSIUS:
-            raise ClimateConfigError(f"{zone} band is outside the sanity range")
+        if bounds.host.strip():
+            raise ClimateConfigError(f"{zone} host is only valid for echonet")
+        if bounds.instance != 1:
+            raise ClimateConfigError(f"{zone} instance is only valid for echonet")
+        minimum, maximum, modes = _zone_band(zone, bounds)
         zones[zone] = ZonePolicy(
             zone=zone,
             entity_id=require_entity_id(bounds.entity_id),
-            min_celsius=round(float(bounds.min_celsius), 1),
-            max_celsius=round(float(bounds.max_celsius), 1),
-            modes=frozenset(bounds.modes),
+            min_celsius=minimum,
+            max_celsius=maximum,
+            modes=modes,
         )
     return ClimateInstall(upstream=upstream, token_env=token_env, zones=zones)
+
+
+def _echonet_install(document: _Document) -> ClimateInstall:
+    if document.upstream.strip() or document.token_env.strip():
+        raise ClimateConfigError("echonet binding has no upstream and no token")
+    if not document.zones:
+        raise ClimateConfigError("climate binding needs a zone")
+    zones: dict[str, ZonePolicy] = {}
+    seen_units: set[tuple[str, int]] = set()
+    seen_entities: set[str] = set()
+    for key, bounds in document.zones.items():
+        zone = require_zone_id(key)
+        host = require_private_host(bounds.host)
+        entity_id = require_entity_id(bounds.entity_id)
+        unit = (host, bounds.instance)
+        if unit in seen_units:
+            raise ClimateConfigError(f"{zone} repeats a unit address")
+        if entity_id in seen_entities:
+            raise ClimateConfigError(f"{zone} repeats an entity id")
+        seen_units.add(unit)
+        seen_entities.add(entity_id)
+        minimum, maximum, modes = _zone_band(zone, bounds)
+        zones[zone] = ZonePolicy(
+            zone=zone,
+            entity_id=entity_id,
+            min_celsius=minimum,
+            max_celsius=maximum,
+            modes=modes,
+            host=host,
+            instance=bounds.instance,
+        )
+    return ClimateInstall(
+        upstream="",
+        token_env="",
+        zones=zones,
+        transport=TRANSPORT_ECHONET,
+    )

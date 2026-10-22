@@ -42,6 +42,8 @@ CLIMATE_TOOLS: frozenset[str] = frozenset({CLIMATE_READ, CLIMATE_SET_SETPOINT, C
 ClimateTool = Literal["climate.read", "climate.set_setpoint", "climate.set_mode"]
 ClimateMode = Literal["off", "heat", "cool", "auto"]
 CLIMATE_MODES: frozenset[str] = frozenset({"off", "heat", "cool", "auto"})
+TRANSPORT_HOME_ASSISTANT: Literal["home_assistant"] = "home_assistant"
+TRANSPORT_ECHONET: Literal["echonet"] = "echonet"
 
 # A requested number outside this band is not a setpoint. It is refused
 # rather than offered for approval.
@@ -53,6 +55,14 @@ _ENTITY_RE = re.compile(r"^climate\.[a-z0-9_]+$")
 _TOKEN_ENV_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
 DecisionKind = Literal["allow", "approve", "deny"]
+
+
+class ClimateUpstreamError(Exception):
+    """The device call failed or the read-back was not observable.
+
+    The message is for logs inside this process. Callers store an error
+    code, not this text.
+    """
 
 
 class ClimateReadback(BaseModel):
@@ -86,6 +96,8 @@ class ZonePolicy:
     min_celsius: float
     max_celsius: float
     modes: frozenset[str]
+    host: str = ""
+    instance: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +107,7 @@ class ClimateInstall:
     upstream: str
     token_env: str
     zones: dict[str, ZonePolicy]
+    transport: str = TRANSPORT_HOME_ASSISTANT
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +165,30 @@ def require_private_upstream(url: str) -> str:
     if not private:
         raise ValueError("climate upstream must be a private or loopback address")
     return url.strip().rstrip("/")
+
+
+def require_private_host(host: object) -> str:
+    """Return a private, loopback, or link-local IPv4 address.
+
+    Hostnames are refused so a binding cannot resolve to a public address.
+    The ECHONET multicast group is not a unit address.
+    """
+    if not isinstance(host, str):
+        raise ValueError("climate host must be an IP address")
+    text = host.strip()
+    try:
+        address = ipaddress.ip_address(text)
+    except ValueError as exc:
+        raise ValueError("climate host must be an IP address") from exc
+    mapped = getattr(address, "ipv4_mapped", None)
+    if mapped is not None:
+        address = mapped
+    if address.version != 4:
+        raise ValueError("climate host must be an IPv4 address")
+    private = address.is_private or address.is_loopback or address.is_link_local
+    if not private:
+        raise ValueError("climate host must be a private or loopback address")
+    return str(address)
 
 
 def require_zone_id(zone: object) -> str:
@@ -357,3 +394,5 @@ class ZoneBounds(BaseModel):
     min_celsius: float = Field(ge=SANITY_MIN_CELSIUS, le=SANITY_MAX_CELSIUS)
     max_celsius: float = Field(ge=SANITY_MIN_CELSIUS, le=SANITY_MAX_CELSIUS)
     modes: list[ClimateMode] = Field(min_length=1)
+    host: str = ""
+    instance: int = Field(default=1, ge=1, le=255)

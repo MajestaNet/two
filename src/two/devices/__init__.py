@@ -17,5 +17,5 @@
 """In-repo device packages. Each protocol has its own ADR.
 
 Importing this package does not enable a slot, open a socket, or read
-secrets. See ADR 0022 and ``config/adapters/catalog.yaml``.
+secrets. See ADR 0022, ADR 0027, and ``config/adapters/catalog.yaml``.
 """

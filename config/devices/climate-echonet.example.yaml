@@ -1,0 +1,31 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example direct air-conditioner binding (ADR 0027). Copy to
+# $TWO_DATA_DIR/devices/climate.yaml and set enabled: true.
+# There is no token. Each host is the unit's private IPv4 address.
+# ECHONET Lite must already be enabled on that unit. See docs/setup.md.
+
+enabled: false
+transport: echonet
+zones:
+  living:
+    entity_id: climate.living
+    host: 192.168.1.50
+    min_celsius: 18
+    max_celsius: 26
+    # Quote off. Unquoted, YAML 1.1 reads it as a boolean.
+    modes:
+      - cool
+      - heat
+      - auto
+      - "off"
+  bedroom:
+    entity_id: climate.bedroom
+    host: 192.168.1.51
+    min_celsius: 18
+    max_celsius: 24
+    modes:
+      - cool
+      - heat
+      - "off"

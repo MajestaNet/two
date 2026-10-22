@@ -21,7 +21,7 @@ process. Copying a package into the tree does not enable it.
 | --- | --- | --- |
 | Client | CLI in this repo. Mobile and watch apps are specified here and built elsewhere. Watch edge is `two.edge`. | CLI is on. Mobile and watch stay `contract` until their executors exist. |
 | Messenger | `two.channels.<name>` | None selected. |
-| Device | `src/two/devices/climate/` (ADR 0022). The kind-level `device` slot stays reserved. | `climate` is shipped and off. A local `climate.yaml` binds zones. `home-action` only. |
+| Device | `src/two/devices/climate/` (ADR 0022, ADR 0027). The kind-level `device` slot stays reserved. | `climate` is shipped and off. A local `climate.yaml` binds zones. The transport is Home Assistant or ECHONET Lite. `home-action` only. |
 | Export | `src/two/export/` ([ADR 0012](adrs/0012-github-export-adapter.md)) | Reserved. Not a channel. |
 
 `two.providers` configures the model DeepSeek Harness calls. It is not

@@ -64,7 +64,8 @@ Python package for the Majesta Two control plane.
   adapters are deferred and none is selected. ADR 0015/B14 plans a
   first-party mobile API client, not another `channels.*` agent runtime.
   Device adapters live under `devices/`, not here. `devices/climate/`
-  is ADR 0022 and stays default off.
+  is ADR 0022 and stays default off. The binding transport is Home
+  Assistant REST or ECHONET Lite (ADR 0027).
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
   It is not implemented. Do not add `push` to `workspace/`. Do not put
   GitHub tokens in `worker/` or `channels/`.
@@ -94,7 +95,8 @@ Python package for the Majesta Two control plane.
   resumes `harness_sessions` with no worktree and no tools. A tool
   request fails the chat turn and is not executed. Profile `home-action`
   may request the closed climate tools. The control plane performs them
-  and does not send `execute` to the child (ADR 0022).
+  and does not send `execute` to the child (ADR 0022). The binding
+  transport is Home Assistant REST or ECHONET Lite (ADR 0027).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. `run_worker` drives
   `WorkflowController` with `AcpPhaseWorker` and heartbeats the lease.
