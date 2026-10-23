@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); adoption, speech, and profile preload follow |
 | Version | 0.13 |
 | Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -196,7 +196,7 @@ DeepSeek Harness remains the only model/tool loop (ADR 0019). One pinned binary 
 
 Profiles are persisted sessions under the local data directory. The controller may keep a profile warm so the next request resumes it without rebuilding a workspace. Warm profiles are not extra model weights and not extra harness releases. One inference stays in flight. A non-coding turn runs at a model-turn boundary and does not hold the coding lease.
 
-A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The tool list is the same. Speech capture and playback stay on the device. The speech stack and the preload mechanism are a later slice.
+A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The tool list is the same. Production home-action uses the pinned ACP client (ADR 0028). The session advertises only those three tools, the advertisement does not perform a call, and this process does not send `execute`. Speech capture and playback stay on the device. The speech stack and the preload mechanism are a later slice.
 
 ## 6. Component architecture
 
@@ -1061,7 +1061,7 @@ Default policy:
 | Always-on install | Mac mini runs Ollama, the scaffold, and DeepSeek Harness (ADR 0019) | A laptop is a client; `split` is optional |
 | Shared inference | One resident model; persisted harness profiles share the slot | Chat and device actions resume a profile; they do not open Ollama |
 | Adapter install menu | Committed catalog; only the CLI is enabled (ADR 0021) | Kinds stay separate; landing a package does not turn a slot on |
-| Climate tools | Closed `home-action` tools, control plane performs them (ADR 0022). ECHONET Lite is a second transport (ADR 0027) | Default off; read-back is the result; no per-brand firmware package |
+| Climate tools | Closed `home-action` tools, control plane performs them (ADR 0022). ECHONET Lite is a second transport (ADR 0027). Production uses the pinned ACP client (ADR 0028) | Default off; read-back is the result; no per-brand firmware package |
 
 ## 17. Risks and mitigations
 
@@ -1267,7 +1267,7 @@ invent a second architecture.
   run without it and without an OIDC issuer.
 - Persist and resume harness profile `chat` on the single inference slot
   (ADR 0019, ADR 0021, B20). Execute the closed climate tools on
-  `home-action` in the control plane (ADR 0022, B21). A binding may
+  `home-action` in the control plane (ADR 0022, ADR 0028, B21). A binding may
   speak ECHONET Lite to a Wi-Fi air conditioner (ADR 0027). The climate
   slot stays off until a local binding enables it. This slice is not a
   GUI and does not add a second agent loop.
@@ -1346,6 +1346,7 @@ and the seamless install remain open.
 - [Majesta Two default Qwen 3.5 9B (ADR 0026)](adrs/0026-default-qwen35-9b.md)
 - [Majesta Two climate tool contract (ADR 0022)](adrs/0022-climate-device-protocol.md)
 - [Majesta Two direct air-conditioner transport (ADR 0027)](adrs/0027-echonet-air-conditioner.md)
+- [Majesta Two home-action ACP client (ADR 0028)](adrs/0028-home-action-acp-client.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

@@ -45,6 +45,7 @@ from two.scheduler import Scheduler
 from two.store import HomeActionTurnStatus, Store, open_store
 from two.types import LifecycleState
 from two.worker import AcpWorker
+from two.worker.home_action import build_home_argv
 from two.worker.models import ChildConfig
 
 T0 = datetime(2026, 8, 30, 12, 0, 0, tzinfo=UTC)
@@ -646,46 +647,164 @@ def test_cli_send_show_and_child_env_omits_the_token(
     assert "profile: home-action" in sent
     assert "status: queued" in sent
     turn_id = sent.split("turn_id: ", 1)[1].splitlines()[0].strip()
-    env_out = tmp_path / "env.txt"
-    argv_out = tmp_path / "argv.txt"
-    script = tmp_path / "dsh"
-    script.write_text(
-        "\n".join(
-            [
-                f"#!{sys.executable}",
-                "import json, os, sys",
-                f"open({str(argv_out)!r}, 'w', encoding='utf-8').write('\\n'.join(sys.argv))",
-                (
-                    f"open({str(env_out)!r}, 'w', encoding='utf-8').write("
-                    "'\\n'.join(f'{k}={v}' for k, v in sorted(os.environ.items()))"
-                    ")"
-                ),
-                "session = {'type': 'session', 'session_id': 'ha-sess'}",
-                "sys.stdout.write(json.dumps(session) + '\\n')",
-                "reply = {'type': 'assistant_text', 'text': 'which zone'}",
-                "sys.stdout.write(json.dumps(reply) + '\\n')",
-                "sys.stdout.flush()",
-                "",
-            ]
-        ),
-        encoding="utf-8",
+    argv_out, env_out, methods_out = _install_fake_acp(
+        tmp_path,
+        monkeypatch,
+        prompt_lines=[
+            "send({'jsonrpc': '2.0', 'method': 'session/update', 'params': {",
+            "    'sessionId': 'sess-from-dsh',",
+            "    'update': {'sessionUpdate': 'agent_message_chunk',",
+            "               'content': {'type': 'text', 'text': 'which zone'}}}})",
+            "send({'jsonrpc': '2.0', 'id': mid, 'result': {'stopReason': 'end_turn'}})",
+        ],
     )
-    script.chmod(0o755)
     monkeypatch.setenv("TWO_CLIMATE_TOKEN", "ha-token")
-    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ.get('PATH', '')}")
     assert Scheduler(store).dispatch(now=T0) is None
     worker = AcpWorker(store, data_dir=tmp_path, child_config=FAST_CHILD)
     finished = worker.run_home_action(turn_id, now=T0)
     assert finished.reply_text == "which zone"
     argv = argv_out.read_text(encoding="utf-8")
     assert "--workspace" not in argv
-    assert "home-action" in argv.splitlines()
-    assert DSH_PIN in argv.splitlines()
+    assert "--profile" in argv.splitlines()
+    assert "acp" in argv.splitlines()
+    assert "home-action" not in argv.splitlines()
+    fixture = build_home_argv(session_id="fixture-session")
+    assert "home-action" in fixture
+    assert "--workspace" not in fixture
+    assert DSH_PIN in fixture
     env_text = env_out.read_text(encoding="utf-8")
     assert "TWO_CLIMATE_TOKEN" not in env_text
+    assert f"TWO_DSH_PIN={DSH_PIN}" in env_text
     assert "TWO_PROFILE=home-action" in env_text
     assert "ha-token" not in env_text
+    methods = methods_out.read_text(encoding="utf-8")
+    assert "climate_mcp.py" in methods
+    assert "ha-token" not in methods
+    assert "192.168.1.10" not in methods
+    assert '"execute"' not in methods
+    patch = (tmp_path / "harness" / "home" / "cordis.patch.yml").read_text(encoding="utf-8")
+    assert "mcp__climate__climate_read" in patch
+    assert "ha-token" not in patch
+    assert "192.168.1.10" not in patch
+    stored = store.get_harness_session("home-action")
+    assert stored is not None
+    assert stored.session_id == "sess-from-dsh"
     assert main(["climate", "show", turn_id], request=transport) == 0
     shown = capsys.readouterr().out
     assert "status: complete" in shown
     assert "which zone" in shown
+
+
+def test_pinned_acp_read_performs_the_climate_tool(
+    client: TestClient,
+    store: Store,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _binding(tmp_path)
+    transport = transport_from_testclient(client)
+    assert main(["climate", "send", "--text", "temperature"], request=transport) == 0
+    turn_id = capsys.readouterr().out.split("turn_id: ", 1)[1].splitlines()[0].strip()
+    _install_fake_acp(
+        tmp_path,
+        monkeypatch,
+        prompt_lines=[
+            "send({'jsonrpc': '2.0', 'method': 'session/update', 'params': {",
+            "    'update': {'sessionUpdate': 'tool_call', 'toolCallId': 'call-1',",
+            "               'title': 'mcp__climate__climate_read', 'status': 'in_progress',",
+            "               'rawInput': {'zone': 'living'}}}})",
+        ],
+    )
+    assert Scheduler(store).dispatch(now=T0) is None
+    broker = FakeBroker()
+    worker = AcpWorker(
+        store,
+        data_dir=tmp_path,
+        child_config=FAST_CHILD,
+        climate_broker=broker,
+    )
+    finished = worker.run_home_action(turn_id, now=T0)
+    assert finished.status is HomeActionTurnStatus.COMPLETE
+    assert finished.tool_name == "climate.read"
+    assert finished.reply_text is not None and "22.0" in finished.reply_text
+    assert broker.calls == [("read", "climate.living", "living")]
+
+
+def test_pinned_acp_rejects_a_tool_outside_the_list(
+    client: TestClient,
+    store: Store,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _binding(tmp_path)
+    transport = transport_from_testclient(client)
+    assert main(["climate", "send", "--text", "temperature"], request=transport) == 0
+    turn_id = capsys.readouterr().out.split("turn_id: ", 1)[1].splitlines()[0].strip()
+    _install_fake_acp(
+        tmp_path,
+        monkeypatch,
+        prompt_lines=[
+            "send({'jsonrpc': '2.0', 'method': 'session/update', 'params': {",
+            "    'update': {'sessionUpdate': 'tool_call', 'toolCallId': 'call-2',",
+            "               'title': 'bash', 'status': 'in_progress',",
+            "               'rawInput': {'command': 'id'}}}})",
+        ],
+    )
+    assert Scheduler(store).dispatch(now=T0) is None
+    broker = FakeBroker()
+    worker = AcpWorker(
+        store,
+        data_dir=tmp_path,
+        child_config=FAST_CHILD,
+        climate_broker=broker,
+    )
+    finished = worker.run_home_action(turn_id, now=T0)
+    assert finished.status is HomeActionTurnStatus.FAILED
+    assert finished.error_code == "profile_tool_denied"
+    assert broker.calls == []
+
+
+def _install_fake_acp(
+    directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    prompt_lines: list[str],
+) -> tuple[Path, Path, Path]:
+    """Put a fake ``dsh`` on PATH that speaks one ACP prompt."""
+    argv_out = directory / "argv.txt"
+    env_out = directory / "env.txt"
+    methods_out = directory / "methods.jsonl"
+    script = directory / "dsh"
+    body = [
+        f"#!{sys.executable}",
+        "import json, os, sys",
+        f"open({str(argv_out)!r}, 'w', encoding='utf-8').write('\\n'.join(sys.argv))",
+        (
+            f"open({str(env_out)!r}, 'w', encoding='utf-8').write("
+            "'\\n'.join(f'{k}={v}' for k, v in sorted(os.environ.items()))"
+            ")"
+        ),
+        "def send(payload):",
+        "    sys.stdout.write(json.dumps(payload) + '\\n')",
+        "    sys.stdout.flush()",
+        "for raw in sys.stdin:",
+        "    msg = json.loads(raw)",
+        "    method = msg.get('method')",
+        "    mid = msg.get('id')",
+        (f"    open({str(methods_out)!r}, 'a', encoding='utf-8').write(json.dumps(msg) + '\\n')"),
+        "    if method == 'initialize':",
+        "        send({'jsonrpc': '2.0', 'id': mid, 'result': {'protocolVersion': 1}})",
+        "    elif method == 'session/new':",
+        "        send({'jsonrpc': '2.0', 'id': mid, 'result': {'sessionId': 'sess-from-dsh'}})",
+        "    elif method == 'session/resume':",
+        "        send({'jsonrpc': '2.0', 'id': mid, 'result': {}})",
+        "    elif method == 'session/prompt':",
+    ]
+    body.extend(f"        {line}" for line in prompt_lines)
+    body.extend(["        break", ""])
+    script.write_text("\n".join(body), encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{directory}{os.pathsep}{os.environ.get('PATH', '')}")
+    return argv_out, env_out, methods_out

@@ -16,9 +16,11 @@
 
 """ECHONET Lite home air conditioner transport. Stdlib UDP. No new dependency.
 
-ADR 0027. The class is ``0x0130``. The port is UDP 3610. The worker calls
-``read``, ``set_setpoint``, and ``set_mode``. Discovery is a separate
-function and is not used on a turn. There is no credential in the frame.
+ADR 0027. The class is ``0x0130``. The port is UDP 3610. These adapters
+answer a request only when it is sent from that port, so the socket binds
+3610 before each send. The worker calls ``read``, ``set_setpoint``, and
+``set_mode``. Discovery is a separate function and is not used on a turn.
+There is no credential in the frame.
 """
 
 from __future__ import annotations
@@ -213,7 +215,7 @@ class EchonetClimate:
 
     def _udp(self, host: str, payload: bytes, timeout: float) -> bytes:
         tid = payload[2:4]
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock = _open_socket()
         try:
             sock.settimeout(timeout)
             sock.sendto(payload, (host, self._port))
@@ -264,12 +266,10 @@ def discover_home_air_conditioners(
 
 def _multicast_collect(timeout: float) -> list[tuple[str, bytes]]:
     payload = _frame(1, _NODE_PROFILE, _ESV_GET, [(_EPC_INSTANCES, b"")])
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock = _open_socket()
     found: list[tuple[str, bytes]] = []
     try:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
-        sock.bind(("0.0.0.0", 0))
         sock.settimeout(timeout)
         sock.sendto(payload, (ECHONET_MULTICAST, ECHONET_PORT))
         deadline = time.monotonic() + timeout
@@ -289,6 +289,19 @@ def _multicast_collect(timeout: float) -> list[tuple[str, bytes]]:
     finally:
         sock.close()
     return found
+
+
+def _open_socket() -> socket.socket:
+    """UDP socket bound to port 3610. The adapter replies to that source port."""
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("0.0.0.0", ECHONET_PORT))
+    except OSError:
+        sock.close()
+        raise
+    return sock
 
 
 def _deoj(instance: int) -> bytes:
