@@ -69,6 +69,7 @@ stored and can run the closed climate tools when
 `$TWO_DATA_DIR/devices/climate.yaml` enables them
 ([ADR 0022](adrs/0022-climate-device-protocol.md),
 [ADR 0027](adrs/0027-echonet-air-conditioner.md),
+[ADR 0028](adrs/0028-home-action-acp-client.md),
 [B21](backlog/B21-climate-home-action.md)). The binding transport is
 Home Assistant REST or ECHONET Lite. Without that binding the
 turn is `profile_not_executable` and is not stored. The Xcode app is

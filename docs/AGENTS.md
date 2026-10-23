@@ -26,6 +26,9 @@
 - `adrs/0025-chat-acp-client.md` launches pinned `dsh --profile acp`
   for a chat turn. Coding tasks stay on the JSONL fixture. Do not
   paste that ADR here.
+- `adrs/0028-home-action-acp-client.md` launches that same pinned client
+  for `home-action`. The session advertises the three climate tools and
+  this process performs them. Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.

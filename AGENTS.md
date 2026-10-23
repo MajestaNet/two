@@ -141,7 +141,9 @@ listed in `config/repositories/two.yaml`.
   heartbeat/reclaim, retry_wait backoff, and Mac health mapping. It admits
   one queued chat turn only when no coding lease is held.
   `src/two/worker/` supervises a pinned ACP child, the action ledger, and
-  session resume, including the no-tools `chat` profile. Default tests use
+  session resume, including the no-tools `chat` profile. Production
+  `home-action` uses that same `dsh --profile acp` client (ADR 0028) and
+  performs the closed climate tools in this process. Default tests use
   a fake child (`@pytest.mark.live_dsh` is opt-in).
   `src/two/controller/` drives the durable workflow, binds budgets, walks
   the persisted work graph, starts a fresh review session, and is the only

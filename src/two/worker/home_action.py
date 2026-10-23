@@ -16,8 +16,10 @@
 
 """Home-action profile. The harness requests a climate tool. This process performs it.
 
-Does not call ``plan_session``. Does not send ``execute`` to the child.
-Does not write the coding action ledger. A non-climate tool fails the turn.
+Production uses the pinned ACP client in ``acp_home``. Injected argv stays on
+the JSONL fixture. Does not call ``plan_session``. Does not send ``execute``
+to the child. Does not write the coding action ledger. A non-climate tool
+fails the turn.
 """
 
 from __future__ import annotations
@@ -106,7 +108,7 @@ def build_home_argv(
     pin: str = DSH_PIN,
     binary: str = "dsh",
 ) -> list[str]:
-    """Pinned harness argv for profile ``home-action``. No ``--workspace``."""
+    """JSONL-fixture argv. Production uses ``dsh --profile acp`` instead."""
     argv = [binary, "acp", "--profile", "home-action", "--pin", pin]
     if session_id:
         argv.extend(["--session-id", session_id])
@@ -148,6 +150,20 @@ def run_home_action_turn(
     loaded = install if install is not None else load_climate_config(data_dir)
     if turn.tool_name is not None:
         return _execute_staged(store, turn, loaded, broker, data_dir=data_dir, now=now)
+    if argv_factory is None and argv is None:
+        from two.worker.acp_home import run_pinned_acp_home
+
+        return run_pinned_acp_home(
+            store,
+            turn_id,
+            now=now,
+            data_dir=data_dir,
+            child_env=child_env,
+            child_config=child_config,
+            session_is_valid=session_is_valid,
+            install=loaded,
+            broker=broker,
+        )
     session = store.get_harness_session("home-action")
     stored = None if session is None else session.session_id
     zones = sorted(loaded.zones) if loaded is not None else []
@@ -159,10 +175,8 @@ def run_home_action_turn(
     )
     if argv_factory is not None:
         launched = list(argv_factory(plan))
-    elif argv is not None:
-        launched = list(argv)
     else:
-        launched = build_home_argv(session_id=plan.session_id)
+        launched = list(argv or [])
     profile_dir = ensure_home_action_profile_dir(data_dir)
     env = dict(child_env) if child_env is not None else home_child_env()
     config = child_config if child_config is not None else ChildConfig()

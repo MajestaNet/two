@@ -22,7 +22,11 @@ import yaml
 from two.devices.climate.broker import open_climate_broker
 from two.devices.climate.config import load_climate_config
 from two.devices.climate.contract import TRANSPORT_ECHONET, ClimateUpstreamError
-from two.devices.climate.echonet import EchonetClimate, discover_home_air_conditioners
+from two.devices.climate.echonet import (
+    ECHONET_PORT,
+    EchonetClimate,
+    discover_home_air_conditioners,
+)
 from two.worker.home_action import _default_broker
 
 REPO = Path(__file__).resolve().parents[2]
@@ -193,15 +197,18 @@ def test_loopback_udp_read() -> None:
         sock.bind(("127.0.0.1", 0))
         ports.append(int(sock.getsockname()[1]))
         ready.set()
+        sources: list[int] = []
         sock.settimeout(2)
         try:
             for _ in range(4):
                 data, addr = sock.recvfrom(2048)
+                sources.append(int(addr[1]))
                 values = {0x80: b"\x30", 0xB0: b"\x42", 0xB3: bytes((19,)), 0xBB: bytes((24,))}
                 epc = data[12]
                 sock.sendto(_response(data[2:4], data[9], 0x72, [(epc, values[epc])]), addr)
         finally:
             sock.close()
+        ports.append(sources[0] if sources else 0)
 
     thread = threading.Thread(target=serve)
     thread.start()
@@ -216,6 +223,7 @@ def test_loopback_udp_read() -> None:
     assert readback.mode == "cool"
     assert readback.celsius == 24.0
     assert readback.setpoint_celsius == 19.0
+    assert ports[1] == ECHONET_PORT
 
 
 def _write(tmp_path: Path, text: str) -> None:
