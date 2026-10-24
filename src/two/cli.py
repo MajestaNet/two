@@ -183,6 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_task_parser(subparsers)
     _add_chat_parser(subparsers)
     _add_climate_parser(subparsers)
+    _add_tv_parser(subparsers)
     return parser
 
 
@@ -245,6 +246,11 @@ def main(
         from two.cli_climate import run_climate
 
         return run_climate(args, request=request)
+    if args.command == "tv":
+        _load_host_env()
+        from two.cli_tv import run_tv
+
+        return run_tv(args, request=request)
     if args.command is None:
         parser.print_help()
         return 0
@@ -595,6 +601,63 @@ def _add_climate_parser(subparsers: Any) -> None:
     )
     reject.add_argument("turn_id", help="Home-action turn id")
     reject.add_argument("--digest", required=True, help="Exact action_digest")
+
+
+def _add_tv_parser(subparsers: Any) -> None:
+    transport = _transport_parser()
+    television = subparsers.add_parser(
+        "tv",
+        help="Send, show, approve, or reject one home-action television turn",
+        description=(
+            "send, show, approve, and reject talk only to the control API. "
+            "pair and apps open the bound Samsung set and write nothing. "
+            "The turn runs only when the local television binding is enabled."
+        ),
+    )
+    tv_sub = television.add_subparsers(dest="tv_command", required=True)
+    send = tv_sub.add_parser(
+        "send",
+        parents=[transport],
+        help="POST a home-action turn and print the receipt",
+    )
+    send.add_argument("--text", required=True, help="User transcript")
+    send.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Optional Idempotency-Key for this POST",
+    )
+    show = tv_sub.add_parser(
+        "show",
+        parents=[transport],
+        help="Print the receipt for TURN_ID",
+    )
+    show.add_argument("turn_id", help="Home-action turn id")
+    approve = tv_sub.add_parser(
+        "approve",
+        parents=[transport],
+        help="Approve one open television action (digest required)",
+    )
+    approve.add_argument("turn_id", help="Home-action turn id")
+    approve.add_argument("--digest", required=True, help="Exact action_digest")
+    reject = tv_sub.add_parser(
+        "reject",
+        parents=[transport],
+        help="Reject one open television action (digest required)",
+    )
+    reject.add_argument("turn_id", help="Home-action turn id")
+    reject.add_argument("--digest", required=True, help="Exact action_digest")
+    pair = tv_sub.add_parser(
+        "pair",
+        help="Wait for the Samsung Allow prompt and print the token",
+    )
+    pair.add_argument("--set", required=True, help="Set id from the binding")
+    pair.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
+    apps = tv_sub.add_parser(
+        "apps",
+        help="Print application ids from one bound set",
+    )
+    apps.add_argument("--set", required=True, help="Set id from the binding")
+    apps.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
 
 
 if __name__ == "__main__":

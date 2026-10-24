@@ -477,8 +477,8 @@ class VoiceTurnRequest(BaseModel):
 
     ``self-build`` is accepted by the schema so a stolen or confused client
     is rejected by authorization (403) rather than by a 422. ``chat`` is
-    stored and resumed. ``home-action`` is stored when the local climate
-    binding is enabled (ADR 0022).
+    stored and resumed.     ``home-action`` is stored when a local climate or television
+    binding is enabled (ADR 0022, ADR 0029).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -518,6 +518,33 @@ class ClimateDecisionRequest(BaseModel):
     action_digest: str = Field(min_length=1, max_length=80)
 
 
+class TvReadbackView(BaseModel):
+    """Observed television state. Addresses, app ids, and tokens stay off this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    set: str = Field(min_length=1, max_length=64)
+    power: Literal["on", "off"]
+    active_target: str | None = None
+    volume: int | None = None
+    mute: bool | None = None
+    reachable: bool
+
+
+class TvRequestView(BaseModel):
+    """The television call waiting for an approval digest. No address."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool: Literal["tv.read", "tv.set_power", "tv.open", "tv.set_volume"]
+    set: str = Field(min_length=1, max_length=64)
+    power: Literal["on", "off"] | None = None
+    target: str | None = None
+    level: int | None = None
+    mute: bool | None = None
+    step: Literal["up", "down"] | None = None
+
+
 def encode_turn_cursor(seq: int) -> str:
     """Opaque cursor for one chat turn. Encodes ``seq`` and nothing else."""
     if seq < 1:
@@ -533,6 +560,7 @@ class VoiceTurnReceipt(BaseModel):
     set only when ``status`` is ``failed``. ``action_digest`` and
     ``pending_action`` are set only when ``status`` is ``awaiting_approval``.
     ``climate`` is the device read-back on a completed climate action.
+    ``tv`` is the device read-back on a completed television action.
     Host paths, session ids, entity ids, and tokens stay off this body.
     """
 
@@ -544,8 +572,10 @@ class VoiceTurnReceipt(BaseModel):
     reply: str | None = Field(default=None, min_length=1, max_length=4_000)
     error_code: ErrorCode | None = None
     climate: ClimateReadbackView | None = None
+    tv: TvReadbackView | None = None
     action_digest: str | None = None
     pending_action: ClimateRequestView | None = None
+    pending_tv: TvRequestView | None = None
     cursor: str = Field(min_length=1)
     revision: int = Field(ge=1)
 
@@ -556,28 +586,43 @@ class VoiceTurnReceipt(BaseModel):
                 raise ValueError("complete receipt has reply and no error_code")
             if self.action_digest is not None or self.pending_action is not None:
                 raise ValueError("complete receipt has no pending action")
+            if self.pending_tv is not None:
+                raise ValueError("complete receipt has no pending action")
+            if self.climate is not None and self.tv is not None:
+                raise ValueError("complete receipt has one device read-back")
         elif self.status == "failed":
             if self.error_code is None or self.reply is not None:
                 raise ValueError("failed receipt has error_code and no reply")
             if (
                 self.climate is not None
+                or self.tv is not None
                 or self.action_digest is not None
                 or self.pending_action is not None
+                or self.pending_tv is not None
             ):
-                raise ValueError("failed receipt has no climate result")
+                raise ValueError("failed receipt has no device result")
         elif self.status == "awaiting_approval":
-            if self.reply is not None or self.error_code is not None or self.climate is not None:
-                raise ValueError("awaiting approval has no reply or climate result")
-            if self.action_digest is None or self.pending_action is None:
-                raise ValueError("awaiting approval names the digest and the action")
+            if (
+                self.reply is not None
+                or self.error_code is not None
+                or self.climate is not None
+                or self.tv is not None
+            ):
+                raise ValueError("awaiting approval has no reply or device result")
+            climate_pending = self.pending_action is not None
+            tv_pending = self.pending_tv is not None
+            if self.action_digest is None or climate_pending == tv_pending:
+                raise ValueError("awaiting approval names the digest and one action")
         elif self.reply is not None or self.error_code is not None:
             raise ValueError("reply and error_code are terminal")
         elif (
             self.climate is not None
+            or self.tv is not None
             or self.action_digest is not None
             or self.pending_action is not None
+            or self.pending_tv is not None
         ):
-            raise ValueError("queued and running receipts omit climate results")
+            raise ValueError("queued and running receipts omit device results")
         return self
 
 
@@ -591,15 +636,19 @@ def voice_turn_receipt(
     revision: int,
     profile: str = "chat",
     climate: ClimateReadbackView | None = None,
+    tv: TvReadbackView | None = None,
     action_digest: str | None = None,
     pending_action: ClimateRequestView | None = None,
+    pending_tv: TvRequestView | None = None,
 ) -> VoiceTurnReceipt:
     """Build a receipt. Non-terminal rows never expose reply or error_code."""
     shown_reply = reply if status == "complete" else None
     shown_error = error_code if status == "failed" else None
     shown_climate = climate if status == "complete" else None
+    shown_tv = tv if status == "complete" else None
     shown_digest = action_digest if status == "awaiting_approval" else None
     shown_pending = pending_action if status == "awaiting_approval" else None
+    shown_pending_tv = pending_tv if status == "awaiting_approval" else None
     if shown_reply is not None and len(shown_reply) > 4000:
         shown_reply = shown_reply[:4000]
     return VoiceTurnReceipt.model_validate(
@@ -610,9 +659,13 @@ def voice_turn_receipt(
             "reply": shown_reply,
             "error_code": shown_error,
             "climate": None if shown_climate is None else shown_climate.model_dump(mode="json"),
+            "tv": None if shown_tv is None else shown_tv.model_dump(mode="json"),
             "action_digest": shown_digest,
             "pending_action": (
                 None if shown_pending is None else shown_pending.model_dump(mode="json")
+            ),
+            "pending_tv": (
+                None if shown_pending_tv is None else shown_pending_tv.model_dump(mode="json")
             ),
             "cursor": encode_turn_cursor(seq),
             "revision": revision,

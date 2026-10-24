@@ -93,6 +93,7 @@ from two.store.models import (
     QuestionRecord,
     RepositoryConfigState,
     TaskRecord,
+    TvApprovalRecord,
 )
 from two.store.schema import SCHEMA_VERSION, current_schema_version
 from two.types import ExecutionProfile, LifecycleState, Mode, WorkflowStage
@@ -2191,6 +2192,131 @@ class Store:
             raise StoreError(f"unknown home-action turn: {turn_id}")
         return record
 
+    def hold_tv_for_approval(
+        self,
+        turn_id: str,
+        tool_name: str,
+        arguments_json: str,
+        action_digest: str,
+        *,
+        approval_id: str,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """Park a running turn until a television approval digest matches."""
+        if approval_id.strip() == "":
+            raise StoreError("tv approval id must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            existing = self._home_action_turn_row(turn_id)
+            if existing is None:
+                raise StoreError(f"unknown home-action turn: {turn_id}")
+            if str(existing["status"]) != HomeActionTurnStatus.RUNNING.value:
+                raise StoreError(f"home-action turn {turn_id} is not running")
+            self._connection.execute(
+                """
+                INSERT INTO tv_approvals (
+                    id, turn_id, action_digest, status, created_at, resolved_at, resolver
+                ) VALUES (?, ?, ?, 'open', ?, NULL, NULL)
+                """,
+                (approval_id, turn_id, action_digest, stamp),
+            )
+            self._connection.execute(
+                """
+                UPDATE home_action_turns
+                SET status = 'awaiting_approval', tool_name = ?, arguments_json = ?,
+                    action_digest = ?, revision = revision + 1, updated_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (tool_name, arguments_json, action_digest, stamp, turn_id),
+            )
+        record = self.get_home_action_turn(turn_id)
+        if record is None:
+            raise StoreError(f"home-action turn missing after hold: {turn_id}")
+        return record
+
+    def get_tv_approval(self, turn_id: str) -> TvApprovalRecord | None:
+        """Return the television approval for one turn, or ``None``."""
+        row = self._connection.execute(
+            "SELECT * FROM tv_approvals WHERE turn_id = ?",
+            (turn_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("tv approval query did not return a sqlite3.Row")
+        return _tv_approval_from_row(row)
+
+    def decide_tv_approval(
+        self,
+        turn_id: str,
+        action_digest: str,
+        *,
+        approve: bool,
+        resolver: str,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """First writer wins. A matching repeat returns the turn unchanged.
+
+        Approval queues the turn again. Rejection fails it. Neither calls the device.
+        """
+        if resolver.strip() == "":
+            raise StoreError("tv approval resolver must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            approval_row = self._connection.execute(
+                "SELECT * FROM tv_approvals WHERE turn_id = ?",
+                (turn_id,),
+            ).fetchone()
+            if approval_row is None:
+                raise StoreError(f"unknown home-action turn: {turn_id}")
+            if not isinstance(approval_row, sqlite3.Row):
+                raise StoreError("tv approval query did not return a sqlite3.Row")
+            stored_digest = _as_str(approval_row["action_digest"], "action_digest")
+            if stored_digest != action_digest:
+                raise StoreError("stale action digest")
+            status = _as_str(approval_row["status"], "status")
+            if status == "approved" and approve:
+                pass
+            elif status == "rejected" and not approve:
+                pass
+            elif status != "open":
+                raise StoreError("tv approval is not open")
+            else:
+                next_status = "approved" if approve else "rejected"
+                self._connection.execute(
+                    """
+                    UPDATE tv_approvals
+                    SET status = ?, resolved_at = ?, resolver = ?
+                    WHERE turn_id = ? AND status = 'open'
+                    """,
+                    (next_status, stamp, resolver, turn_id),
+                )
+                if approve:
+                    self._connection.execute(
+                        """
+                        UPDATE home_action_turns
+                        SET status = 'queued', revision = revision + 1, updated_at = ?
+                        WHERE id = ? AND status = 'awaiting_approval'
+                        """,
+                        (stamp, turn_id),
+                    )
+                else:
+                    self._connection.execute(
+                        """
+                        UPDATE home_action_turns
+                        SET status = 'failed', error_code = 'tv_rejected',
+                            revision = revision + 1, updated_at = ?
+                        WHERE id = ? AND status = 'awaiting_approval'
+                        """,
+                        (stamp, turn_id),
+                    )
+        record = self.get_home_action_turn(turn_id)
+        if record is None:
+            raise StoreError(f"unknown home-action turn: {turn_id}")
+        return record
+
     def complete_home_action_turn(
         self,
         turn_id: str,
@@ -2552,6 +2678,21 @@ def _home_action_turn_from_row(row: sqlite3.Row) -> HomeActionTurnRecord:
         revision=_as_int(row["revision"], "revision"),
         created_at=_parse_time(_as_str(row["created_at"], "created_at")),
         updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
+    )
+
+
+def _tv_approval_from_row(row: sqlite3.Row) -> TvApprovalRecord:
+    resolved_raw = row["resolved_at"]
+    return TvApprovalRecord(
+        id=_as_str(row["id"], "id"),
+        turn_id=_as_str(row["turn_id"], "turn_id"),
+        action_digest=_as_str(row["action_digest"], "action_digest"),
+        status=_as_str(row["status"], "status"),
+        created_at=_parse_time(_as_str(row["created_at"], "created_at")),
+        resolved_at=(
+            _parse_time(_as_str(resolved_raw, "resolved_at")) if resolved_raw is not None else None
+        ),
+        resolver=_optional_str(row["resolver"], "resolver"),
     )
 
 

@@ -1,0 +1,35 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example Samsung television binding (ADR 0029). Copy to
+# $TWO_DATA_DIR/devices/tv.yaml and set enabled: true.
+# Addresses are private IPv4. MAC values come from the router.
+# Tokens are environment variables, not this file.
+# Application ids come from `two tv apps`. See docs/setup.md.
+
+enabled: false
+sets:
+  living-room:
+    address: 192.168.1.40
+    mac: "02:00:00:00:00:01"
+    token_env: SAMSUNG_TV_LIVING_ROOM_TOKEN
+    secure: true
+    volume_min: 0
+    volume_max: 30
+    volume_step: 3
+    targets:
+      netflix:
+        app_id: "0000000000000"
+      hdmi-1:
+        key: KEY_HDMI1
+  bedroom:
+    address: 192.168.1.41
+    mac: "02:00:00:00:00:02"
+    token_env: SAMSUNG_TV_BEDROOM_TOKEN
+    secure: true
+    volume_min: 0
+    volume_max: 20
+    volume_step: 3
+    targets:
+      netflix:
+        app_id: "0000000000000"

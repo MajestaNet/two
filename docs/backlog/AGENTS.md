@@ -12,6 +12,8 @@ Dedicated, agent-executable implementation items. One file per item.
   the single inference slot (ADR 0021). It is done.
   [B21](B21-climate-home-action.md) executes the closed climate tools
   on `home-action` (ADR 0022) and leaves the slot default off.
+  [B22](B22-tv-home-action.md) executes the closed television tools
+  on the same profile (ADR 0029) and leaves that slot default off.
   Landing either item does not close architecture §21 item 20.
   Do not merge two items in one PR unless the item file says they may
   land together.

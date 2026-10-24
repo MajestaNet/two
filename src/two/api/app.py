@@ -152,6 +152,8 @@ from two.api.schemas import (
     TaskProjection,
     TaskReport,
     TodoItem,
+    TvReadbackView,
+    TvRequestView,
     ValidationGateView,
     ValidationSummary,
     VoiceTurnReceipt,
@@ -173,6 +175,7 @@ from two.approvals import (
     resume_task,
 )
 from two.devices.climate.config import load_climate_config
+from two.devices.tv.config import load_tv_config
 from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
 from two.projection import voice_turn_receipt
@@ -516,11 +519,20 @@ def _receipt_for(turn: ChatTurnRecord) -> VoiceTurnReceipt:
 
 def _home_receipt(turn: HomeActionTurnRecord) -> VoiceTurnReceipt:
     climate = None
+    tv = None
     pending = None
+    pending_tv = None
+    television = turn.tool_name is not None and turn.tool_name.startswith("tv.")
     if turn.status.value == "complete" and turn.readback_json:
-        climate = ClimateReadbackView.model_validate_json(turn.readback_json)
+        if television:
+            tv = TvReadbackView.model_validate_json(turn.readback_json)
+        else:
+            climate = ClimateReadbackView.model_validate_json(turn.readback_json)
     if turn.status.value == "awaiting_approval":
-        pending = _pending_action(turn)
+        if television:
+            pending_tv = _pending_tv(turn)
+        else:
+            pending = _pending_action(turn)
     return voice_turn_receipt(
         turn_id=turn.id,
         profile="home-action",
@@ -530,8 +542,10 @@ def _home_receipt(turn: HomeActionTurnRecord) -> VoiceTurnReceipt:
         seq=turn.seq,
         revision=turn.revision,
         climate=climate,
+        tv=tv,
         action_digest=turn.action_digest,
         pending_action=pending,
+        pending_tv=pending_tv,
     )
 
 
@@ -554,6 +568,28 @@ def _pending_action(turn: HomeActionTurnRecord) -> ClimateRequestView | None:
     )
 
 
+def _pending_tv(turn: HomeActionTurnRecord) -> TvRequestView | None:
+    if turn.tool_name is None or turn.arguments_json is None:
+        return None
+    try:
+        raw = json.loads(turn.arguments_json)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    return TvRequestView.model_validate(
+        {
+            "tool": turn.tool_name,
+            "set": raw.get("set"),
+            "power": raw.get("power"),
+            "target": raw.get("target"),
+            "level": raw.get("level"),
+            "mute": raw.get("mute"),
+            "step": raw.get("step"),
+        }
+    )
+
+
 def _require_harness_profile(request: Request, profile: str) -> str:
     principal = principal_from_request(request)
     if profile not in principal.harness_profiles:
@@ -568,8 +604,8 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
     """Accept one ``chat`` or enabled ``home-action`` transcript.
 
     Coding tasks stay on ``POST /v1/tasks``. ``self-build`` on this route is
-    forbidden. ``home-action`` is stored only when the local climate binding
-    is enabled. Neither turn takes a coding lease.
+    forbidden. ``home-action`` is stored only when a local climate or
+    television binding is enabled. Neither turn takes a coding lease.
     """
     principal = principal_from_request(request)
     if body.profile == HarnessProfile.SELF_BUILD.value:
@@ -583,7 +619,7 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
     data_dir = request.app.state.data_dir
     directory = data_dir if isinstance(data_dir, Path) else None
     if body.profile == HarnessProfile.HOME_ACTION.value:
-        if load_climate_config(directory) is None:
+        if load_climate_config(directory) is None and load_tv_config(directory) is None:
             raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
         async with box.lock:
             ensure_home_action_profile_dir(directory)
@@ -658,12 +694,26 @@ async def _decide_climate(
     box = _box(request)
     async with box.lock:
         try:
-            record = box.store.decide_climate_approval(
-                turn_id,
-                body.action_digest,
-                approve=approve,
-                resolver=principal_id,
+            current = box.store.get_home_action_turn(turn_id)
+            television = (
+                current is not None
+                and current.tool_name is not None
+                and current.tool_name.startswith("tv.")
             )
+            if television:
+                record = box.store.decide_tv_approval(
+                    turn_id,
+                    body.action_digest,
+                    approve=approve,
+                    resolver=principal_id,
+                )
+            else:
+                record = box.store.decide_climate_approval(
+                    turn_id,
+                    body.action_digest,
+                    approve=approve,
+                    resolver=principal_id,
+                )
         except StoreError as exc:
             text = str(exc)
             if "unknown" in text:

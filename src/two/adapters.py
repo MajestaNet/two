@@ -35,7 +35,7 @@ AdapterKind = Literal["client", "messenger", "device", "export"]
 AdapterStatus = Literal["shipped", "contract", "stub", "reserved"]
 HarnessProfileName = Literal["self-build", "home-action", "chat"]
 
-_REQUIRED_IDS: tuple[str, ...] = ("cli", "mobile", "watch", "device", "climate", "github")
+_REQUIRED_IDS: tuple[str, ...] = ("cli", "mobile", "watch", "device", "climate", "tv", "github")
 _DEVICE_PROFILES: frozenset[str] = frozenset({"chat", "home-action"})
 
 
@@ -165,6 +165,15 @@ def validate_catalog(catalog: AdapterCatalog, repo_root: Path) -> None:
     _require(not climate.default_enabled, "climate stays off until an install binds it")
     _require(climate.selectable, "climate is selectable once shipped")
     _require(climate.harness_profiles == ["home-action"], "climate resumes home-action only")
+    television = catalog.slots["tv"]
+    _require(
+        television.kind == "device" and television.status == "shipped",
+        "tv is a shipped device package",
+    )
+    _require(television.package == "two.devices.tv", "tv package is two.devices.tv")
+    _require(not television.default_enabled, "tv stays off until an install binds it")
+    _require(television.selectable, "tv is selectable once shipped")
+    _require(television.harness_profiles == ["home-action"], "tv resumes home-action only")
     github = catalog.slots["github"]
     _require(
         github.kind == "export" and github.status == "reserved" and github.package == "",

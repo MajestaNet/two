@@ -623,7 +623,7 @@ def test_v7_session_survives_the_home_action_migration(tmp_path: Path) -> None:
     connection.commit()
     connection.close()
     with open_store(path) as opened:
-        assert opened.schema_version() == 8
+        assert opened.schema_version() == 9
         session = opened.get_harness_session()
         assert session is not None
         assert session.session_id == "sess-old"

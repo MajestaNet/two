@@ -29,6 +29,9 @@
 - `adrs/0028-home-action-acp-client.md` launches that same pinned client
   for `home-action`. The session advertises the three climate tools and
   this process performs them. Do not paste that ADR here.
+- `adrs/0029-samsung-tv.md` is the closed television tool contract.
+  The slot stays off. The transport is the Samsung local API.
+  Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.

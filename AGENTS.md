@@ -14,12 +14,13 @@ and it does not develop unrelated repositories. The CLI is the local surface
 today; ADR 0015/B14 plans a secure first-party mobile client over the same
 API. The climate device package is in-repo and default off (ADR 0022).
 A binding may use Home Assistant REST or ECHONET Lite (ADR 0027).
+The television package is in-repo and default off (ADR 0029).
 Speech remains specified and not implemented.
 The SQLite WAL store (`two.store`)
 persists tasks, events, leases, the work graph (schema v5),
 projects/config candidates (schema v6), and the chat harness session
 plus turn log (schema v7), and home-action climate turns
-(schema v8).
+(schema v8), and television turns (schema v9).
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
@@ -79,6 +80,12 @@ uv run two climate send --text TEXT
 uv run two climate show TURN_ID
 uv run two climate approve TURN_ID --digest DIGEST
 uv run two climate reject TURN_ID --digest DIGEST
+uv run two tv send --text TEXT
+uv run two tv show TURN_ID
+uv run two tv approve TURN_ID --digest DIGEST
+uv run two tv reject TURN_ID --digest DIGEST
+uv run two tv pair --set SET
+uv run two tv apps --set SET
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
 ./scripts/bootstrap-dev-host.sh --dry-run
@@ -119,7 +126,8 @@ listed in `config/repositories/two.yaml`.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. Only the `cli` slot is
  enabled. `watch` and `mobile` are clients at `contract`. `climate`
- is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027). The
+ is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).
+ `tv` is shipped and off (`src/two/devices/tv/`, ADR 0029). The
  kind-level `device` slot and `github` (`src/two/export/`) stay
  reserved. Do not enable a slot by adding a directory.
  `src/two/edge.py` is the watch edge plan (ADR 0020): private CA,

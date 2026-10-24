@@ -19,7 +19,7 @@ the spec.
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
-| Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate` is shipped and off until `$TWO_DATA_DIR/devices/climate.yaml` enables it. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [adapters.md](adapters.md)) |
+| Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate` and `tv` are shipped and off until a local binding enables them. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0029](adrs/0029-samsung-tv.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
 | Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
@@ -27,7 +27,7 @@ the spec.
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
-| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log; schema v8 adds home-action turns and climate approvals) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md), [B21](backlog/B21-climate-home-action.md)) |
+| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log; schema v8 adds home-action turns and climate approvals; schema v9 adds television tools and television approvals) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket). Client JSON is `two.projection`. B14 slice 3 adds persisted projects and typed config candidates on top of slice 2 conversation/SSE/health/repo reads ([B07](backlog/B07-control-api.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; `two scheduler` process) ([B08](backlog/B08-scheduler.md)) |
 | ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
@@ -37,9 +37,12 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
-| Harness profile `home-action` | Works when `$TWO_DATA_DIR/devices/climate.yaml` enables a private climate upstream (`two climate send/show/approve/reject`). Production uses the pinned `dsh --profile acp` client. The control plane performs `climate.read`, `climate.set_setpoint`, and `climate.set_mode`. The binding transport is Home Assistant REST or ECHONET Lite. Out-of-band writes wait for a digest. Without the binding the turn is refused and not stored ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [B21](backlog/B21-climate-home-action.md)) |
+| Harness profile `home-action` | Works when a local climate or television binding is enabled (`two climate` or `two tv`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. Without either binding the turn is refused and not stored ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md)) |
 
-Last updated: 23 October 2026 (ADR 0028: home-action production uses the
+Last updated: 24 October 2026 (ADR 0029: `home-action` can perform the
+closed Samsung television tools when `$TWO_DATA_DIR/devices/tv.yaml`
+enables them, schema v9. The television slot stays off. ADR 0028: home-action
+production uses the
 pinned `dsh --profile acp` client and still performs the climate tools
 here. ADR 0027: a climate binding may speak
 ECHONET Lite to a Wi-Fi air conditioner on the private LAN. The slot
@@ -48,7 +51,8 @@ stays off until that file enables it. ADR 0026: the default profile serves
 Ollama tag. ADR 0023:
 `bootstrap-mac.sh` pulls only the selected profile's upstream tag. The
 Q4 comparison tag is not installed. B21: `home-action` performs the closed
-climate tools when a local binding enables them, schema v8. The
+climate tools when a local binding enables them, schema v8. B22 adds
+the television tools on the same profile, schema v9. The
 climate slot stays off. B20: `two chat` resumes harness profile
 `chat` on the single slot. ADR 0021: `two adapters` is the install
 menu. Only the CLI is enabled. No messenger is selected. ADR 0020
@@ -135,7 +139,7 @@ and worktree directories at mode 0700. `two up` and `two doctor` load that
 file when the process environment does not already set the same keys.
 
 `two up` starts `two api`, `two scheduler`, and `two worker` together.
-The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v8) and
+The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v9) and
 `$TWO_DATA_DIR/two.up.pid`. If any one of those three processes exits,
 the supervisor stops the other two. Stop a healthy supervisor with
 Ctrl+C or `uv run two down`. Closing `two task` detaches; it does not
@@ -729,6 +733,48 @@ Home Assistant remains the other binding
 ([config/devices/climate.example.yaml](../config/devices/climate.example.yaml)).
 Use one file. A hostname, a public address, and a token on the ECHONET
 binding are refused, and `home-action` is not stored.
+
+## Samsung televisions on the LAN
+
+The closed tools are `tv.read`, `tv.set_power`, `tv.open`, and
+`tv.set_volume` ([ADR 0029](adrs/0029-samsung-tv.md)). The set stays a
+target. Nothing is installed on the television. Copy
+[config/devices/tv.example.yaml](../config/devices/tv.example.yaml) to
+`$TWO_DATA_DIR/devices/tv.yaml`. The slot stays off until that file has
+`enabled: true`.
+
+Do this before the first turn:
+
+1. Put the Mac mini and both sets on the same private LAN. In the
+   router, turn off client or AP isolation for those devices, and
+   reserve a DHCP address for each set.
+2. On each television, allow external or mobile device control, and
+   allow power-on from the network. Copy each set's MAC address from
+   the router's client list into `mac`.
+3. Write each reserved address into the binding. Set `token_env` to a
+   distinct name per set. Leave `enabled: true` only after the
+   addresses are real.
+4. Restart `two up` so the worker loads the file. Then, with the set
+   on, run `uv run two tv pair --set living-room`. Accept the Allow
+   prompt on the screen. The command prints
+   `SAMSUNG_TV_LIVING_ROOM_TOKEN=...` and stores nothing. Add that line
+   to `$TWO_DATA_DIR/env` and restart `two up`. Repeat for the other set.
+5. Run `uv run two tv apps --set living-room` and copy the printed
+   application id into the `netflix` target. Add an `hdmi-1` target
+   with `key: KEY_HDMI1` when that input is the one you want. An alias
+   that is not in the file is refused.
+6. Restart the worker after each binding edit. Then try, one at a time:
+   `two tv send --text "what is on the living room tv"`,
+   `two tv send --text "turn off the living room tv"`,
+   `two tv send --text "put netflix on the living room tv"`, and
+   `two tv send --text "set the living room tv to 12"`.
+   `two tv show TURN_ID` prints the read-back. A level above
+   `volume_max` waits; approve it with the printed digest.
+
+`two tv send` talks only to the control API. The worker opens the set.
+A sentence that does not request one of the four tools is stored and
+does not change the television. Title search and account resume stay
+on `two chat`.
 
 ## What not to do
 

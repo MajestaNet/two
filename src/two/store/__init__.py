@@ -22,6 +22,7 @@ open the database. Schema v5 persists ``work_nodes`` / ``work_edges``.
 Schema v6 persists projects and immutable config candidates (B14 slice 3).
 Schema v7 persists one ``chat`` harness session and its turn log (B20).
 Schema v8 persists ``home-action`` turns and climate approvals (ADR 0022).
+Schema v9 adds the television tool names and ``tv_approvals`` (ADR 0029).
 See docs/architecture.md §6.3.G, §8.4, §8.5, and §12.5.
 """
 
@@ -64,6 +65,7 @@ from two.store.models import (
     QuestionRecord,
     RepositoryConfigState,
     TaskRecord,
+    TvApprovalRecord,
 )
 from two.store.schema import SCHEMA_VERSION
 from two.store.store import Store, open_store
@@ -107,6 +109,7 @@ __all__ = [
     "Store",
     "StoreError",
     "TaskNotFoundError",
+    "TvApprovalRecord",
     "TaskRecord",
     "open_store",
     "resolve_db_path",
