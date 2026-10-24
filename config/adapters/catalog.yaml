@@ -75,6 +75,20 @@ slots:
       Assistant REST or ECHONET Lite (ADR 0027). The model does not call
       the upstream. The control plane performs the read-back.
 
+  tv:
+    kind: device
+    status: shipped
+    package: two.devices.tv
+    default_enabled: false
+    selectable: true
+    harness_profiles:
+      - home-action
+    notes: >
+      Closed television tools (ADR 0029). Default off. An install enables
+      it with $TWO_DATA_DIR/devices/tv.yaml. The transport is the Samsung
+      local API on the private LAN. The model does not call the set.
+      The control plane performs the read-back.
+
   github:
     kind: export
     status: reserved

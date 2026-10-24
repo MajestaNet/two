@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -417,6 +417,72 @@ _V8_STATEMENTS = (
     """,
 )
 
+# Version 9: television tools on home-action (ADR 0029).
+# SQLite cannot widen a CHECK in place. home_action_turns is rebuilt so
+# the tool list can name the four television tools beside the climate tools.
+# A television approval is not a task approval and not a climate approval.
+_V9_STATEMENTS = (
+    """
+    CREATE TABLE home_action_turns_v9 (
+        id TEXT PRIMARY KEY,
+        profile TEXT NOT NULL,
+        seq INTEGER NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        request_text TEXT NOT NULL,
+        reply_text TEXT,
+        error_code TEXT,
+        principal TEXT NOT NULL,
+        tool_name TEXT,
+        arguments_json TEXT,
+        readback_json TEXT,
+        action_digest TEXT,
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (profile = 'home-action'),
+        CHECK (status IN (
+            'queued', 'running', 'awaiting_approval', 'complete', 'failed'
+        )),
+        CHECK (tool_name IS NULL OR tool_name IN (
+            'climate.read', 'climate.set_setpoint', 'climate.set_mode',
+            'tv.read', 'tv.set_power', 'tv.open', 'tv.set_volume'
+        )),
+        CHECK (length(request_text) BETWEEN 1 AND 4000),
+        CHECK (reply_text IS NULL OR length(reply_text) BETWEEN 1 AND 4000)
+    )
+    """,
+    """
+    INSERT INTO home_action_turns_v9 (
+        id, profile, seq, status, request_text, reply_text, error_code,
+        principal, tool_name, arguments_json, readback_json, action_digest,
+        revision, created_at, updated_at
+    )
+    SELECT
+        id, profile, seq, status, request_text, reply_text, error_code,
+        principal, tool_name, arguments_json, readback_json, action_digest,
+        revision, created_at, updated_at
+    FROM home_action_turns
+    """,
+    "DROP TABLE home_action_turns",
+    "ALTER TABLE home_action_turns_v9 RENAME TO home_action_turns",
+    """
+    CREATE UNIQUE INDEX idx_home_action_turns_one_running
+        ON home_action_turns (status) WHERE status = 'running'
+    """,
+    """
+    CREATE TABLE tv_approvals (
+        id TEXT PRIMARY KEY,
+        turn_id TEXT NOT NULL UNIQUE,
+        action_digest TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolver TEXT,
+        CHECK (status IN ('open', 'approved', 'rejected'))
+    )
+    """,
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1_STATEMENTS),
     (2, _V2_STATEMENTS),
@@ -426,6 +492,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (6, _V6_STATEMENTS),
     (7, _V7_STATEMENTS),
     (8, _V8_STATEMENTS),
+    (9, _V9_STATEMENTS),
 )
 
 

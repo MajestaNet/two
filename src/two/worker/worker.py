@@ -30,6 +30,7 @@ from pathlib import Path
 from two.context.errors import MemoryPersistenceError
 from two.context.persist import load_task_memory
 from two.devices.climate.contract import ClimateBroker, ClimateInstall
+from two.devices.tv.contract import TvBroker, TvInstall
 from two.providers import DSH_PIN
 from two.scheduler.models import WorkerOutcome, WorkerResult
 from two.store.models import ActionStatus, ChatTurnRecord, HomeActionTurnRecord, TaskRecord
@@ -84,6 +85,8 @@ class AcpWorker:
         home_argv_factory: HomeArgvFactory | None = None,
         climate_install: ClimateInstall | None = None,
         climate_broker: ClimateBroker | None = None,
+        tv_install: TvInstall | None = None,
+        tv_broker: TvBroker | None = None,
         child_env: Mapping[str, str] | None = None,
         child_config: ChildConfig | None = None,
         session_is_valid: SessionValidator | None = None,
@@ -102,6 +105,8 @@ class AcpWorker:
         self._home_argv_factory = home_argv_factory
         self._climate_install = climate_install
         self._climate_broker = climate_broker
+        self._tv_install = tv_install
+        self._tv_broker = tv_broker
         self._child_env = dict(child_env) if child_env is not None else None
         self._child_config = child_config if child_config is not None else ChildConfig()
         self._session_is_valid = session_is_valid
@@ -166,6 +171,8 @@ class AcpWorker:
             session_is_valid=self._session_is_valid,
             install=self._climate_install,
             broker=self._climate_broker,
+            tv_install=self._tv_install,
+            tv_broker=self._tv_broker,
         )
 
     def _run(self, task_id: str, *, now: datetime | None) -> WorkerResult:

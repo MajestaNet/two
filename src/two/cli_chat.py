@@ -73,6 +73,28 @@ def format_receipt(receipt: VoiceTurnReceipt) -> str:
             lines.append(f"pending_celsius: {pending.celsius}")
         if pending.mode is not None:
             lines.append(f"pending_mode: {pending.mode}")
+    if receipt.pending_tv is not None:
+        pending_tv = receipt.pending_tv
+        lines.append(f"pending_tool: {pending_tv.tool}")
+        lines.append(f"pending_set: {pending_tv.set}")
+        if pending_tv.power is not None:
+            lines.append(f"pending_power: {pending_tv.power}")
+        if pending_tv.target is not None:
+            lines.append(f"pending_target: {pending_tv.target}")
+        if pending_tv.level is not None:
+            lines.append(f"pending_level: {pending_tv.level}")
+        if pending_tv.mute is not None:
+            lines.append(f"pending_mute: {pending_tv.mute}")
+        if pending_tv.step is not None:
+            lines.append(f"pending_step: {pending_tv.step}")
+    if receipt.tv is not None:
+        television = receipt.tv
+        lines.append(f"tv_set: {television.set}")
+        lines.append(f"tv_power: {television.power}")
+        lines.append(f"tv_active_target: {television.active_target}")
+        lines.append(f"tv_volume: {television.volume}")
+        lines.append(f"tv_mute: {television.mute}")
+        lines.append(f"tv_reachable: {television.reachable}")
     if receipt.climate is not None:
         climate = receipt.climate
         lines.append(f"climate_zone: {climate.zone}")

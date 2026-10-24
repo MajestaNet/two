@@ -14,12 +14,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Home-action profile. The harness requests a climate tool. This process performs it.
+"""Home-action profile. The harness requests one closed device tool. This process performs it.
 
 Production uses the pinned ACP client in ``acp_home``. Injected argv stays on
 the JSONL fixture. Does not call ``plan_session``. Does not send ``execute``
-to the child. Does not write the coding action ledger. A non-climate tool
-fails the turn.
+to the child. Does not write the coding action ledger. A tool outside the
+enabled climate and television lists fails the turn.
 """
 
 from __future__ import annotations
@@ -43,6 +43,18 @@ from two.devices.climate.contract import (
     interpret_tool,
     readback_reply,
 )
+from two.devices.tv.broker import open_tv_broker
+from two.devices.tv.config import load_tv_config
+from two.devices.tv.contract import (
+    TV_TOOLS,
+    TvBroker,
+    TvInstall,
+    TvReadback,
+    TvUpstreamError,
+    interpret_tv_tool,
+)
+from two.devices.tv.contract import StagedCall as TvStagedCall
+from two.devices.tv.contract import readback_reply as tv_readback_reply
 from two.providers import DSH_PIN
 from two.store.models import HomeActionTurnRecord, HomeActionTurnStatus
 from two.store.store import Store
@@ -116,7 +128,7 @@ def build_home_argv(
 
 
 def home_child_env(*, pin: str = DSH_PIN) -> dict[str, str]:
-    """Allow-listed child environment. Does not copy the climate token."""
+    """Allow-listed child environment. Does not copy a device token."""
     env: dict[str, str] = {
         "TWO_DSH_PIN": pin,
         "TWO_PROFILE": "home-action",
@@ -140,6 +152,8 @@ def run_home_action_turn(
     session_is_valid: SessionValidator | None = None,
     install: ClimateInstall | None = None,
     broker: ClimateBroker | None = None,
+    tv_install: TvInstall | None = None,
+    tv_broker: TvBroker | None = None,
 ) -> HomeActionTurnRecord:
     """Run one already-admitted home-action turn. Does not take a coding lease."""
     turn = store.get_home_action_turn(turn_id)
@@ -148,8 +162,18 @@ def run_home_action_turn(
     if turn.status is not HomeActionTurnStatus.RUNNING:
         return turn
     loaded = install if install is not None else load_climate_config(data_dir)
+    loaded_tv = tv_install if tv_install is not None else load_tv_config(data_dir)
     if turn.tool_name is not None:
-        return _execute_staged(store, turn, loaded, broker, data_dir=data_dir, now=now)
+        return _execute_staged(
+            store,
+            turn,
+            loaded,
+            broker,
+            loaded_tv,
+            tv_broker,
+            data_dir=data_dir,
+            now=now,
+        )
     if argv_factory is None and argv is None:
         from two.worker.acp_home import run_pinned_acp_home
 
@@ -163,6 +187,8 @@ def run_home_action_turn(
             session_is_valid=session_is_valid,
             install=loaded,
             broker=broker,
+            tv_install=loaded_tv,
+            tv_broker=tv_broker,
         )
     session = store.get_harness_session("home-action")
     stored = None if session is None else session.session_id
@@ -201,6 +227,8 @@ def run_home_action_turn(
             config,
             loaded,
             broker,
+            loaded_tv,
+            tv_broker,
             data_dir=data_dir,
             now=now,
         )
@@ -224,6 +252,8 @@ def _supervise(
     config: ChildConfig,
     install: ClimateInstall | None,
     broker: ClimateBroker | None,
+    tv_install: TvInstall | None,
+    tv_broker: TvBroker | None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -241,6 +271,8 @@ def _supervise(
                 message,
                 install,
                 broker,
+                tv_install,
+                tv_broker,
                 data_dir=data_dir,
                 now=now,
             )
@@ -257,6 +289,8 @@ def _supervise(
                     leftover,
                     install,
                     broker,
+                    tv_install,
+                    tv_broker,
                     data_dir=data_dir,
                     now=now,
                 )
@@ -272,6 +306,8 @@ def _handle_message(
     message: Mapping[str, object],
     install: ClimateInstall | None,
     broker: ClimateBroker | None,
+    tv_install: TvInstall | None,
+    tv_broker: TvBroker | None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -292,7 +328,17 @@ def _handle_message(
     if kind != "tool_request":
         return None
     _stop_child(child)
-    return _handle_tool(store, turn_id, message, install, broker, data_dir=data_dir, now=now)
+    return _handle_tool(
+        store,
+        turn_id,
+        message,
+        install,
+        broker,
+        tv_install,
+        tv_broker,
+        data_dir=data_dir,
+        now=now,
+    )
 
 
 def _handle_tool(
@@ -301,6 +347,8 @@ def _handle_tool(
     message: Mapping[str, object],
     install: ClimateInstall | None,
     broker: ClimateBroker | None,
+    tv_install: TvInstall | None = None,
+    tv_broker: TvBroker | None = None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -309,6 +357,17 @@ def _handle_tool(
     if parsed is None:
         return store.fail_home_action_turn(turn_id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
     tool, arguments = parsed
+    if tool in TV_TOOLS:
+        return _handle_tv_tool(
+            store,
+            turn_id,
+            tool,
+            arguments,
+            tv_install,
+            tv_broker,
+            data_dir=data_dir,
+            now=now,
+        )
     decision = interpret_tool(tool, arguments, install)
     if decision.kind == "deny" or decision.call is None:
         code = decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
@@ -337,7 +396,16 @@ def _handle_tool(
     staged = store.get_home_action_turn(turn_id)
     if staged is None:
         raise WorkerError(f"unknown home-action turn: {turn_id}")
-    return _execute_staged(store, staged, install, broker, data_dir=data_dir, now=now)
+    return _execute_staged(
+        store,
+        staged,
+        install,
+        broker,
+        tv_install,
+        tv_broker,
+        data_dir=data_dir,
+        now=now,
+    )
 
 
 def _execute_staged(
@@ -345,10 +413,21 @@ def _execute_staged(
     turn: HomeActionTurnRecord,
     install: ClimateInstall | None,
     broker: ClimateBroker | None,
+    tv_install: TvInstall | None = None,
+    tv_broker: TvBroker | None = None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
 ) -> HomeActionTurnRecord:
+    if turn.tool_name in TV_TOOLS:
+        return _execute_tv_staged(
+            store,
+            turn,
+            tv_install,
+            tv_broker,
+            data_dir=data_dir,
+            now=now,
+        )
     if install is None or turn.tool_name is None or turn.arguments_json is None:
         return store.fail_home_action_turn(turn.id, ErrorCode.CLIMATE_NOT_CONFIGURED.value, now=now)
     try:
@@ -405,6 +484,111 @@ def _perform(
 
 def _default_broker(install: ClimateInstall) -> ClimateBroker:
     return open_climate_broker(install)
+
+
+def _handle_tv_tool(
+    store: Store,
+    turn_id: str,
+    tool: str,
+    arguments: dict[str, object],
+    install: TvInstall | None,
+    broker: TvBroker | None,
+    *,
+    data_dir: Path | str | None,
+    now: datetime | None,
+) -> HomeActionTurnRecord:
+    decision = interpret_tv_tool(tool, arguments, install)
+    if decision.kind == "deny" or decision.call is None:
+        code = decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+        return store.fail_home_action_turn(turn_id, code, now=now)
+    call = decision.call
+    if decision.kind == "approve":
+        store.hold_tv_for_approval(
+            turn_id,
+            call.tool,
+            call.arguments_json,
+            call.digest,
+            approval_id=f"tv-{turn_id}",
+            now=now,
+        )
+        record = store.get_home_action_turn(turn_id)
+        if record is None:
+            raise WorkerError(f"unknown home-action turn: {turn_id}")
+        return record
+    store.stage_home_action_tool(
+        turn_id,
+        call.tool,
+        call.arguments_json,
+        call.digest,
+        now=now,
+    )
+    staged = store.get_home_action_turn(turn_id)
+    if staged is None:
+        raise WorkerError(f"unknown home-action turn: {turn_id}")
+    return _execute_tv_staged(store, staged, install, broker, data_dir=data_dir, now=now)
+
+
+def _execute_tv_staged(
+    store: Store,
+    turn: HomeActionTurnRecord,
+    install: TvInstall | None,
+    broker: TvBroker | None,
+    *,
+    data_dir: Path | str | None,
+    now: datetime | None,
+) -> HomeActionTurnRecord:
+    del data_dir
+    if install is None or turn.tool_name is None or turn.arguments_json is None:
+        return store.fail_home_action_turn(turn.id, ErrorCode.TV_NOT_CONFIGURED.value, now=now)
+    try:
+        arguments = json.loads(turn.arguments_json)
+    except json.JSONDecodeError:
+        return store.fail_home_action_turn(turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
+    if not isinstance(arguments, dict):
+        return store.fail_home_action_turn(turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
+    decision = interpret_tv_tool(
+        turn.tool_name,
+        {str(key): value for key, value in arguments.items()},
+        install,
+    )
+    if decision.call is None or decision.call.digest != turn.action_digest:
+        return store.fail_home_action_turn(turn.id, ErrorCode.STALE_DIGEST.value, now=now)
+    if decision.kind == "deny":
+        code = decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+        return store.fail_home_action_turn(turn.id, code, now=now)
+    if decision.kind == "approve":
+        approval = store.get_tv_approval(turn.id)
+        if approval is None or approval.status != "approved":
+            return store.fail_home_action_turn(turn.id, ErrorCode.TV_REJECTED.value, now=now)
+    try:
+        readback = _perform_tv(decision.call, install, broker)
+    except TvUpstreamError:
+        return store.fail_home_action_turn(turn.id, ErrorCode.TV_UPSTREAM.value, now=now)
+    return store.complete_home_action_turn(
+        turn.id,
+        tv_readback_reply(readback),
+        readback.model_dump_json(),
+        now=now,
+    )
+
+
+def _perform_tv(
+    call: TvStagedCall,
+    install: TvInstall,
+    broker: TvBroker | None,
+) -> TvReadback:
+    target = broker if broker is not None else open_tv_broker(install)
+    if call.tool == "tv.read":
+        return target.read(call.set_id)
+    if call.tool == "tv.set_power":
+        if call.power is None:
+            raise TvUpstreamError("missing power")
+        return target.set_power(call.set_id, call.power)
+    if call.tool == "tv.open":
+        if call.target is None:
+            raise TvUpstreamError("missing target")
+        return target.open_target(call.set_id, call.target)
+    return target.set_volume(call.set_id, level=call.level, mute=call.mute, step=call.step)
 
 
 def _parse_intent(message: Mapping[str, object]) -> tuple[str, dict[str, object]] | None:

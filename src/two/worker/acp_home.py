@@ -16,7 +16,7 @@
 
 """Home-action turn over pinned DeepSeek Harness ACP. Does not run the agent loop.
 
-The child is ``dsh --profile acp``. A climate ``tool_call`` stops the child.
+The child is ``dsh --profile acp``. A closed device ``tool_call`` stops the child.
 This process performs it and does not send ``execute``. Injected argv stays
 on the JSONL fixture in ``home_action.py``.
 """
@@ -33,6 +33,8 @@ from pathlib import Path
 
 from two.devices.climate.config import load_climate_config
 from two.devices.climate.contract import ClimateBroker, ClimateInstall
+from two.devices.tv.config import load_tv_config
+from two.devices.tv.contract import TvBroker, TvInstall
 from two.store.models import HomeActionTurnRecord, HomeActionTurnStatus
 from two.store.store import Store
 from two.types import ErrorCode
@@ -46,7 +48,8 @@ from two.worker.acp_chat import (
 )
 from two.worker.chat import build_chat_argv
 from two.worker.child import SupervisedChild
-from two.worker.climate_mcp import PUBLIC_TOOLS, SERVER_NAME
+from two.worker.climate_mcp import PUBLIC_TOOLS as CLIMATE_PUBLIC_TOOLS
+from two.worker.climate_mcp import SERVER_NAME as CLIMATE_SERVER
 from two.worker.errors import ChildError, WorkerError
 from two.worker.home_action import (
     HomeSessionPlan,
@@ -57,12 +60,16 @@ from two.worker.home_action import (
 )
 from two.worker.models import ChildConfig, SessionMode
 from two.worker.session import SessionValidator, default_session_validator
+from two.worker.tv_mcp import PUBLIC_TOOLS as TV_PUBLIC_TOOLS
+from two.worker.tv_mcp import SERVER_NAME as TV_SERVER
 
 _MCP_SCRIPT = Path(__file__).with_name("climate_mcp.py")
+_TV_MCP_SCRIPT = Path(__file__).with_name("tv_mcp.py")
+_PUBLIC_TOOLS = {**CLIMATE_PUBLIC_TOOLS, **TV_PUBLIC_TOOLS}
 
 
-class _ClimateCall(Exception):
-    """The model requested one closed climate tool. The child must stop."""
+class _DeviceCall(Exception):
+    """The model requested one closed device tool. The child must stop."""
 
     def __init__(self, tool: str, arguments: dict[str, object]) -> None:
         self.tool = tool
@@ -71,7 +78,7 @@ class _ClimateCall(Exception):
 
 
 class _OtherTool(Exception):
-    """The model requested a tool outside the closed climate list."""
+    """The model requested a tool outside the closed device lists."""
 
 
 def run_pinned_acp_home(
@@ -85,6 +92,8 @@ def run_pinned_acp_home(
     session_is_valid: SessionValidator | None = None,
     install: ClimateInstall | None = None,
     broker: ClimateBroker | None = None,
+    tv_install: TvInstall | None = None,
+    tv_broker: TvBroker | None = None,
 ) -> HomeActionTurnRecord:
     """One home-action turn through the pinned harness. No coding lease."""
     turn = store.get_home_action_turn(turn_id)
@@ -93,10 +102,20 @@ def run_pinned_acp_home(
     if turn.status is not HomeActionTurnStatus.RUNNING:
         return turn
     loaded = install if install is not None else load_climate_config(data_dir)
+    loaded_tv = tv_install if tv_install is not None else load_tv_config(data_dir)
     if turn.tool_name is not None:
         from two.worker.home_action import _execute_staged
 
-        return _execute_staged(store, turn, loaded, broker, data_dir=data_dir, now=now)
+        return _execute_staged(
+            store,
+            turn,
+            loaded,
+            broker,
+            loaded_tv,
+            tv_broker,
+            data_dir=data_dir,
+            now=now,
+        )
     session = store.get_harness_session("home-action")
     stored = None if session is None else session.session_id
     zones = sorted(loaded.zones) if loaded is not None else []
@@ -106,10 +125,10 @@ def run_pinned_acp_home(
         stored_session_id=stored,
         session_is_valid=session_is_valid or default_session_validator,
     )
-    prompt = _acp_prompt(turn.request_text, zones)
+    prompt = _acp_prompt(turn.request_text, zones, loaded_tv)
     profile_dir = ensure_home_action_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
-    home = _ensure_home_patch(data_dir, zones)
+    home = _ensure_home_patch(data_dir, zones, loaded_tv)
     env = dict(child_env) if child_env is not None else home_child_env()
     env.update(_inference_env(home))
     config = child_config if child_config is not None else ChildConfig()
@@ -136,6 +155,8 @@ def run_pinned_acp_home(
             config,
             loaded,
             broker,
+            loaded_tv,
+            tv_broker,
             data_dir=data_dir,
             now=now,
         )
@@ -153,6 +174,8 @@ def _drive(
     config: ChildConfig,
     install: ClimateInstall | None,
     broker: ClimateBroker | None,
+    tv_install: TvInstall | None,
+    tv_broker: TvBroker | None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -161,7 +184,12 @@ def _drive(
     chunks: list[str] = []
     try:
         rpc.request("initialize", {"protocolVersion": 1, "clientCapabilities": {}})
-        session_id = _open_session(rpc, plan, str(profile_dir))
+        session_id = _open_session(
+            rpc,
+            plan,
+            str(profile_dir),
+            _mcp_servers(climate=install is not None, television=tv_install is not None),
+        )
         if plan.mode is SessionMode.FRESH or session_id != plan.session_id:
             store.set_home_action_session_id(session_id, now=now)
         rpc.request(
@@ -169,7 +197,7 @@ def _drive(
             {"sessionId": session_id, "prompt": [{"type": "text", "text": prompt}]},
             on_message=lambda message: _on_prompt_message(rpc, message, chunks),
         )
-    except _ClimateCall as requested:
+    except _DeviceCall as requested:
         _stop(child)
         return _handle_tool(
             store,
@@ -180,6 +208,8 @@ def _drive(
             },
             install,
             broker,
+            tv_install,
+            tv_broker,
             data_dir=data_dir,
             now=now,
         )
@@ -193,20 +223,29 @@ def _drive(
     return store.complete_home_action_turn(turn_id, reply, None, now=now)
 
 
-def _open_session(rpc: _Rpc, plan: HomeSessionPlan, cwd: str) -> str:
+def _open_session(
+    rpc: _Rpc,
+    plan: HomeSessionPlan,
+    cwd: str,
+    servers: list[dict[str, object]],
+) -> str:
     """Create or resume a session once the provider route is registered."""
     deadline = time.monotonic() + _PROVIDER_READY_SECONDS
     while True:
         try:
-            return _open_session_once(rpc, plan, cwd)
+            return _open_session_once(rpc, plan, cwd, servers)
         except ChildError as exc:
             if "no adapter registered" not in str(exc) or time.monotonic() >= deadline:
                 raise
             time.sleep(0.25)
 
 
-def _open_session_once(rpc: _Rpc, plan: HomeSessionPlan, cwd: str) -> str:
-    servers = _mcp_servers()
+def _open_session_once(
+    rpc: _Rpc,
+    plan: HomeSessionPlan,
+    cwd: str,
+    servers: list[dict[str, object]],
+) -> str:
     if plan.mode is SessionMode.RESUME and plan.session_id:
         try:
             rpc.request(
@@ -265,13 +304,13 @@ def _raise_for_tool(update: Mapping[str, object]) -> None:
     title = update.get("title")
     if not isinstance(title, str):
         raise _OtherTool
-    tool = PUBLIC_TOOLS.get(title)
+    tool = _PUBLIC_TOOLS.get(title)
     if tool is None:
         raise _OtherTool
     arguments = _arguments(update.get("rawInput"))
     if arguments is None:
         raise _OtherTool
-    raise _ClimateCall(tool, arguments)
+    raise _DeviceCall(tool, arguments)
 
 
 def _arguments(raw: object) -> dict[str, object] | None:
@@ -286,41 +325,79 @@ def _arguments(raw: object) -> dict[str, object] | None:
     return {str(key): value for key, value in raw.items()}
 
 
-def _mcp_servers() -> list[dict[str, object]]:
+def _mcp_servers(*, climate: bool, television: bool) -> list[dict[str, object]]:
     env: list[dict[str, str]] = []
     for name in ("PATH", "HOME", "LANG"):
         value = os.environ.get(name, "").strip()
         if value:
             env.append({"name": name, "value": value})
+    servers: list[dict[str, object]] = []
+    if climate:
+        servers.append(
+            {
+                "name": CLIMATE_SERVER,
+                "command": sys.executable,
+                "args": [str(_MCP_SCRIPT)],
+                "env": env,
+            }
+        )
+    if television:
+        servers.append(
+            {
+                "name": TV_SERVER,
+                "command": sys.executable,
+                "args": [str(_TV_MCP_SCRIPT)],
+                "env": env,
+            }
+        )
+    return servers
+
+
+def _acp_prompt(transcript: str, zones: list[str], tv_install: TvInstall | None) -> str:
+    """Name the advertised tools. Addresses and tokens stay out of this text."""
+    lines = [transcript, "profile: home-action", "Call one tool and stop."]
+    if zones:
+        listed = ", ".join(zones)
+        lines.extend(
+            [
+                "Do not invent a temperature.",
+                "mcp__climate__climate_read arguments: zone",
+                "mcp__climate__climate_set_setpoint arguments: zone, celsius",
+                "mcp__climate__climate_set_mode arguments: zone, mode",
+                f"zones: {listed}",
+            ]
+        )
+    if tv_install is not None:
+        lines.extend(_tv_prompt_lines(tv_install))
+    return "\n".join(lines) + "\n"
+
+
+def _tv_prompt_lines(install: TvInstall) -> list[str]:
+    sets = ", ".join(sorted(install.sets))
+    target_bits = [
+        f"{set_id}: {', '.join(sorted(policy.targets))}"
+        for set_id, policy in sorted(install.sets.items())
+    ]
     return [
-        {
-            "name": SERVER_NAME,
-            "command": sys.executable,
-            "args": [str(_MCP_SCRIPT)],
-            "env": env,
-        }
+        "Do not invent a set, a target, or a volume.",
+        "mcp__tv__tv_read arguments: set",
+        "mcp__tv__tv_set_power arguments: set, power",
+        "mcp__tv__tv_open arguments: set, target",
+        "mcp__tv__tv_set_volume arguments: set, and one of level, mute, step",
+        f"sets: {sets}",
+        f"targets: {'; '.join(target_bits)}",
     ]
 
 
-def _acp_prompt(transcript: str, zones: list[str]) -> str:
-    """Name the advertised tools. The contract names stay inside this process."""
-    listed = ", ".join(zones) if zones else "(none)"
-    return (
-        f"{transcript}\n"
-        "profile: home-action\n"
-        "Call one tool and stop. Do not invent a temperature.\n"
-        "mcp__climate__climate_read arguments: zone\n"
-        "mcp__climate__climate_set_setpoint arguments: zone, celsius\n"
-        "mcp__climate__climate_set_mode arguments: zone, mode\n"
-        f"zones: {listed}\n"
-    )
-
-
-def _ensure_home_patch(data_dir: Path | str | None, zones: list[str]) -> Path:
+def _ensure_home_patch(
+    data_dir: Path | str | None,
+    zones: list[str],
+    tv_install: TvInstall | None,
+) -> Path:
     """Write the mac-qwen settings and the home-action patch. Mode 0600."""
     home = ensure_chat_harness_home(data_dir)
     patch = home / "cordis.patch.yml"
-    patch.write_text(_home_patch(_served_model_id(), zones), encoding="utf-8")
+    patch.write_text(_home_patch(_served_model_id(), zones, tv_install), encoding="utf-8")
     patch.chmod(0o600)
     return home
 
@@ -341,14 +418,14 @@ def _inference_env(home: Path) -> dict[str, str]:
     return env
 
 
-def _home_patch(model_id: str, zones: list[str]) -> str:
-    listed = ", ".join(zones) if zones else "(none)"
+def _home_patch(model_id: str, zones: list[str], tv_install: TvInstall | None) -> str:
     disabled = "\n".join(
         f"- id: {row_id}\n  name: '{name}'\n  disabled: true" for row_id, name in _DISABLED_TOOLS
     )
+    persona = "\n".join(f"      {line}" for line in _persona_lines(zones, tv_install))
     return (
         "# Home-action patch. Same weights as the served Ollama tag.\n"
-        "# The climate advertisement carries no binding and performs nothing.\n"
+        "# The device advertisement carries no binding and performs nothing.\n"
         "- id: acp\n"
         "  name: '@deepseek-ai/dsh-acp'\n"
         "  config:\n"
@@ -358,14 +435,7 @@ def _home_patch(model_id: str, zones: list[str]) -> str:
         "  name: '@deepseek-ai/dsh-system-prompt'\n"
         "  config:\n"
         "    persona: >-\n"
-        "      You control local air conditioners only by calling a tool.\n"
-        f"      Zones: {listed}.\n"
-        "      Read with mcp__climate__climate_read and argument zone.\n"
-        "      Set a whole-degree setpoint with mcp__climate__climate_set_setpoint\n"
-        "      and arguments zone and celsius.\n"
-        "      Set a mode with mcp__climate__climate_set_mode and arguments zone and mode.\n"
-        "      Modes are cool, heat, auto, and off.\n"
-        "      Do not use any other tool. Do not invent a temperature.\n"
+        f"{persona}\n"
         "- id: sandbox-policy\n"
         "  name: '@deepseek-ai/dsh-sandbox-policy'\n"
         "  config:\n"
@@ -377,6 +447,31 @@ def _home_patch(model_id: str, zones: list[str]) -> str:
         "    policy: ask\n"
         f"{disabled}\n"
     )
+
+
+def _persona_lines(zones: list[str], tv_install: TvInstall | None) -> list[str]:
+    lines: list[str] = []
+    if zones:
+        listed = ", ".join(zones)
+        lines.extend(
+            [
+                "You control local air conditioners only by calling a tool.",
+                f"Zones: {listed}.",
+                "Read with mcp__climate__climate_read and argument zone.",
+                "Set a whole-degree setpoint with mcp__climate__climate_set_setpoint",
+                "and arguments zone and celsius.",
+                "Set a mode with mcp__climate__climate_set_mode and arguments zone and mode.",
+                "Modes are cool, heat, auto, and off.",
+                "Do not invent a temperature.",
+            ]
+        )
+    if tv_install is not None:
+        lines.append("You control bound televisions only by calling a tool.")
+        lines.extend(_tv_prompt_lines(tv_install))
+    if not lines:
+        lines.append("You have no device tools. Reply briefly and do not call a tool.")
+    lines.append("Do not use any other tool.")
+    return lines
 
 
 def _stop(child: SupervisedChild) -> None:

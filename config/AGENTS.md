@@ -23,6 +23,9 @@ Configuration is data. Do not put Python here.
   (ADR 0022). `devices/climate-echonet.example.yaml` is the direct
   air-conditioner binding (ADR 0027). Copy one under `$TWO_DATA_DIR`
   before enabling it. Do not enable both.
+  `devices/tv.example.yaml` is the Samsung television binding (ADR 0029).
+  Copy it under `$TWO_DATA_DIR` before enabling it. Tokens stay in the
+  environment.
 - GitHub App credentials, when they exist, are env-only. Do not add a
   local git forge under `config/` by default (ADR 0012).
 - Changing task-manifest fields, the default inference profile, or cloud

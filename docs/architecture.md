@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); adoption, speech, and profile preload follow |
 | Version | 0.13 |
 | Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -174,7 +174,7 @@ Rules:
 - Adoption is a controller operation. It runs only after required validation, a fresh review with no blocking finding, and an approval whose digest is the candidate commit. It takes effect when the installation's processes restart onto that commit.
 - A candidate that changes gates, bind addresses, credential policy, or adapter permissions names those changes in the adoption approval. They stay inactive in the running process that produced the candidate.
 - Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. Merging adapter code into the tree does not enable it. The install menu is `config/adapters/catalog.yaml` (`two adapters`, ADR 0021). A slot is on only when that catalog says so. Today that is the CLI alone.
-- The first device protocol is climate (ADR 0022). The package is `src/two/devices/climate/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/climate.yaml`. The binding may select Home Assistant REST or a direct ECHONET Lite air conditioner (ADR 0027). The kind-level device slot stays reserved for a later protocol. `src/two/export/` remains the ADR 0012 reservation.
+- The first device protocol is climate (ADR 0022). The package is `src/two/devices/climate/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/climate.yaml`. The binding may select Home Assistant REST or a direct ECHONET Lite air conditioner (ADR 0027). Television is the second device protocol (ADR 0029). The package is `src/two/devices/tv/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/tv.yaml`. The first transport is the Samsung local API on the private LAN. The kind-level device slot stays reserved. `src/two/export/` remains the ADR 0012 reservation.
 
 ### 5.3 Mac mini installation
 
@@ -196,7 +196,7 @@ DeepSeek Harness remains the only model/tool loop (ADR 0019). One pinned binary 
 
 Profiles are persisted sessions under the local data directory. The controller may keep a profile warm so the next request resumes it without rebuilding a workspace. Warm profiles are not extra model weights and not extra harness releases. One inference stays in flight. A non-coding turn runs at a model-turn boundary and does not hold the coding lease.
 
-A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The tool list is the same. Production home-action uses the pinned ACP client (ADR 0028). The session advertises only those three tools, the advertisement does not perform a call, and this process does not send `execute`. Speech capture and playback stay on the device. The speech stack and the preload mechanism are a later slice.
+A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The climate tool list is the same. ADR 0029 adds the closed television tools (`tv.read`, `tv.set_power`, `tv.open`, `tv.set_volume`) on the same profile. The session advertises the closed tools of each binding that is enabled. The advertisement does not perform a call, and this process does not send `execute`. Production home-action uses the pinned ACP client (ADR 0028). Speech capture and playback stay on the client. The speech stack and the preload mechanism are a later slice.
 
 ## 6. Component architecture
 
@@ -1269,8 +1269,10 @@ invent a second architecture.
   (ADR 0019, ADR 0021, B20). Execute the closed climate tools on
   `home-action` in the control plane (ADR 0022, ADR 0028, B21). A binding may
   speak ECHONET Lite to a Wi-Fi air conditioner (ADR 0027). The climate
-  slot stays off until a local binding enables it. This slice is not a
-  GUI and does not add a second agent loop.
+  slot stays off until a local binding enables it. Execute the closed
+  television tools on the same profile when a Samsung binding is enabled
+  (ADR 0029). That slot stays off until the binding enables it. This
+  slice is not a GUI and does not add a second agent loop.
 - Pass private-overlay disconnect, revocation, duplicate-mutation,
   authorization, stale-approval, disclosure, and no-terminal workflow tests.
 
@@ -1347,6 +1349,7 @@ and the seamless install remain open.
 - [Majesta Two climate tool contract (ADR 0022)](adrs/0022-climate-device-protocol.md)
 - [Majesta Two direct air-conditioner transport (ADR 0027)](adrs/0027-echonet-air-conditioner.md)
 - [Majesta Two home-action ACP client (ADR 0028)](adrs/0028-home-action-acp-client.md)
+- [Majesta Two Samsung television tools (ADR 0029)](adrs/0029-samsung-tv.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

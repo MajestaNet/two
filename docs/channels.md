@@ -70,9 +70,11 @@ stored and can run the closed climate tools when
 ([ADR 0022](adrs/0022-climate-device-protocol.md),
 [ADR 0027](adrs/0027-echonet-air-conditioner.md),
 [ADR 0028](adrs/0028-home-action-acp-client.md),
-[B21](backlog/B21-climate-home-action.md)). The binding transport is
-Home Assistant REST or ECHONET Lite. Without that binding the
-turn is `profile_not_executable` and is not stored. The Xcode app is
+[B21](backlog/B21-climate-home-action.md)), and the closed television
+tools when `$TWO_DATA_DIR/devices/tv.yaml` enables them
+([ADR 0029](adrs/0029-samsung-tv.md)). The climate binding transport is
+Home Assistant REST or ECHONET Lite. Without a climate or television
+binding the turn is `profile_not_executable` and is not stored. The Xcode app is
 not in this repository. The catalog keeps `watch` at `contract`.
 
 ## Messengers (none selected)

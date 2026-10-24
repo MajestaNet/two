@@ -228,7 +228,7 @@ class HarnessSessionRecord:
 
 
 class HomeActionTurnStatus(StrEnum):
-    """Durable status of one climate home-action turn. Not a task lifecycle."""
+    """Durable status of one device home-action turn. Not a task lifecycle."""
 
     QUEUED = "queued"
     RUNNING = "running"
@@ -261,6 +261,19 @@ class HomeActionTurnRecord:
 @dataclass(frozen=True, slots=True)
 class ClimateApprovalRecord:
     """Digest-scoped climate approval. Not a task approval. Silence changes nothing."""
+
+    id: str
+    turn_id: str
+    action_digest: str
+    status: str
+    created_at: datetime
+    resolved_at: datetime | None
+    resolver: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class TvApprovalRecord:
+    """Digest-scoped television approval. Not a task approval. Silence changes nothing."""
 
     id: str
     turn_id: str

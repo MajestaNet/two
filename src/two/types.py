@@ -158,6 +158,10 @@ class ErrorCode(StrEnum):
     CLIMATE_ZONE_DENIED = "climate_zone_denied"
     CLIMATE_UPSTREAM = "climate_upstream"
     CLIMATE_REJECTED = "climate_rejected"
+    TV_NOT_CONFIGURED = "tv_not_configured"
+    TV_SET_DENIED = "tv_set_denied"
+    TV_UPSTREAM = "tv_upstream"
+    TV_REJECTED = "tv_rejected"
     INTERNAL = "internal"
 
 

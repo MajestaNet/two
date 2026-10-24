@@ -12,6 +12,9 @@ B20 resumes harness profile `chat` on the single inference slot
 B21 executes the closed climate tools on `home-action` (ADR 0022).
 The climate slot stays off until an install binds it. B21 does not
 close §21 item 20.
+B22 executes the closed television tools on the same profile (ADR 0029).
+The television slot stays off until an install binds it. B22 does not
+close §21 item 20.
 
 Each item is one markdown file. **Status is the tracker.** Update the
 item file and this table in the same PR that lands the work. Do not
@@ -61,6 +64,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B19](B19-persisted-work-graph.md) | Persisted work graph around DeepSeek Harness | 5+ | B05, B06, B09, B10 | done |
 | [B20](B20-chat-profile-resume.md) | Resume harness profile `chat` | 6 | B07, B08, B09 | done |
 | [B21](B21-climate-home-action.md) | Climate tools on `home-action` | 6 | B20 | done |
+| [B22](B22-tv-home-action.md) | Television tools on `home-action` | 6 | B21 | done |
 
 The skipped thin web UI in B13 is superseded by the first-party client
 direction in ADR 0015/B14.
@@ -70,7 +74,8 @@ change topology or inference defaults. B19 (ADR 0014) is the alignment
 layer for longer loops; the linear B10 stage machine remains valid
 policy, expressed as a persisted DAG.
 B20 is the `chat` profile resume. B21 is the climate executor for
-`home-action`. Slot priority past chat-before-home-action, speech,
+`home-action`. B22 is the television executor for the same profile.
+Slot priority past chat-before-home-action, speech,
 and a client UI stay open.
 
 ## Recommended order

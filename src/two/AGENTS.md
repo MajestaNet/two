@@ -9,7 +9,8 @@ Python package for the Majesta Two control plane.
 - `adapters.py` may read `config/adapters/catalog.yaml` (ADR 0021). No
   network, no store, no channel import. `two adapters` prints the menu.
   It does not enable a slot. `devices/climate/` is the climate package
-  (ADR 0022) and stays default off. Do not add `export/` until the ADR
+  (ADR 0022) and stays default off. `devices/tv/` is the television
+  package (ADR 0029) and stays default off. Do not add `export/` until the ADR
   for that slot.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
@@ -32,7 +33,8 @@ Python package for the Majesta Two control plane.
   `work_nodes` / `work_edges`. Schema v6 persists projects and immutable
   config candidates (B14 slice 3). Schema v7 persists one `chat`
   harness session and `chat_turns` (B20). Schema v8 persists
-  `home_action_turns` and `climate_approvals` (ADR 0022). Do not open databases from
+  `home_action_turns` and `climate_approvals` (ADR 0022). Schema v9
+  adds television tool names and `tv_approvals` (ADR 0029). Do not open databases from
   `cli.py` at import time. The `two api` subcommand lazy-imports
   `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
@@ -65,7 +67,8 @@ Python package for the Majesta Two control plane.
   first-party mobile API client, not another `channels.*` agent runtime.
   Device adapters live under `devices/`, not here. `devices/climate/`
   is ADR 0022 and stays default off. The binding transport is Home
-  Assistant REST or ECHONET Lite (ADR 0027).
+  Assistant REST or ECHONET Lite (ADR 0027). `devices/tv/` is ADR 0029
+  and stays default off. The transport is the Samsung local API.
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
   It is not implemented. Do not add `push` to `workspace/`. Do not put
   GitHub tokens in `worker/` or `channels/`.
@@ -94,9 +97,10 @@ Python package for the Majesta Two control plane.
   lifecycle `complete`. Local Qwen worker count is one. Profile `chat`
   resumes `harness_sessions` with no worktree and no tools. A tool
   request fails the chat turn and is not executed. Profile `home-action`
-  may request the closed climate tools. The control plane performs them
-  and does not send `execute` to the child (ADR 0022). The binding
-  transport is Home Assistant REST or ECHONET Lite (ADR 0027).
+  may request the closed climate tools and, when the television binding
+  is enabled, the closed television tools. The control plane performs
+  them and does not send `execute` to the child (ADR 0022, ADR 0029).
+  The climate transport is Home Assistant REST or ECHONET Lite (ADR 0027).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. `run_worker` drives
   `WorkflowController` with `AcpPhaseWorker` and heartbeats the lease.
