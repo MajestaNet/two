@@ -128,6 +128,7 @@ from two.api.schemas import (
     DiffSummary,
     EventListResponse,
     EventView,
+    FanoutItemView,
     HealthObservation,
     HealthResponse,
     ProjectConfigCandidateRequest,
@@ -180,6 +181,14 @@ from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
 from two.projection import voice_turn_receipt
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
+from two.routing import (
+    cards_for,
+    decide_route,
+    dump_fanout,
+    dump_slots,
+    parse_route_slots,
+    route_for_explicit_home,
+)
 from two.store import (
     ApprovalNotFoundError,
     ConfigCandidateNotFoundError,
@@ -518,16 +527,20 @@ def _receipt_for(turn: ChatTurnRecord) -> VoiceTurnReceipt:
 
 
 def _home_receipt(turn: HomeActionTurnRecord) -> VoiceTurnReceipt:
+    fanout = _fanout_views(turn)
     climate = None
     tv = None
     pending = None
     pending_tv = None
     television = turn.tool_name is not None and turn.tool_name.startswith("tv.")
-    if turn.status.value == "complete" and turn.readback_json:
+    if turn.status.value == "complete" and turn.readback_json and not fanout:
         if television:
             tv = TvReadbackView.model_validate_json(turn.readback_json)
         else:
             climate = ClimateReadbackView.model_validate_json(turn.readback_json)
+    elif turn.status.value == "complete" and len(fanout) == 1 and fanout[0].status == "complete":
+        climate = fanout[0].climate
+        tv = fanout[0].tv
     if turn.status.value == "awaiting_approval":
         if television:
             pending_tv = _pending_tv(turn)
@@ -546,7 +559,120 @@ def _home_receipt(turn: HomeActionTurnRecord) -> VoiceTurnReceipt:
         action_digest=turn.action_digest,
         pending_action=pending,
         pending_tv=pending_tv,
+        fanout=fanout,
+        route_slots=_route_slot_list(turn),
     )
+
+
+def _route_slot_list(turn: HomeActionTurnRecord) -> list[str]:
+    parsed = parse_route_slots(turn.route_slots)
+    if parsed is None:
+        return []
+    return list(parsed)
+
+
+def _fanout_views(turn: HomeActionTurnRecord) -> list[FanoutItemView]:
+    if not turn.fanout_json:
+        return []
+    try:
+        raw = json.loads(turn.fanout_json)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(raw, list):
+        return []
+    views: list[FanoutItemView] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        view = _one_fanout(item, turn.status.value)
+        if view is not None:
+            views.append(view)
+    return views
+
+
+def _one_fanout(item: dict[str, object], turn_status: str) -> FanoutItemView | None:
+    slot = item.get("slot")
+    target = item.get("target")
+    tool = item.get("tool")
+    if not isinstance(slot, str) or not isinstance(target, str) or not isinstance(tool, str):
+        return None
+    status = item.get("status")
+    if turn_status in {"queued", "running"}:
+        status = "pending"
+    if not isinstance(status, str) or status not in {"pending", "complete", "failed"}:
+        return None
+    if turn_status == "failed" and status != "failed":
+        return None
+    error_code = item.get("error_code") if status == "failed" else None
+    if error_code is not None and not isinstance(error_code, str):
+        return None
+    climate = None
+    tv = None
+    readback = item.get("readback")
+    if status == "complete" and isinstance(readback, dict):
+        if slot == "tv" or tool.startswith("tv."):
+            tv = TvReadbackView.model_validate(readback)
+        else:
+            climate = ClimateReadbackView.model_validate(readback)
+    try:
+        return FanoutItemView.model_validate(
+            {
+                "slot": slot,
+                "target": target,
+                "tool": tool,
+                "status": status,
+                "error_code": error_code,
+                "climate": None if climate is None else climate.model_dump(mode="json"),
+                "tv": None if tv is None else tv.model_dump(mode="json"),
+            }
+        )
+    except ValidationError:
+        return None
+
+
+async def _queue_chat(
+    box: _StoreBox,
+    directory: Path | None,
+    text: str,
+    principal_id: str,
+) -> JSONResponse:
+    async with box.lock:
+        ensure_chat_profile_dir(directory)
+        box.store.ensure_chat_session()
+        chat_record = box.store.insert_chat_turn(
+            text,
+            principal_id,
+            turn_id=f"turn-{uuid.uuid4().hex[:16]}",
+        )
+        latest_chat = box.store.get_chat_turn(chat_record.id)
+    receipt = _receipt_for(latest_chat if latest_chat is not None else chat_record)
+    return JSONResponse(status_code=202, content=receipt.model_dump(mode="json"))
+
+
+async def _queue_home(
+    box: _StoreBox,
+    directory: Path | None,
+    text: str,
+    principal_id: str,
+    *,
+    route_slots: str | None = None,
+    fanout_scope: str | None = None,
+    fanout_json: str | None = None,
+) -> JSONResponse:
+    async with box.lock:
+        ensure_home_action_profile_dir(directory)
+        box.store.ensure_home_action_session()
+        record = box.store.insert_home_action_turn(
+            text,
+            principal_id,
+            turn_id=f"turn-{uuid.uuid4().hex[:16]}",
+            route_slots=route_slots,
+            fanout_scope=fanout_scope,
+            fanout_json=fanout_json,
+        )
+        latest = box.store.get_home_action_turn(record.id)
+    receipt = _home_receipt(latest if latest is not None else record)
+    return JSONResponse(status_code=202, content=receipt.model_dump(mode="json"))
 
 
 def _pending_action(turn: HomeActionTurnRecord) -> ClimateRequestView | None:
@@ -601,7 +727,7 @@ def _require_harness_profile(request: Request, profile: str) -> str:
 
 
 async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
-    """Accept one ``chat`` or enabled ``home-action`` transcript.
+    """Accept one transcript. An omitted profile is routed (ADR 0030).
 
     Coding tasks stay on ``POST /v1/tasks``. ``self-build`` on this route is
     forbidden. ``home-action`` is stored only when a local climate or
@@ -610,7 +736,7 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
     principal = principal_from_request(request)
     if body.profile == HarnessProfile.SELF_BUILD.value:
         raise HTTPException(status_code=403, detail=SELF_BUILD_DENIED)
-    if body.profile not in principal.harness_profiles:
+    if body.profile is not None and body.profile not in principal.harness_profiles:
         raise HTTPException(
             status_code=403,
             detail=f"client cannot use harness profile {body.profile}",
@@ -618,33 +744,39 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
     box = _box(request)
     data_dir = request.app.state.data_dir
     directory = data_dir if isinstance(data_dir, Path) else None
-    if body.profile == HarnessProfile.HOME_ACTION.value:
-        if load_climate_config(directory) is None and load_tv_config(directory) is None:
-            raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
-        async with box.lock:
-            ensure_home_action_profile_dir(directory)
-            box.store.ensure_home_action_session()
-            record = box.store.insert_home_action_turn(
-                body.text,
-                principal.id,
-                turn_id=f"turn-{uuid.uuid4().hex[:16]}",
+    climate = load_climate_config(directory)
+    television = load_tv_config(directory)
+    decision = decide_route(body.text, cards_for(climate=climate, television=television))
+    if body.profile == HarnessProfile.CHAT.value or (
+        body.profile is None and decision.profile == HarnessProfile.CHAT.value
+    ):
+        if HarnessProfile.CHAT.value not in principal.harness_profiles:
+            raise HTTPException(
+                status_code=403,
+                detail=f"client cannot use harness profile {HarnessProfile.CHAT.value}",
             )
-            latest = box.store.get_home_action_turn(record.id)
-        receipt = _home_receipt(latest if latest is not None else record)
-        return JSONResponse(status_code=202, content=receipt.model_dump(mode="json"))
-    if body.profile != HarnessProfile.CHAT.value:
-        raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
-    async with box.lock:
-        ensure_chat_profile_dir(directory)
-        box.store.ensure_chat_session()
-        chat_record = box.store.insert_chat_turn(
-            body.text,
-            principal.id,
-            turn_id=f"turn-{uuid.uuid4().hex[:16]}",
+        return await _queue_chat(box, directory, body.text, principal.id)
+    if HarnessProfile.HOME_ACTION.value not in principal.harness_profiles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"client cannot use harness profile {HarnessProfile.HOME_ACTION.value}",
         )
-        latest_chat = box.store.get_chat_turn(chat_record.id)
-    receipt = _receipt_for(latest_chat if latest_chat is not None else chat_record)
-    return JSONResponse(status_code=202, content=receipt.model_dump(mode="json"))
+    chosen = decision if body.profile is None else route_for_explicit_home(decision)
+    if chosen is None:
+        if climate is None and television is None:
+            raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
+        return await _queue_home(box, directory, body.text, principal.id)
+    if not chosen.executable:
+        raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
+    return await _queue_home(
+        box,
+        directory,
+        body.text,
+        principal.id,
+        route_slots=dump_slots(chosen.slots),
+        fanout_scope=chosen.fanout_scope,
+        fanout_json=dump_fanout(chosen.fanout),
+    )
 
 
 async def _get_voice_turn(request: Request, turn_id: str) -> JSONResponse:

@@ -1925,6 +1925,9 @@ class Store:
         *,
         turn_id: str,
         now: datetime | None = None,
+        route_slots: str | None = None,
+        fanout_scope: str | None = None,
+        fanout_json: str | None = None,
     ) -> HomeActionTurnRecord:
         """Insert one queued home-action turn. Does not insert a task or a lease."""
         if turn_id.strip() == "":
@@ -1933,6 +1936,8 @@ class Store:
             raise StoreError("home-action turn principal must be non-empty")
         if len(request_text) < 1 or len(request_text) > 4000:
             raise StoreError("home-action request_text must be 1 to 4000 characters")
+        if fanout_scope not in {None, "kind", "all"}:
+            raise StoreError("home-action fanout_scope must be kind or all")
         instant = _utc(now)
         stamp = _iso(instant)
         with self._txn():
@@ -1947,14 +1952,24 @@ class Store:
                 INSERT INTO home_action_turns (
                     id, profile, seq, status, request_text, reply_text, error_code,
                     principal, tool_name, arguments_json, readback_json, action_digest,
-                    revision, created_at, updated_at
+                    revision, created_at, updated_at, route_slots, fanout_scope, fanout_json
                 ) VALUES (
                     ?, 'home-action', ?, 'queued', ?, NULL, NULL,
                     ?, NULL, NULL, NULL, NULL,
-                    1, ?, ?
+                    1, ?, ?, ?, ?, ?
                 )
                 """,
-                (turn_id, seq, request_text, principal, stamp, stamp),
+                (
+                    turn_id,
+                    seq,
+                    request_text,
+                    principal,
+                    stamp,
+                    stamp,
+                    route_slots,
+                    fanout_scope,
+                    fanout_json,
+                ),
             )
         record = self.get_home_action_turn(turn_id)
         if record is None:
@@ -2032,6 +2047,37 @@ class Store:
         if turn_id is None:
             return None
         return self.get_home_action_turn(turn_id)
+
+    def set_home_action_route_slots(
+        self,
+        turn_id: str,
+        route_slots: str,
+        *,
+        now: datetime | None = None,
+    ) -> HomeActionTurnRecord:
+        """Narrow the advertised slots on a running turn. Does not touch a device."""
+        if route_slots.strip() == "":
+            raise StoreError("home-action route_slots must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            existing = self._home_action_turn_row(turn_id)
+            if existing is None:
+                raise StoreError(f"unknown home-action turn: {turn_id}")
+            if str(existing["status"]) != HomeActionTurnStatus.RUNNING.value:
+                raise StoreError(f"home-action turn {turn_id} is not running")
+            self._connection.execute(
+                """
+                UPDATE home_action_turns
+                SET route_slots = ?, revision = revision + 1, updated_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (route_slots, stamp, turn_id),
+            )
+        record = self.get_home_action_turn(turn_id)
+        if record is None:
+            raise StoreError(f"home-action turn missing after route: {turn_id}")
+        return record
 
     def stage_home_action_tool(
         self,
@@ -2324,6 +2370,7 @@ class Store:
         readback_json: str | None,
         *,
         now: datetime | None = None,
+        fanout_json: str | None = None,
     ) -> HomeActionTurnRecord:
         """Mark a running home-action turn complete."""
         if len(reply_text) > 4000:
@@ -2336,6 +2383,7 @@ class Store:
             reply_text=reply_text,
             error_code=None,
             readback_json=readback_json,
+            fanout_json=fanout_json,
             now=now,
         )
 
@@ -2345,6 +2393,7 @@ class Store:
         error_code: str,
         *,
         now: datetime | None = None,
+        fanout_json: str | None = None,
     ) -> HomeActionTurnRecord:
         """Mark a running home-action turn failed."""
         if error_code.strip() == "":
@@ -2355,6 +2404,7 @@ class Store:
             reply_text=None,
             error_code=error_code,
             readback_json=None,
+            fanout_json=fanout_json,
             now=now,
         )
 
@@ -2366,6 +2416,7 @@ class Store:
         reply_text: str | None,
         error_code: str | None,
         readback_json: str | None,
+        fanout_json: str | None = None,
         now: datetime | None,
     ) -> HomeActionTurnRecord:
         instant = _utc(now)
@@ -2380,10 +2431,19 @@ class Store:
                 """
                 UPDATE home_action_turns
                 SET status = ?, reply_text = ?, error_code = ?, readback_json = ?,
+                    fanout_json = COALESCE(?, fanout_json),
                     revision = revision + 1, updated_at = ?
                 WHERE id = ? AND status = 'running'
                 """,
-                (status.value, reply_text, error_code, readback_json, stamp, turn_id),
+                (
+                    status.value,
+                    reply_text,
+                    error_code,
+                    readback_json,
+                    fanout_json,
+                    stamp,
+                    turn_id,
+                ),
             )
         record = self.get_home_action_turn(turn_id)
         if record is None:
@@ -2678,6 +2738,9 @@ def _home_action_turn_from_row(row: sqlite3.Row) -> HomeActionTurnRecord:
         revision=_as_int(row["revision"], "revision"),
         created_at=_parse_time(_as_str(row["created_at"], "created_at")),
         updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
+        route_slots=_optional_str(row["route_slots"], "route_slots"),
+        fanout_scope=_optional_str(row["fanout_scope"], "fanout_scope"),
+        fanout_json=_optional_str(row["fanout_json"], "fanout_json"),
     )
 
 

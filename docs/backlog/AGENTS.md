@@ -14,7 +14,9 @@ Dedicated, agent-executable implementation items. One file per item.
   on `home-action` (ADR 0022) and leaves the slot default off.
   [B22](B22-tv-home-action.md) executes the closed television tools
   on the same profile (ADR 0029) and leaves that slot default off.
-  Landing either item does not close architecture §21 item 20.
+  [B23](B23-utterance-routing.md) routes an omitted profile and repeats
+  one closed action for `all` (ADR 0030). The device slots stay off.
+  Landing any of these items does not close architecture §21 item 20.
   Do not merge two items in one PR unless the item file says they may
   land together.
 - Point at `docs/architecture.md` instead of copying it.

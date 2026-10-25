@@ -182,6 +182,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_task_parser(subparsers)
     _add_chat_parser(subparsers)
+    _add_route_parser(subparsers)
     _add_climate_parser(subparsers)
     _add_tv_parser(subparsers)
     return parser
@@ -241,6 +242,11 @@ def main(
         from two.cli_chat import run_chat
 
         return run_chat(args, request=request)
+    if args.command == "route":
+        _load_host_env()
+        from two.cli_route import run_route
+
+        return run_route(args, request=request)
     if args.command == "climate":
         _load_host_env()
         from two.cli_climate import run_climate
@@ -556,6 +562,37 @@ def _add_chat_parser(subparsers: Any) -> None:
         help="Print the receipt for TURN_ID",
     )
     show.add_argument("turn_id", help="Chat turn id")
+
+
+def _add_route_parser(subparsers: Any) -> None:
+    transport = _transport_parser()
+    route = subparsers.add_parser(
+        "route",
+        help="Send or show one transcript and let the control plane choose the adapter",
+        description=(
+            "Talks only to the control API. Does not open a device, the store, "
+            "git, or Ollama. The transcript is routed to chat or to an enabled "
+            "device slot. 'all' repeats one closed action across the bound targets."
+        ),
+    )
+    route_sub = route.add_subparsers(dest="route_command", required=True)
+    send = route_sub.add_parser(
+        "send",
+        parents=[transport],
+        help="POST a transcript without a harness profile and print the receipt",
+    )
+    send.add_argument("--text", required=True, help="User transcript")
+    send.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Optional Idempotency-Key for this POST",
+    )
+    show = route_sub.add_parser(
+        "show",
+        parents=[transport],
+        help="Print the receipt for TURN_ID",
+    )
+    show.add_argument("turn_id", help="Chat or home-action turn id")
 
 
 def _add_climate_parser(subparsers: Any) -> None:

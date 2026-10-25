@@ -162,6 +162,8 @@ class ErrorCode(StrEnum):
     TV_SET_DENIED = "tv_set_denied"
     TV_UPSTREAM = "tv_upstream"
     TV_REJECTED = "tv_rejected"
+    FANOUT_NEEDS_APPROVAL = "fanout_needs_approval"
+    FANOUT_UNSUPPORTED = "fanout_unsupported"
     INTERNAL = "internal"
 
 

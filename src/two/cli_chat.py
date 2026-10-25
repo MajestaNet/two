@@ -95,6 +95,10 @@ def format_receipt(receipt: VoiceTurnReceipt) -> str:
         lines.append(f"tv_volume: {television.volume}")
         lines.append(f"tv_mute: {television.mute}")
         lines.append(f"tv_reachable: {television.reachable}")
+    for item in receipt.fanout:
+        lines.append(f"fanout: {item.target} {item.tool} {item.status}")
+    if receipt.route_slots:
+        lines.append(f"route_slots: {', '.join(receipt.route_slots)}")
     if receipt.climate is not None:
         climate = receipt.climate
         lines.append(f"climate_zone: {climate.zone}")

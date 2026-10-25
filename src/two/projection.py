@@ -477,14 +477,15 @@ class VoiceTurnRequest(BaseModel):
 
     ``self-build`` is accepted by the schema so a stolen or confused client
     is rejected by authorization (403) rather than by a 422. ``chat`` is
-    stored and resumed.     ``home-action`` is stored when a local climate or television
-    binding is enabled (ADR 0022, ADR 0029).
+    stored and resumed. ``home-action`` is stored when a local climate or
+    television binding is enabled (ADR 0022, ADR 0029). Omitting ``profile``
+    lets the control plane route the transcript (ADR 0030).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(min_length=1, max_length=4_000)
-    profile: Literal["self-build", "home-action", "chat"]
+    profile: Literal["self-build", "home-action", "chat"] | None = None
 
 
 class ClimateReadbackView(BaseModel):
@@ -531,6 +532,32 @@ class TvReadbackView(BaseModel):
     reachable: bool
 
 
+class FanoutItemView(BaseModel):
+    """One target in a fan-out. Addresses and tokens stay off this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    slot: str = Field(min_length=1, max_length=32, pattern=r"^[a-z][a-z0-9_-]{0,31}$")
+    target: str = Field(min_length=1, max_length=64)
+    tool: str = Field(min_length=1, max_length=64)
+    status: Literal["pending", "complete", "failed"]
+    error_code: ErrorCode | None = None
+    climate: ClimateReadbackView | None = None
+    tv: TvReadbackView | None = None
+
+    @model_validator(mode="after")
+    def _item_shape(self) -> Self:
+        if self.status == "pending":
+            if self.error_code is not None or self.climate is not None or self.tv is not None:
+                raise ValueError("pending fan-out has no result")
+        elif self.status == "failed":
+            if self.error_code is None or self.climate is not None or self.tv is not None:
+                raise ValueError("failed fan-out has an error and no read-back")
+        elif self.error_code is not None or (self.climate is None) == (self.tv is None):
+            raise ValueError("complete fan-out has one read-back and no error")
+        return self
+
+
 class TvRequestView(BaseModel):
     """The television call waiting for an approval digest. No address."""
 
@@ -561,6 +588,8 @@ class VoiceTurnReceipt(BaseModel):
     ``pending_action`` are set only when ``status`` is ``awaiting_approval``.
     ``climate`` is the device read-back on a completed climate action.
     ``tv`` is the device read-back on a completed television action.
+    ``fanout`` lists every target when one instruction was repeated.
+    ``route_slots`` names the device slots the utterance selected.
     Host paths, session ids, entity ids, and tokens stay off this body.
     """
 
@@ -576,6 +605,8 @@ class VoiceTurnReceipt(BaseModel):
     action_digest: str | None = None
     pending_action: ClimateRequestView | None = None
     pending_tv: TvRequestView | None = None
+    fanout: list[FanoutItemView] = Field(default_factory=list)
+    route_slots: list[str] = Field(default_factory=list)
     cursor: str = Field(min_length=1)
     revision: int = Field(ge=1)
 
@@ -601,6 +632,8 @@ class VoiceTurnReceipt(BaseModel):
                 or self.pending_tv is not None
             ):
                 raise ValueError("failed receipt has no device result")
+            if any(item.status != "failed" for item in self.fanout):
+                raise ValueError("failed fan-out items are failed")
         elif self.status == "awaiting_approval":
             if (
                 self.reply is not None
@@ -613,6 +646,8 @@ class VoiceTurnReceipt(BaseModel):
             tv_pending = self.pending_tv is not None
             if self.action_digest is None or climate_pending == tv_pending:
                 raise ValueError("awaiting approval names the digest and one action")
+            if self.fanout:
+                raise ValueError("awaiting approval has no fan-out")
         elif self.reply is not None or self.error_code is not None:
             raise ValueError("reply and error_code are terminal")
         elif (
@@ -623,6 +658,15 @@ class VoiceTurnReceipt(BaseModel):
             or self.pending_tv is not None
         ):
             raise ValueError("queued and running receipts omit device results")
+        if self.status in {"queued", "running"} and any(
+            item.status != "pending" for item in self.fanout
+        ):
+            raise ValueError("queued fan-out is pending")
+        if self.status == "complete" and self.fanout:
+            if not any(item.status == "complete" for item in self.fanout):
+                raise ValueError("complete fan-out has a read-back")
+            if (self.climate is not None or self.tv is not None) and len(self.fanout) != 1:
+                raise ValueError("a multi-target fan-out keeps the single read-back empty")
         return self
 
 
@@ -640,6 +684,8 @@ def voice_turn_receipt(
     action_digest: str | None = None,
     pending_action: ClimateRequestView | None = None,
     pending_tv: TvRequestView | None = None,
+    fanout: list[FanoutItemView] | None = None,
+    route_slots: list[str] | None = None,
 ) -> VoiceTurnReceipt:
     """Build a receipt. Non-terminal rows never expose reply or error_code."""
     shown_reply = reply if status == "complete" else None
@@ -667,6 +713,8 @@ def voice_turn_receipt(
             "pending_tv": (
                 None if shown_pending_tv is None else shown_pending_tv.model_dump(mode="json")
             ),
+            "fanout": [item.model_dump(mode="json") for item in (fanout or [])],
+            "route_slots": [] if route_slots is None else list(route_slots),
             "cursor": encode_turn_cursor(seq),
             "revision": revision,
         }

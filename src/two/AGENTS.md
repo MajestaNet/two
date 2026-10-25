@@ -34,7 +34,9 @@ Python package for the Majesta Two control plane.
   config candidates (B14 slice 3). Schema v7 persists one `chat`
   harness session and `chat_turns` (B20). Schema v8 persists
   `home_action_turns` and `climate_approvals` (ADR 0022). Schema v9
-  adds television tool names and `tv_approvals` (ADR 0029). Do not open databases from
+  adds television tool names and `tv_approvals` (ADR 0029). Schema v10
+  stores `route_slots`, `fanout_scope`, and `fanout_json` on
+  `home_action_turns` (ADR 0030). Do not open databases from
   `cli.py` at import time. The `two api` subcommand lazy-imports
   `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
@@ -69,6 +71,10 @@ Python package for the Majesta Two control plane.
   is ADR 0022 and stays default off. The binding transport is Home
   Assistant REST or ECHONET Lite (ADR 0027). `devices/tv/` is ADR 0029
   and stays default off. The transport is the Samsung local API.
+- `routing/` classifies a transcript onto `chat` or an enabled device
+  slot and plans a fan-out (ADR 0030). No store, no socket, no model
+  client. Device packages add a route card; `routing/catalog.py` lists
+  the shipped cards.
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
   It is not implemented. Do not add `push` to `workspace/`. Do not put
   GitHub tokens in `worker/` or `channels/`.

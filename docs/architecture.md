@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); adoption, speech, and profile preload follow |
 | Version | 0.13 |
 | Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -196,7 +196,7 @@ DeepSeek Harness remains the only model/tool loop (ADR 0019). One pinned binary 
 
 Profiles are persisted sessions under the local data directory. The controller may keep a profile warm so the next request resumes it without rebuilding a workspace. Warm profiles are not extra model weights and not extra harness releases. One inference stays in flight. A non-coding turn runs at a model-turn boundary and does not hold the coding lease.
 
-A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The climate tool list is the same. ADR 0029 adds the closed television tools (`tv.read`, `tv.set_power`, `tv.open`, `tv.set_volume`) on the same profile. The session advertises the closed tools of each binding that is enabled. The advertisement does not perform a call, and this process does not send `execute`. Production home-action uses the pinned ACP client (ADR 0028). Speech capture and playback stay on the client. The speech stack and the preload mechanism are a later slice.
+A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The climate tool list is the same. ADR 0029 adds the closed television tools (`tv.read`, `tv.set_power`, `tv.open`, `tv.set_volume`) on the same profile. The session advertises the closed tools of each binding that is enabled. The advertisement does not perform a call, and this process does not send `execute`. Production home-action uses the pinned ACP client (ADR 0028). A client may omit the harness profile on `POST /v1/voice/turns`. The control plane then routes the transcript to `chat` or to the enabled device slots the words name, and it may repeat one closed action across every bound target of those slots (ADR 0030). Speech capture and playback stay on the client. The speech stack and the preload mechanism are a later slice.
 
 ## 6. Component architecture
 
@@ -1062,6 +1062,7 @@ Default policy:
 | Shared inference | One resident model; persisted harness profiles share the slot | Chat and device actions resume a profile; they do not open Ollama |
 | Adapter install menu | Committed catalog; only the CLI is enabled (ADR 0021) | Kinds stay separate; landing a package does not turn a slot on |
 | Climate tools | Closed `home-action` tools, control plane performs them (ADR 0022). ECHONET Lite is a second transport (ADR 0027). Production uses the pinned ACP client (ADR 0028) | Default off; read-back is the result; no per-brand firmware package |
+| Utterance routing | Lexical route cards, then the harness on the resident model (ADR 0030). `all` repeats one closed action | No second model. A slot stays off until the install binds it |
 
 ## 17. Risks and mitigations
 
@@ -1350,6 +1351,7 @@ and the seamless install remain open.
 - [Majesta Two direct air-conditioner transport (ADR 0027)](adrs/0027-echonet-air-conditioner.md)
 - [Majesta Two home-action ACP client (ADR 0028)](adrs/0028-home-action-acp-client.md)
 - [Majesta Two Samsung television tools (ADR 0029)](adrs/0029-samsung-tv.md)
+- [Majesta Two utterance routing and device fan-out (ADR 0030)](adrs/0030-utterance-routing-and-fanout.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

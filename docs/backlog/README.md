@@ -15,6 +15,9 @@ close §21 item 20.
 B22 executes the closed television tools on the same profile (ADR 0029).
 The television slot stays off until an install binds it. B22 does not
 close §21 item 20.
+B23 routes a transcript that omits the harness profile and repeats one
+closed action for `all` (ADR 0030). Device slots stay off. B23 does not
+close §21 item 20.
 
 Each item is one markdown file. **Status is the tracker.** Update the
 item file and this table in the same PR that lands the work. Do not
@@ -65,6 +68,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B20](B20-chat-profile-resume.md) | Resume harness profile `chat` | 6 | B07, B08, B09 | done |
 | [B21](B21-climate-home-action.md) | Climate tools on `home-action` | 6 | B20 | done |
 | [B22](B22-tv-home-action.md) | Television tools on `home-action` | 6 | B21 | done |
+| [B23](B23-utterance-routing.md) | Route a transcript and fan out `all` | 6 | B22 | done |
 
 The skipped thin web UI in B13 is superseded by the first-party client
 direction in ADR 0015/B14.
@@ -75,6 +79,7 @@ layer for longer loops; the linear B10 stage machine remains valid
 policy, expressed as a persisted DAG.
 B20 is the `chat` profile resume. B21 is the climate executor for
 `home-action`. B22 is the television executor for the same profile.
+B23 routes an omitted profile and fans out `all` on that profile.
 Slot priority past chat-before-home-action, speech,
 and a client UI stay open.
 
