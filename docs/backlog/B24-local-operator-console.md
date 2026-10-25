@@ -8,7 +8,7 @@
 | Depends on | B20 |
 | Blocks | Nothing. Landing this item does not close architecture §21 item 20 and does not finish B14. |
 | Architecture | §1, §12.6, ADR 0031 |
-| Design | [ADR 0031](../adrs/0031-local-operator-console.md). Do not treat this file as a second contract. |
+| Design | [ADR 0031](../adrs/0031-local-operator-console.md). [ADR 0034](../adrs/0034-installable-console.md) amends the packaged window. [ADR 0035](../adrs/0035-console-harness-install.md) lets that window install the pinned harness. Do not treat this file as a second contract. |
 
 ## Goal
 

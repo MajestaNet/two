@@ -9,6 +9,30 @@
 default: m24-qwen38-16k
 
 profiles:
+  m16-qwen35-4b:
+    min_unified_memory_gb: 16
+    recommended_unified_memory_gb: 16
+    upstream_model: qwen3.5:4b-mlx
+    alias: qwen3.5:4b-mlx
+    num_ctx: 8192
+    kv_cache: q8_0
+    flash_attention: true
+    notes: >-
+      Fits a 16 GB Mac. Served tag is qwen3.5:4b-mlx with an 8K window.
+      One loaded model.
+
+  m16-qwen35-small:
+    min_unified_memory_gb: 16
+    recommended_unified_memory_gb: 16
+    upstream_model: qwen3.5:0.8b-mlx
+    alias: qwen3.5:0.8b-mlx
+    num_ctx: 8192
+    kv_cache: q8_0
+    flash_attention: true
+    notes: >-
+      Smallest catalog model. Served tag is qwen3.5:0.8b-mlx.
+      Use it when the 4B model still swaps.
+
   m24-qwen38-16k:
     min_unified_memory_gb: 24
     recommended_unified_memory_gb: 24
@@ -18,9 +42,8 @@ profiles:
     kv_cache: q8_0
     flash_attention: true
     notes: >-
-      Default 24/7 profile on a 24 GB Mac. Served tag is qwen3.5:9b-mlx
-      (ADR 0026). Context comes from OLLAMA_CONTEXT_LENGTH. No second
-      Ollama model.
+      Default profile on a 24 GB Mac. Served tag is qwen3.5:9b-mlx.
+      Context comes from OLLAMA_CONTEXT_LENGTH. No second Ollama model.
 
   m24-qwen38-32k:
     min_unified_memory_gb: 24

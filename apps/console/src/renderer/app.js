@@ -10,9 +10,11 @@ const state = {
   view: "server",
   server: null,
   ollama: null,
+  harness: null,
   recommendation: null,
   model: null,
   selected: null,
+  ownModel: "",
   doc: "setup",
   poll: null,
 };
@@ -64,12 +66,56 @@ async function refreshServer() {
       fact("health", server.health, healthUp),
       fact("ollama", server.ollama, server.ollama === "up"),
     );
-    $("server-note").textContent = "Closing this window leaves the server and Ollama running.";
+    $("server-note").textContent =
+      "Closing this window leaves the control plane and Ollama running in the background.";
   } catch (error) {
     $("server-note").textContent = error.message;
   }
   await refreshOllama();
+  await refreshHarness();
   refreshChatGate();
+}
+
+async function refreshHarness() {
+  const button = $("harness-install");
+  try {
+    state.harness = await globalThis.two.harnessStatus();
+  } catch (error) {
+    $("harness-path").textContent = error.message;
+    button.classList.add("hidden");
+    return;
+  }
+  const info = state.harness;
+  button.classList.toggle("hidden", Boolean(info.installed));
+  if (info.installed) {
+    $("harness-path").textContent = info.detail + (info.bin ? "  " + info.bin : "");
+    return;
+  }
+  $("harness-path").textContent =
+    "DeepSeek Harness was not found. Install the pinned release. The host build can take a while.";
+}
+
+async function installHarness() {
+  const button = $("harness-install");
+  button.disabled = true;
+  $("harness-log").textContent =
+    "Installing the pinned DeepSeek Harness. The host build can take a while.";
+  try {
+    const result = await globalThis.two.harnessInstall();
+    if (!result.ok) {
+      $("harness-log").textContent = result.output || "DeepSeek Harness did not install.";
+      return;
+    }
+    const note = "The control plane was restarted so chat uses this harness.";
+    $("harness-log").textContent = result.output ? result.output + "\n" + note : note;
+    await globalThis.two.serverStop();
+    await globalThis.two.serverStart();
+  } catch (error) {
+    $("harness-log").textContent = error.message;
+  } finally {
+    button.disabled = false;
+    await refreshServer();
+  }
 }
 
 function renderOllama() {
@@ -77,9 +123,13 @@ function renderOllama() {
   const start = $("ollama-start");
   const stop = $("ollama-stop");
   if (!info) return;
+  const installable = Boolean(info.installable);
+  $("ollama-install").classList.toggle("hidden", Boolean(info.bin) || !installable);
+  $("ollama-install-model").classList.toggle("hidden", Boolean(info.bin) || !installable);
   if (!info.bin) {
-    $("ollama-path").textContent =
-      "Ollama was not found in the usual places. Choose the binary. macOS may ask permission.";
+    $("ollama-path").textContent = installable
+      ? "Ollama was not found. Install it, or choose a binary you already have."
+      : "Ollama was not found in the usual places. Choose the binary. macOS may ask permission.";
     $("ollama-note").textContent = "";
     start.disabled = true;
     stop.disabled = true;
@@ -114,7 +164,16 @@ function renderOllama() {
   stop.disabled = !info.owned;
 }
 
+function ownTag() {
+  try {
+    return policy.normalizeModelTag(state.ownModel);
+  } catch (_error) {
+    return "";
+  }
+}
+
 function loadTarget() {
+  if (state.selected === "own") return ownTag();
   const profile = selectedProfile();
   if (profile && (modelPresent() || !state.ollama || !(state.ollama.models || []).length)) {
     return profile.upstream_model;
@@ -130,7 +189,9 @@ function renderInstalled() {
   $("ollama-choose-model").parentElement.classList.toggle("hidden", Boolean(info && info.bin));
   list.replaceChildren();
   if (!info || !info.bin) {
-    note.textContent = "Choose the Ollama binary to see models already on this Mac.";
+    note.textContent = info && info.installable
+      ? "Install Ollama, or choose the binary, to see models already on this Mac."
+      : "Choose the Ollama binary to see models already on this Mac.";
     return;
   }
   const models = info.models || [];
@@ -178,7 +239,7 @@ async function refreshModel() {
   if (!state.selected) {
     state.selected = state.recommendation.recommended_id;
   }
-  reason.textContent = state.recommendation.reason;
+  reason.textContent = policy.publicModelText(state.recommendation.reason);
   list.replaceChildren();
   for (const profile of state.recommendation.profiles) {
     const item = document.createElement("li");
@@ -190,6 +251,9 @@ async function refreshModel() {
     input.checked = profile.id === state.selected;
     input.addEventListener("change", () => {
       state.selected = profile.id;
+      $("own-radio").checked = false;
+      rememberChoice();
+      syncDownload();
       refreshChatGate();
     });
     const body = document.createElement("div");
@@ -197,13 +261,23 @@ async function refreshModel() {
     title.textContent = profile.id + (profile.recommended ? "  recommended" : "");
     const meta = document.createElement("div");
     meta.className = "meta";
-    const bits = [profile.upstream_model, profile.min_unified_memory_gb + " GB"];
-    if (profile.advisory) bits.push(profile.advisory);
+    const bits = [profile.upstream_model, profile.min_unified_memory_gb + " GB", profile.num_ctx / 1024 + "K"];
+    const advisory = policy.publicModelText(profile.advisory);
+    if (advisory) bits.push(advisory);
     meta.textContent = bits.join("  ·  ");
+    const notes = policy.publicModelText(profile.notes);
     body.append(title, meta);
+    if (notes) {
+      const description = document.createElement("div");
+      description.className = "meta";
+      description.textContent = notes;
+      body.append(description);
+    }
     item.append(input, body);
     list.append(item);
   }
+  $("own-radio").checked = state.selected === "own";
+  $("own-model").value = state.ownModel;
   await refreshOllama();
   if (!state.model.ollama_up) {
     const installed = state.ollama && state.ollama.models && state.ollama.models.length;
@@ -211,10 +285,36 @@ async function refreshModel() {
       ? " This install already has models. Start Ollama to serve them. Download stays off until it answers."
       : " Ollama is not answering, so download stays off.";
   }
-  const download = $("download");
-  download.disabled = !state.model.ollama_up;
-  download.textContent = state.model.ollama_up ? "Download" : "Download";
+  syncDownload();
   refreshChatGate();
+}
+
+function syncDownload() {
+  const download = $("download");
+  if (!state.model) return;
+  const ownReady = state.selected !== "own" || Boolean(ownTag());
+  download.disabled = !state.model.ollama_up || !ownReady;
+  download.textContent = "Download";
+}
+
+function rememberChoice() {
+  try {
+    localStorage.setItem("two.selected", state.selected || "");
+    localStorage.setItem("two.ownModel", state.ownModel || "");
+  } catch (_error) {
+    // The choice still applies for this window.
+  }
+}
+
+function restoreChoice() {
+  try {
+    const selected = localStorage.getItem("two.selected");
+    const ownModel = localStorage.getItem("two.ownModel");
+    if (selected) state.selected = selected;
+    if (typeof ownModel === "string") state.ownModel = ownModel;
+  } catch (_error) {
+    // A fresh window uses the recommendation.
+  }
 }
 
 function selectedProfile() {
@@ -223,8 +323,9 @@ function selectedProfile() {
 }
 
 function modelLoaded() {
-  const profile = selectedProfile();
   const loaded = (state.ollama && state.ollama.loaded) || [];
+  if (state.selected === "own") return policy.modelResident(loaded, ownTag());
+  const profile = selectedProfile();
   if (!profile) return policy.modelResident(loaded, loadTarget());
   return (
     policy.modelResident(loaded, profile.upstream_model) || policy.modelResident(loaded, profile.alias)
@@ -232,17 +333,38 @@ function modelLoaded() {
 }
 
 function modelPresent() {
-  const profile = selectedProfile();
-  if (!profile) return false;
   const tags = (state.model && state.model.installed_tags) || [];
   const installed = (state.ollama && state.ollama.models) || [];
   const names = tags.concat(installed);
+  if (state.selected === "own") {
+    const tag = ownTag();
+    return tag !== "" && names.includes(tag);
+  }
+  const profile = selectedProfile();
+  if (!profile) return false;
   return names.includes(profile.upstream_model) || names.includes(profile.alias);
 }
 
 async function downloadModel() {
-  const profile = selectedProfile();
   const log = $("model-log");
+  if (state.selected === "own") {
+    const tag = ownTag();
+    if (!tag) {
+      log.textContent = "Type an Ollama tag such as qwen3.5:4b.";
+      return;
+    }
+    $("download").disabled = true;
+    log.textContent = "Downloading " + tag + "…";
+    try {
+      const result = await globalThis.two.ollamaPull({ model: tag });
+      log.textContent = result.output || (result.ok ? "Download finished." : "Download failed.");
+    } catch (error) {
+      log.textContent = error.message;
+    }
+    await refreshModel();
+    return;
+  }
+  const profile = selectedProfile();
   if (!profile) return;
   const replace = policy.needsReplace(state.model.installed_tags, profile);
   if (replace && !globalThis.confirm("Replace the other catalog model with " + profile.upstream_model + "?")) {
@@ -509,7 +631,8 @@ $("ollama-start").addEventListener("click", async () => {
   try {
     const profile = selectedProfile();
     const payload = {};
-    if (profile) payload.numCtx = profile.num_ctx;
+    if (state.selected === "own") payload.numCtx = policy.OWN_NUM_CTX;
+    else if (profile) payload.numCtx = profile.num_ctx;
     if (target) payload.model = target;
     await globalThis.two.ollamaStart(payload);
   } catch (error) {
@@ -540,8 +663,46 @@ async function chooseOllama() {
   }
 }
 
+async function installOllama() {
+  $("ollama-note").textContent = "Installing Ollama…";
+  $("installed-note").textContent = "Installing Ollama…";
+  $("ollama-install").disabled = true;
+  $("ollama-install-model").disabled = true;
+  try {
+    state.ollama = await globalThis.two.ollamaInstall();
+    renderOllama();
+    renderInstalled();
+    refreshChatGate();
+  } catch (error) {
+    $("ollama-note").textContent = error.message;
+    $("installed-note").textContent = error.message;
+  } finally {
+    $("ollama-install").disabled = false;
+    $("ollama-install-model").disabled = false;
+  }
+}
+
 $("ollama-choose").addEventListener("click", chooseOllama);
 $("ollama-choose-model").addEventListener("click", chooseOllama);
+$("ollama-install").addEventListener("click", installOllama);
+$("ollama-install-model").addEventListener("click", installOllama);
+$("harness-install").addEventListener("click", installHarness);
+$("own-radio").addEventListener("change", () => {
+  if ($("own-radio").checked) {
+    state.selected = "own";
+    rememberChoice();
+    syncDownload();
+    refreshChatGate();
+  }
+});
+$("own-model").addEventListener("input", () => {
+  state.ownModel = $("own-model").value;
+  state.selected = "own";
+  $("own-radio").checked = true;
+  rememberChoice();
+  syncDownload();
+  refreshChatGate();
+});
 $("chat-form").addEventListener("submit", sendChat);
 
 $("doc-body").addEventListener("click", (event) => {
@@ -557,4 +718,6 @@ $("doc-body").addEventListener("click", (event) => {
   }
 });
 
+restoreChoice();
 show("server");
+setTimeout(refreshServer, 800);

@@ -5,9 +5,9 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); local operator console (ADR 0031, ADR 0032, ADR 0033); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035); adoption, speech, and profile preload follow |
 | Version | 0.13 |
-| Date | 20 October 2026 |
+| Date | 26 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
@@ -273,7 +273,7 @@ The service binds only to the trusted private-network address. It does not bind 
 
 #### Hardware profiles
 
-24 GB / 16K is the **default reference profile**, not a product constraint. Named profiles live in `config/inference/profiles.yaml` and are listed by `two profiles`. Operators with 36 GB, 48 GB, or 64 GB+ unified memory may select a larger context or a larger official Qwen tag. Changing the *repository default* is an ADR; selecting a non-default profile on one host is configuration. See ADR 0004.
+24 GB / 16K is the **default reference profile**, not a product constraint. Named profiles live in `config/inference/profiles.yaml` and are listed by `two profiles`. Operators with 36 GB, 48 GB, or 64 GB+ unified memory may select a larger context or a larger official Qwen tag. A 16 GB host may select `m16-qwen35-4b` (`qwen3.5:4b-mlx`) or the smaller `m16-qwen35-small` (`qwen3.5:0.8b-mlx`). Changing the *repository default* is an ADR; selecting a non-default profile on one host is configuration. See ADR 0004 and ADR 0034.
 
 #### Capacity-expansion profile
 
@@ -921,10 +921,9 @@ Development loop, Evidence, and System health. Once B19 persists and
 populates it, the work graph—not chat prose—supplies plan topology, cursor,
 readiness, and dependency reasons.
 
-The local operator console (ADR 0031, ADR 0032) is not that remote client.
+The local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035) is not that remote client.
 It runs on the Mac mini, talks to loopback, and lives in this repository.
-It may locate an existing Ollama and serve it on loopback. Quitting the
-window leaves the control plane and that Ollama serve running.
+A packaged build carries this control plane, so the desktop install does not need a second clone. Opening the window starts `two up` when it is not already running. Closing the window hides it. The control plane keeps running, and the menu bar opens the window again. The window may install the official Ollama archive when no binary is found, list models that fit 16 GB, and load one operator-entered Ollama tag. It may also install the pinned DeepSeek Harness checkout (ADR 0035).
 
 Remote access requires:
 
@@ -1149,7 +1148,7 @@ Before promoting unattended overnight mode, the system must also pass:
 The tree below is the layout an installation is built from. Comments name
 reserved paths that are not directories yet (ADR 0021). `two adapters`
 prints which of those slots is enabled. The local operator console lives
-at `apps/console` (ADR 0031, ADR 0032). It is a loopback client of this installation.
+at `apps/console` (ADR 0031, ADR 0032, ADR 0034, ADR 0035). It is a loopback client of this installation, and a packaged build includes this control plane. The window can install the pinned DeepSeek Harness checkout.
 The mobile app and the watch app stay out of this tree.
 
 ```text
@@ -1274,14 +1273,16 @@ invent a second architecture.
 ### Phase 6 — Conversational control
 
 - Keep the implemented API-backed CLI as the local operator surface.
-- The local operator console (ADR 0031, ADR 0032, ADR 0033) is an in-repo window for
-  this Mac: start and stop `two up`, locate an existing Ollama binary, list
-  the models already in that install, and start `ollama serve` on loopback.
-  It recommends and pulls one catalog model, shows operator docs and adapter
+- The local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035) is an in-repo window for
+  this Mac. A packaged build includes this control plane. Opening it starts `two up` when needed.
+  Closing the window hides it and leaves the control plane running; the menu bar opens it again.
+  It can install the official Ollama archive, locate an existing binary, list installed models,
+  and start `ollama serve` on loopback. It can install the pinned DeepSeek Harness checkout
+  when `dsh` is missing. It recommends a catalog model, including a 16 GB row,
+  and can pull one operator-entered Ollama tag. It shows operator docs and adapter
   bindings, and sends a voice turn. The profile defaults to unset so the
   router runs, and may be set to `chat` or `home-action` (ADR 0033).
-  Closing it does not stop the control
-  plane or Ollama. It is not the mobile client.
+  It is not the mobile client.
 - Add the client API resources in ADR 0015: safe conversation/SSE,
   repository and project configuration, graph/evidence monitoring, aggregate
   health, idempotency, and scoped remote identity.
@@ -1376,6 +1377,8 @@ and the seamless install remain open.
 - [Majesta Two local operator console (ADR 0031)](adrs/0031-local-operator-console.md)
 - [Majesta Two console uses the existing Ollama (ADR 0032)](adrs/0032-console-existing-ollama.md)
 - [Majesta Two console voice profile (ADR 0033)](adrs/0033-console-voice-profile.md)
+- [Majesta Two installable console (ADR 0034)](adrs/0034-installable-console.md)
+- [Majesta Two console harness install (ADR 0035)](adrs/0035-console-harness-install.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)
