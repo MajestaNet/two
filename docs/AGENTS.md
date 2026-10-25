@@ -47,6 +47,9 @@
 - `adrs/0034-installable-console.md` ships the control plane with the
   window, keeps that plane running after the window hides, and adds the
   16 GB catalog rows plus one typed Ollama tag. Do not paste that ADR here.
+- `adrs/0035-console-harness-install.md` lets that window install the
+  pinned DeepSeek Harness checkout. It does not install a newer release
+  and it does not reimplement the agent loop. Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.

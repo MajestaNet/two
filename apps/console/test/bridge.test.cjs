@@ -200,6 +200,24 @@ test("the packaged window launches the bundled control plane and stays in the me
   const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
   assert.equal(html.includes("Install Ollama"), true);
   assert.equal(html.includes("Choose your own"), true);
+  assert.equal(html.includes("Install DeepSeek Harness"), true);
+  assert.deepEqual(policy.harnessArgs("install"), ["harness", "install"]);
+  assert.deepEqual(policy.twoArgv(policy.harnessArgs("status")), [
+    "uv",
+    "run",
+    "two",
+    "harness",
+    "status",
+  ]);
+  assert.throws(() => policy.harnessArgs("latest"));
+  assert.equal(
+    policy.dataDir("darwin", "/Users/ada"),
+    "/Users/ada/Library/Application Support/two",
+  );
+  assert.equal(policy.dataDir("linux", "/home/ada"), "/home/ada/.local/share/two");
+  assert.equal(mainSource.includes("controlPlaneEnv"), true);
+  assert.equal(appSource.includes("harnessInstall"), true);
+  assert.equal(appSource.includes("The control plane was restarted so chat uses this harness."), true);
   assert.equal(html.includes(">ADR<"), false);
   assert.equal(appSource.includes("publicModelText"), true);
   assert.equal(appSource.includes("ollamaPull"), true);

@@ -55,6 +55,8 @@ uv run two profiles
 uv run two profiles --recommend
 uv run two model status
 uv run two model pull --profile ID
+uv run two harness status
+uv run two harness install
 uv run two topology
 uv run two adapters
 uv run two setup --plan
@@ -104,9 +106,9 @@ the local operator window and is not part of that gate.
 
 ## Layout
 
-- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034). Electron,
+- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035). Electron,
   loopback only, default off. It calls `two up`, `two down`,
-  `two profiles --recommend`, `two model`, and `POST /v1/voice/turns`.
+  `two profiles --recommend`, `two model`, `two harness`, and `POST /v1/voice/turns`.
   The voice profile defaults to unset. `chat` and `home-action` are the
   only explicit choices.
   Opening the window starts the control plane when it is not already running.
@@ -115,7 +117,9 @@ the local operator window and is not part of that gate.
   window started.
   A packaged build (`npm run package`) carries this control plane in a
   relocatable virtualenv. A checkout still uses `uv run two`. DeepSeek
-  Harness is not inside the package.
+  Harness is not baked into the package. The Server page checks for `dsh`
+  and can install the pinned release, including Node 22 when it is missing.
+  When `TWO_DATA_DIR` is unset, the window uses the platform data directory.
   The main process may install the official Ollama archive when no binary
   is found, or locate an existing `ollama` and run `--version`, `list`,
   `serve`, and `pull` on `127.0.0.1:11434`. The model list includes the
@@ -153,7 +157,7 @@ the local operator window and is not part of that gate.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. `two adapters --json`
  adds bound device ids and omits secrets. Only the `cli` slot is
-  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034),
+  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035),
  shipped and off, and it resumes `chat` only. `watch` and `mobile`
  are clients at `contract`. `climate`
  is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).

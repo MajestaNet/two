@@ -33,7 +33,9 @@ Python package for the Majesta Two control plane.
 - `operator/` is the interactive LAN path (ADR 0013): env apply, doctor,
   and `two up` supervisor. `operator/model.py` plans one `ollama pull`.
   `operator/recommend.py` joins the host probe to the catalog.
-  `operator/menu.py` projects adapter slots and device ids. No store at
+  `operator/menu.py` projects adapter slots and device ids.
+  `operator/harness.py` installs the pinned DeepSeek Harness checkout
+  for `two harness`. It does not run the agent loop. No store at
   import time. The API may call the menu. It does not call Ollama.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default

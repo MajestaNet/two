@@ -27,7 +27,8 @@ ADR 0031 and ADR 0032 rejected.
    installs this package into a virtualenv that points at that interpreter
    with relative paths, and copies `config/` plus the allowlisted operator
    docs. A packaged app runs that virtualenv as `python -m two`. A checkout
-   still uses `uv run two`. DeepSeek Harness stays a separate pinned binary.
+   still uses `uv run two`. DeepSeek Harness is not baked into that
+   directory. The window can install the pinned checkout (ADR 0035).
    Model weights stay in Ollama.
 2. **The control plane is the background app.** Opening the window
    starts `two up` when it is not already running. Closing the window

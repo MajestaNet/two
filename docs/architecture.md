@@ -5,9 +5,9 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035); adoption, speech, and profile preload follow |
 | Version | 0.13 |
-| Date | 25 October 2026 |
+| Date | 26 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
@@ -921,9 +921,9 @@ Development loop, Evidence, and System health. Once B19 persists and
 populates it, the work graph—not chat prose—supplies plan topology, cursor,
 readiness, and dependency reasons.
 
-The local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034) is not that remote client.
+The local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035) is not that remote client.
 It runs on the Mac mini, talks to loopback, and lives in this repository.
-A packaged build carries this control plane, so the desktop install does not need a second clone. Opening the window starts `two up` when it is not already running. Closing the window hides it. The control plane keeps running, and the menu bar opens the window again. The window may install the official Ollama archive when no binary is found, list models that fit 16 GB, and load one operator-entered Ollama tag. DeepSeek Harness stays a separate binary.
+A packaged build carries this control plane, so the desktop install does not need a second clone. Opening the window starts `two up` when it is not already running. Closing the window hides it. The control plane keeps running, and the menu bar opens the window again. The window may install the official Ollama archive when no binary is found, list models that fit 16 GB, and load one operator-entered Ollama tag. It may also install the pinned DeepSeek Harness checkout (ADR 0035).
 
 Remote access requires:
 
@@ -1148,7 +1148,7 @@ Before promoting unattended overnight mode, the system must also pass:
 The tree below is the layout an installation is built from. Comments name
 reserved paths that are not directories yet (ADR 0021). `two adapters`
 prints which of those slots is enabled. The local operator console lives
-at `apps/console` (ADR 0031, ADR 0032, ADR 0034). It is a loopback client of this installation, and a packaged build includes this control plane.
+at `apps/console` (ADR 0031, ADR 0032, ADR 0034, ADR 0035). It is a loopback client of this installation, and a packaged build includes this control plane. The window can install the pinned DeepSeek Harness checkout.
 The mobile app and the watch app stay out of this tree.
 
 ```text
@@ -1273,11 +1273,12 @@ invent a second architecture.
 ### Phase 6 — Conversational control
 
 - Keep the implemented API-backed CLI as the local operator surface.
-- The local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034) is an in-repo window for
+- The local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035) is an in-repo window for
   this Mac. A packaged build includes this control plane. Opening it starts `two up` when needed.
   Closing the window hides it and leaves the control plane running; the menu bar opens it again.
   It can install the official Ollama archive, locate an existing binary, list installed models,
-  and start `ollama serve` on loopback. It recommends a catalog model, including a 16 GB row,
+  and start `ollama serve` on loopback. It can install the pinned DeepSeek Harness checkout
+  when `dsh` is missing. It recommends a catalog model, including a 16 GB row,
   and can pull one operator-entered Ollama tag. It shows operator docs and adapter
   bindings, and sends a voice turn. The profile defaults to unset so the
   router runs, and may be set to `chat` or `home-action` (ADR 0033).
@@ -1377,6 +1378,7 @@ and the seamless install remain open.
 - [Majesta Two console uses the existing Ollama (ADR 0032)](adrs/0032-console-existing-ollama.md)
 - [Majesta Two console voice profile (ADR 0033)](adrs/0033-console-voice-profile.md)
 - [Majesta Two installable console (ADR 0034)](adrs/0034-installable-console.md)
+- [Majesta Two console harness install (ADR 0035)](adrs/0035-console-harness-install.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

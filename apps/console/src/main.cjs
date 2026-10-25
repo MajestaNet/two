@@ -48,9 +48,17 @@ function launcher() {
   return policy.twoLauncher(bundledPython());
 }
 
+function controlPlaneEnv(overlay) {
+  const env = Object.assign({}, process.env, overlay || {});
+  if (typeof env.TWO_DATA_DIR !== "string" || env.TWO_DATA_DIR.trim() === "") {
+    env.TWO_DATA_DIR = policy.dataDir(process.platform, os.homedir());
+  }
+  return env;
+}
+
 function runTwo(args, envOverlay) {
   const argv = policy.commandArgv(launcher(), args);
-  const env = Object.assign({}, process.env, envOverlay || {});
+  const env = controlPlaneEnv(envOverlay);
   return new Promise((resolve) => {
     const child = spawn(argv[0], argv.slice(1), {
       cwd: installRoot(),
@@ -123,12 +131,24 @@ async function serverStart() {
     return { ok: true, already: true };
   }
   const argv = policy.commandArgv(launcher(), ["up"]);
+  const env = controlPlaneEnv();
+  try {
+    const harness = parseJson(await runTwo(policy.harnessArgs("status")), "harness status failed");
+    if (harness && typeof harness.bin === "string" && harness.bin !== "") {
+      const directory = path.dirname(harness.bin);
+      if (directory) {
+        env.PATH = directory + path.delimiter + (env.PATH || "");
+      }
+    }
+  } catch (_error) {
+    // The control plane can start before the harness is installed.
+  }
   const child = spawn(argv[0], argv.slice(1), {
     cwd: installRoot(),
     shell: false,
     detached: true,
     stdio: "ignore",
-    env: process.env,
+    env: env,
   });
   child.on("error", () => {
     // A missing interpreter is reported by the next status read.
@@ -140,6 +160,22 @@ async function serverStart() {
 async function serverStop() {
   const result = await runTwo(["down"]);
   return { ok: result.code === 0, output: (result.stdout + "\n" + result.stderr).trim() };
+}
+
+async function harnessStatus() {
+  return parseJson(await runTwo(policy.harnessArgs("status")), "harness status failed");
+}
+
+async function harnessInstall() {
+  const result = await runTwo(policy.harnessArgs("install"));
+  let status = null;
+  try {
+    status = JSON.parse(result.stdout);
+  } catch (_error) {
+    status = null;
+  }
+  const output = result.code === 0 ? result.stderr.trim() : (result.stderr || result.stdout).trim();
+  return { ok: result.code === 0, output: output, status: status };
 }
 
 async function modelRecommend() {
@@ -725,6 +761,8 @@ const handlers = {
   "ollama:stop": ollamaStop,
   "ollama:install": ollamaInstall,
   "ollama:pull": ollamaPull,
+  "harness:status": harnessStatus,
+  "harness:install": harnessInstall,
   "docs:list": docsList,
   "docs:read": docsRead,
   "docs:openExternal": docsOpenExternal,

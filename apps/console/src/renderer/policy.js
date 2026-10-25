@@ -33,6 +33,8 @@
     Object.freeze(["ollamaStop", "ollama:stop"]),
     Object.freeze(["ollamaInstall", "ollama:install"]),
     Object.freeze(["ollamaPull", "ollama:pull"]),
+    Object.freeze(["harnessStatus", "harness:status"]),
+    Object.freeze(["harnessInstall", "harness:install"]),
     Object.freeze(["docsList", "docs:list"]),
     Object.freeze(["docsRead", "docs:read"]),
     Object.freeze(["docsOpenExternal", "docs:openExternal"]),
@@ -255,6 +257,25 @@
     return commandArgv(twoLauncher(""), args);
   }
 
+  function harnessArgs(action) {
+    if (action !== "status" && action !== "install") {
+      throw new Error("that harness command is not available here");
+    }
+    return ["harness", action];
+  }
+
+  function dataDir(platform, home) {
+    if (typeof home !== "string" || home.length < 1 || home.includes("\0")) {
+      throw new Error("home directory is required");
+    }
+    if (platform === "darwin") {
+      return nodePath
+        ? nodePath.join(home, "Library", "Application Support", "two")
+        : home + "/Library/Application Support/two";
+    }
+    return nodePath ? nodePath.join(home, ".local", "share", "two") : home + "/.local/share/two";
+  }
+
   function acceptOllamaPath(filePath) {
     if (!nodePath) {
       throw new Error("ollama paths are resolved in the main process");
@@ -440,6 +461,8 @@
     twoLauncher,
     commandArgv,
     twoArgv,
+    harnessArgs,
+    dataDir,
     needsReplace,
     preferOllamaBinary,
     acceptOllamaPath,

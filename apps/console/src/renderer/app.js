@@ -10,6 +10,7 @@ const state = {
   view: "server",
   server: null,
   ollama: null,
+  harness: null,
   recommendation: null,
   model: null,
   selected: null,
@@ -71,7 +72,50 @@ async function refreshServer() {
     $("server-note").textContent = error.message;
   }
   await refreshOllama();
+  await refreshHarness();
   refreshChatGate();
+}
+
+async function refreshHarness() {
+  const button = $("harness-install");
+  try {
+    state.harness = await globalThis.two.harnessStatus();
+  } catch (error) {
+    $("harness-path").textContent = error.message;
+    button.classList.add("hidden");
+    return;
+  }
+  const info = state.harness;
+  button.classList.toggle("hidden", Boolean(info.installed));
+  if (info.installed) {
+    $("harness-path").textContent = info.detail + (info.bin ? "  " + info.bin : "");
+    return;
+  }
+  $("harness-path").textContent =
+    "DeepSeek Harness was not found. Install the pinned release. The host build can take a while.";
+}
+
+async function installHarness() {
+  const button = $("harness-install");
+  button.disabled = true;
+  $("harness-log").textContent =
+    "Installing the pinned DeepSeek Harness. The host build can take a while.";
+  try {
+    const result = await globalThis.two.harnessInstall();
+    if (!result.ok) {
+      $("harness-log").textContent = result.output || "DeepSeek Harness did not install.";
+      return;
+    }
+    const note = "The control plane was restarted so chat uses this harness.";
+    $("harness-log").textContent = result.output ? result.output + "\n" + note : note;
+    await globalThis.two.serverStop();
+    await globalThis.two.serverStart();
+  } catch (error) {
+    $("harness-log").textContent = error.message;
+  } finally {
+    button.disabled = false;
+    await refreshServer();
+  }
 }
 
 function renderOllama() {
@@ -642,6 +686,7 @@ $("ollama-choose").addEventListener("click", chooseOllama);
 $("ollama-choose-model").addEventListener("click", chooseOllama);
 $("ollama-install").addEventListener("click", installOllama);
 $("ollama-install-model").addEventListener("click", installOllama);
+$("harness-install").addEventListener("click", installHarness);
 $("own-radio").addEventListener("change", () => {
   if ($("own-radio").checked) {
     state.selected = "own";
