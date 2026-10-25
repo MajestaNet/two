@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); local operator console (ADR 0031); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); local operator console (ADR 0031, ADR 0032, ADR 0033); adoption, speech, and profile preload follow |
 | Version | 0.13 |
 | Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -539,7 +539,7 @@ source-control export (`two.export`, reserved). `two.providers` is the
 model-provider contract, not a client. The committed catalog is the install
 menu. A slot that is not `shipped` cannot be selected, and landing the
 package does not enable it. The local operator console is a client in this
-tree (`apps/console`, ADR 0031). The catalog ships it and leaves it off.
+tree (`apps/console`, ADR 0031, ADR 0032). The catalog ships it and leaves it off.
 It may resume `chat` only. Mobile and watch native projects stay elsewhere.
 
 ### 6.4 State and storage
@@ -921,9 +921,10 @@ Development loop, Evidence, and System health. Once B19 persists and
 populates it, the work graph—not chat prose—supplies plan topology, cursor,
 readiness, and dependency reasons.
 
-The local operator console (ADR 0031) is not that remote client. It runs
-on the Mac mini, talks to loopback, and lives in this repository. Quitting
-the window leaves the control plane running.
+The local operator console (ADR 0031, ADR 0032) is not that remote client.
+It runs on the Mac mini, talks to loopback, and lives in this repository.
+It may locate an existing Ollama and serve it on loopback. Quitting the
+window leaves the control plane and that Ollama serve running.
 
 Remote access requires:
 
@@ -1148,13 +1149,13 @@ Before promoting unattended overnight mode, the system must also pass:
 The tree below is the layout an installation is built from. Comments name
 reserved paths that are not directories yet (ADR 0021). `two adapters`
 prints which of those slots is enabled. The local operator console lives
-at `apps/console` (ADR 0031). It is a loopback client of this installation.
+at `apps/console` (ADR 0031, ADR 0032). It is a loopback client of this installation.
 The mobile app and the watch app stay out of this tree.
 
 ```text
 two/
 ├── apps/
-│   └── console/                        # local operator window (ADR 0031)
+│   └── console/                        # local operator window (ADR 0031, ADR 0032)
 ├── README.md
 ├── AGENTS.md
 ├── .env.example
@@ -1273,10 +1274,14 @@ invent a second architecture.
 ### Phase 6 — Conversational control
 
 - Keep the implemented API-backed CLI as the local operator surface.
-- The local operator console (ADR 0031) is an in-repo window for this Mac:
-  start and stop `two up`, recommend and pull one catalog model, show
-  operator docs and adapter bindings, and send `chat` turns. Closing it
-  does not stop the server. It is not the mobile client.
+- The local operator console (ADR 0031, ADR 0032, ADR 0033) is an in-repo window for
+  this Mac: start and stop `two up`, locate an existing Ollama binary, list
+  the models already in that install, and start `ollama serve` on loopback.
+  It recommends and pulls one catalog model, shows operator docs and adapter
+  bindings, and sends a voice turn. The profile defaults to unset so the
+  router runs, and may be set to `chat` or `home-action` (ADR 0033).
+  Closing it does not stop the control
+  plane or Ollama. It is not the mobile client.
 - Add the client API resources in ADR 0015: safe conversation/SSE,
   repository and project configuration, graph/evidence monitoring, aggregate
   health, idempotency, and scoped remote identity.
@@ -1369,6 +1374,8 @@ and the seamless install remain open.
 - [Majesta Two Samsung television tools (ADR 0029)](adrs/0029-samsung-tv.md)
 - [Majesta Two utterance routing and device fan-out (ADR 0030)](adrs/0030-utterance-routing-and-fanout.md)
 - [Majesta Two local operator console (ADR 0031)](adrs/0031-local-operator-console.md)
+- [Majesta Two console uses the existing Ollama (ADR 0032)](adrs/0032-console-existing-ollama.md)
+- [Majesta Two console voice profile (ADR 0033)](adrs/0033-console-voice-profile.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted. The console is a loopback client of this installation.
+Accepted. Amended by ADR 0032 for locating and serving an existing
+Ollama, and by ADR 0033 for the voice profile. The console is a
+loopback client of this installation.
 It does not replace the CLI, the mobile app, or the watch app.
 
 ## Context
@@ -33,9 +35,9 @@ runs on the same machine as the API.
    existing `two` commands with an argument array. It does not start
    a shell string. Quitting the window does not stop the server.
 3. **Server start and stop are `two up` and `two down`.** Those
-   commands already supervise `api`, `scheduler`, and `worker`. The
-   window does not launch Ollama. Ollama stays the launchd service
-   from the Mac bootstrap.
+   commands already supervise `api`, `scheduler`, and `worker`.
+   ADR 0032 amends Ollama: the window may locate an existing binary
+   and start `ollama serve` on loopback. It does not open a shell.
 4. **Model choice stays on the catalog.** The window shows one
    recommendation from unified memory. 24 GB up to 36 GB recommends
    `m24-qwen38-16k` (`qwen3.5:9b-mlx`). The 27B profile on that floor
@@ -44,10 +46,11 @@ runs on the same machine as the API.
    different catalog tag requires confirmation. Tags outside the
    catalog are left alone. The API process still does not call Ollama.
 5. **Chat is one control-API turn.** The window posts
-   `POST /v1/voice/turns` with `profile: chat` and reads the receipt.
-   The transcript shows reply text. It is not a terminal, not
-   `self-build`, and not a home-action sender. The box stays disabled
-   until the API is up and the selected model is present.
+   `POST /v1/voice/turns` and reads the receipt. ADR 0033 amends the
+   profile: it defaults to unset so the router runs, and the operator
+   may set `chat` or `home-action`. It is not a terminal and it does
+   not submit `self-build`. The box stays disabled until the API is up
+   and the selected model is loaded.
 6. **Docs and adapters are projections.** The window reads an
    allowlist of operator docs from this repository. Adapter slots and
    bound device ids come from `GET /v1/system/adapters`. That body

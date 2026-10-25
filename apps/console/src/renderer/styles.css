@@ -65,12 +65,13 @@ button, input {
   border: 0;
   border-radius: 6px;
   cursor: pointer;
+  color: var(--text);
 }
 
 .nav button.active,
 .nav button:hover {
   background: var(--panel);
-  color: var(--accent);
+  color: var(--text);
 }
 
 main {
@@ -83,6 +84,12 @@ h1 {
   margin: 0 0 8px;
   font-weight: 500;
   font-size: 1.8rem;
+}
+
+main h2 {
+  margin: 28px 0 8px;
+  font-weight: 500;
+  font-size: 1.15rem;
 }
 
 .lede, .note { color: var(--muted); max-width: 62ch; }
@@ -199,13 +206,16 @@ article td, article th {
   margin-top: 12px;
 }
 
+.composer select,
 .composer input {
-  flex: 1;
   padding: 10px 12px;
   background: #0c0b0a;
+  color: var(--text);
   border: 1px solid var(--line);
   border-radius: 6px;
 }
+
+.composer input { flex: 1; }
 
 .slot h2 {
   margin: 0;

@@ -9,6 +9,7 @@ const markdown = globalThis.TwoMarkdown;
 const state = {
   view: "server",
   server: null,
+  ollama: null,
   recommendation: null,
   model: null,
   selected: null,
@@ -54,21 +55,114 @@ async function refreshServer() {
   list.replaceChildren();
   try {
     state.server = await globalThis.two.serverStatus();
+    const server = state.server;
+    const healthUp = server.health === "ok";
+    list.append(
+      fact("api", server.children.api, server.children.api === "running"),
+      fact("scheduler", server.children.scheduler, server.children.scheduler === "running"),
+      fact("worker", server.children.worker, server.children.worker === "running"),
+      fact("health", server.health, healthUp),
+      fact("ollama", server.ollama, server.ollama === "up"),
+    );
+    $("server-note").textContent = "Closing this window leaves the server and Ollama running.";
   } catch (error) {
     $("server-note").textContent = error.message;
+  }
+  await refreshOllama();
+  refreshChatGate();
+}
+
+function renderOllama() {
+  const info = state.ollama;
+  const start = $("ollama-start");
+  const stop = $("ollama-stop");
+  if (!info) return;
+  if (!info.bin) {
+    $("ollama-path").textContent =
+      "Ollama was not found in the usual places. Choose the binary. macOS may ask permission.";
+    $("ollama-note").textContent = "";
+    start.disabled = true;
+    stop.disabled = true;
     return;
   }
-  const server = state.server;
-  const healthUp = server.health === "ok";
-  list.append(
-    fact("api", server.children.api, server.children.api === "running"),
-    fact("scheduler", server.children.scheduler, server.children.scheduler === "running"),
-    fact("worker", server.children.worker, server.children.worker === "running"),
-    fact("health", server.health, healthUp),
-    fact("ollama", server.ollama, server.ollama === "up"),
-  );
-  $("server-note").textContent = "Closing this window leaves the server running.";
-  refreshChatGate();
+  const version = info.version ? " " + info.version : "";
+  $("ollama-path").textContent = "Ollama" + version + "  " + info.bin;
+  const target = loadTarget();
+  const resident = policy.modelResident(info.loaded, target);
+  if (!info.up) {
+    $("ollama-note").textContent = target
+      ? "Start Ollama, then it loads " + target + ". That uses a large share of this Mac's memory."
+      : "Start Ollama to serve on 127.0.0.1:11434.";
+    start.disabled = false;
+    start.textContent = "Start Ollama";
+  } else if (resident) {
+    $("ollama-note").textContent = target + " is loaded. Closing this window leaves Ollama running.";
+    start.disabled = true;
+    start.textContent = "Load model";
+  } else if (target) {
+    $("ollama-note").textContent =
+      "Ollama is answering, but " +
+      target +
+      " is not loaded. Chat stays queued until it is. Loading it uses a large share of this Mac's memory.";
+    start.disabled = false;
+    start.textContent = "Load model";
+  } else {
+    $("ollama-note").textContent = "Ollama is answering, and this install has no model to load.";
+    start.disabled = true;
+    start.textContent = "Load model";
+  }
+  stop.disabled = !info.owned;
+}
+
+function loadTarget() {
+  const profile = selectedProfile();
+  if (profile && (modelPresent() || !state.ollama || !(state.ollama.models || []).length)) {
+    return profile.upstream_model;
+  }
+  const models = (state.ollama && state.ollama.models) || [];
+  return models[0] || (profile ? profile.upstream_model : "");
+}
+
+function renderInstalled() {
+  const list = $("installed-models");
+  const note = $("installed-note");
+  const info = state.ollama;
+  $("ollama-choose-model").parentElement.classList.toggle("hidden", Boolean(info && info.bin));
+  list.replaceChildren();
+  if (!info || !info.bin) {
+    note.textContent = "Choose the Ollama binary to see models already on this Mac.";
+    return;
+  }
+  const models = info.models || [];
+  if (!models.length) {
+    note.textContent = "This Ollama install has no models yet.";
+    return;
+  }
+  const target = loadTarget();
+  const resident = policy.modelResident(info.loaded, target);
+  if (!info.up) {
+    note.textContent = "Already in the Ollama library. Start Ollama, then load the model.";
+  } else if (!resident) {
+    note.textContent = "Installed, but not loaded. Chat stays queued until Load model finishes.";
+  } else {
+    note.textContent = "Loaded by this Ollama install.";
+  }
+  for (const name of models) {
+    const item = document.createElement("li");
+    item.textContent = name;
+    list.append(item);
+  }
+}
+
+async function refreshOllama() {
+  try {
+    state.ollama = await globalThis.two.ollamaStatus();
+  } catch (error) {
+    $("ollama-note").textContent = error.message;
+    return;
+  }
+  renderOllama();
+  renderInstalled();
 }
 
 async function refreshModel() {
@@ -85,9 +179,6 @@ async function refreshModel() {
     state.selected = state.recommendation.recommended_id;
   }
   reason.textContent = state.recommendation.reason;
-  if (!state.model.ollama_up) {
-    reason.textContent += " Ollama is not answering, so download stays off.";
-  }
   list.replaceChildren();
   for (const profile of state.recommendation.profiles) {
     const item = document.createElement("li");
@@ -113,6 +204,13 @@ async function refreshModel() {
     item.append(input, body);
     list.append(item);
   }
+  await refreshOllama();
+  if (!state.model.ollama_up) {
+    const installed = state.ollama && state.ollama.models && state.ollama.models.length;
+    reason.textContent += installed
+      ? " This install already has models. Start Ollama to serve them. Download stays off until it answers."
+      : " Ollama is not answering, so download stays off.";
+  }
   const download = $("download");
   download.disabled = !state.model.ollama_up;
   download.textContent = state.model.ollama_up ? "Download" : "Download";
@@ -124,11 +222,22 @@ function selectedProfile() {
   return profiles.find((profile) => profile.id === state.selected) || null;
 }
 
+function modelLoaded() {
+  const profile = selectedProfile();
+  const loaded = (state.ollama && state.ollama.loaded) || [];
+  if (!profile) return policy.modelResident(loaded, loadTarget());
+  return (
+    policy.modelResident(loaded, profile.upstream_model) || policy.modelResident(loaded, profile.alias)
+  );
+}
+
 function modelPresent() {
   const profile = selectedProfile();
-  if (!profile || !state.model || !state.model.tags_known) return false;
-  const tags = state.model.installed_tags || [];
-  return tags.includes(profile.upstream_model) || tags.includes(profile.alias);
+  if (!profile) return false;
+  const tags = (state.model && state.model.installed_tags) || [];
+  const installed = (state.ollama && state.ollama.models) || [];
+  const names = tags.concat(installed);
+  return names.includes(profile.upstream_model) || names.includes(profile.alias);
 }
 
 async function downloadModel() {
@@ -274,7 +383,13 @@ async function refreshAdapters() {
 
 function refreshChatGate() {
   const apiUp = Boolean(state.server && state.server.health === "ok");
-  const gate = policy.chatGate({ apiUp, modelPresent: modelPresent() });
+  const ollamaUp = Boolean(state.ollama && state.ollama.up);
+  const gate = policy.chatGate({
+    apiUp,
+    ollamaUp,
+    modelPresent: modelPresent(),
+    modelLoaded: modelLoaded(),
+  });
   $("chat-text").disabled = !gate.enabled;
   $("chat-send").disabled = !gate.enabled;
   $("chat-reason").textContent = gate.reason;
@@ -304,13 +419,17 @@ async function followTurn(turnId) {
     try {
       const result = await globalThis.two.chatShow(turnId);
       const receipt = result.body;
-      const note = policy.queuedNote(receipt.status);
+      const note = policy.queuedNote(receipt.status, modelLoaded());
       if (note) $("chat-reason").textContent = note;
-      if (receipt.status === "complete" || receipt.status === "failed" || tries > 320) {
+      const line = policy.receiptText(receipt);
+      const settled =
+        receipt.status === "complete" ||
+        receipt.status === "failed" ||
+        receipt.status === "awaiting_approval";
+      if (settled || tries > 320) {
         clearInterval(state.poll);
         state.poll = null;
-        if (receipt.reply) addLine("two", receipt.reply);
-        else if (receipt.error_code) addLine("two", receipt.error_code);
+        if (line) addLine("two", line);
         else if (tries > 320) addLine("two", "Still " + receipt.status + ". The turn stays on the server.");
         refreshChatGate();
       }
@@ -334,10 +453,17 @@ async function sendChat(event) {
   addLine("you", text.trim());
   $("chat-reason").textContent = "";
   try {
-    const result = await globalThis.two.chatSend(text);
+    const profile = $("chat-profile").value;
+    const result = await globalThis.two.chatSend(text, profile);
     const receipt = result.body;
-    if (receipt.reply && (receipt.status === "complete" || receipt.status === "failed")) {
-      addLine("two", receipt.reply);
+    const line = policy.receiptText(receipt);
+    if (
+      line &&
+      (receipt.status === "complete" ||
+        receipt.status === "failed" ||
+        receipt.status === "awaiting_approval")
+    ) {
+      addLine("two", line);
       return;
     }
     if (receipt.turn_id) await followTurn(receipt.turn_id);
@@ -372,6 +498,50 @@ $("stop").addEventListener("click", async () => {
 });
 
 $("download").addEventListener("click", downloadModel);
+
+$("ollama-start").addEventListener("click", async () => {
+  const target = loadTarget();
+  const loading = state.ollama && state.ollama.up;
+  $("ollama-note").textContent = loading
+    ? "Loading " + target + " into memory…"
+    : "Starting Ollama and loading " + (target || "the model") + "…";
+  $("ollama-start").disabled = true;
+  try {
+    const profile = selectedProfile();
+    const payload = {};
+    if (profile) payload.numCtx = profile.num_ctx;
+    if (target) payload.model = target;
+    await globalThis.two.ollamaStart(payload);
+  } catch (error) {
+    $("ollama-note").textContent = error.message;
+  }
+  await refreshServer();
+  setTimeout(refreshServer, 1200);
+});
+
+$("ollama-stop").addEventListener("click", async () => {
+  try {
+    await globalThis.two.ollamaStop();
+  } catch (error) {
+    $("ollama-note").textContent = error.message;
+  }
+  setTimeout(refreshServer, 400);
+});
+
+async function chooseOllama() {
+  try {
+    state.ollama = await globalThis.two.ollamaChoose();
+    renderOllama();
+    renderInstalled();
+    refreshChatGate();
+  } catch (error) {
+    $("ollama-note").textContent = error.message;
+    $("installed-note").textContent = error.message;
+  }
+}
+
+$("ollama-choose").addEventListener("click", chooseOllama);
+$("ollama-choose-model").addEventListener("click", chooseOllama);
 $("chat-form").addEventListener("submit", sendChat);
 
 $("doc-body").addEventListener("click", (event) => {

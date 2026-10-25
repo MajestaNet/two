@@ -38,6 +38,12 @@
 - `adrs/0031-local-operator-console.md` is the in-repo loopback window
   at `apps/console`. It does not replace the mobile or watch apps.
   Do not paste that ADR here.
+- `adrs/0032-console-existing-ollama.md` lets that window locate an
+  existing Ollama, list its models, and serve loopback. The API process
+  still does not call Ollama. Do not paste that ADR here.
+- `adrs/0033-console-voice-profile.md` lets that window omit the harness
+  profile so routing runs, or set `chat` or `home-action`. It does not
+  submit `self-build`. Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.
