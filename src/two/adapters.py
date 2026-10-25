@@ -35,8 +35,18 @@ AdapterKind = Literal["client", "messenger", "device", "export"]
 AdapterStatus = Literal["shipped", "contract", "stub", "reserved"]
 HarnessProfileName = Literal["self-build", "home-action", "chat"]
 
-_REQUIRED_IDS: tuple[str, ...] = ("cli", "mobile", "watch", "device", "climate", "tv", "github")
+_REQUIRED_IDS: tuple[str, ...] = (
+    "cli",
+    "console",
+    "mobile",
+    "watch",
+    "device",
+    "climate",
+    "tv",
+    "github",
+)
 _DEVICE_PROFILES: frozenset[str] = frozenset({"chat", "home-action"})
+_CONSOLE_PACKAGE = "apps/console"
 
 
 class AdapterCatalogError(ValueError):
@@ -92,6 +102,8 @@ def discover_catalog_path(start: Path | None = None) -> Path:
 
 
 def _package_exists(repo_root: Path, package: str) -> bool:
+    if package == _CONSOLE_PACKAGE:
+        return (repo_root / "apps" / "console" / "package.json").is_file()
     parts = package.split(".")
     if not parts or parts[0] != "two" or any(not part.isidentifier() for part in parts):
         return False
@@ -143,6 +155,15 @@ def validate_catalog(catalog: AdapterCatalog, repo_root: Path) -> None:
     cli = catalog.slots["cli"]
     _require(cli.kind == "client" and cli.status == "shipped", "cli must be a shipped client")
     _require(cli.harness_profiles == ["self-build"], "cli resumes self-build only")
+    console = catalog.slots["console"]
+    _require(
+        console.kind == "client" and console.status == "shipped",
+        "console must be a shipped client",
+    )
+    _require(console.package == _CONSOLE_PACKAGE, "console package is apps/console")
+    _require(not console.default_enabled, "console stays off until the operator opens it")
+    _require(console.selectable, "console is selectable once shipped")
+    _require(console.harness_profiles == ["chat"], "console resumes chat only")
     watch = catalog.slots["watch"]
     _require(watch.kind == "client", "watch is a client, not a device adapter")
     _require(

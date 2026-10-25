@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'none'" />
+    <title>Majesta Two</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <nav class="nav">
+        <p class="mark">Majesta Two</p>
+        <p class="mark-note">This Mac</p>
+        <button type="button" data-view="server" class="active">Server</button>
+        <button type="button" data-view="model">Model</button>
+        <button type="button" data-view="docs">Docs</button>
+        <button type="button" data-view="adapters">Adapters</button>
+        <button type="button" data-view="chat">Chat</button>
+      </nav>
+      <main>
+        <section id="server" class="view">
+          <h1>Server</h1>
+          <p class="lede">Start and stop the control plane. Ollama stays its own service.</p>
+          <div class="row">
+            <button type="button" id="start">Start</button>
+            <button type="button" id="stop" class="quiet">Stop</button>
+          </div>
+          <ul id="server-lines" class="facts"></ul>
+          <p id="server-note" class="note"></p>
+        </section>
+        <section id="model" class="view hidden">
+          <h1>Model</h1>
+          <p id="model-reason" class="lede"></p>
+          <ul id="model-list" class="cards"></ul>
+          <div class="row">
+            <button type="button" id="download">Download</button>
+          </div>
+          <pre id="model-log" class="log"></pre>
+        </section>
+        <section id="docs" class="view hidden">
+          <h1>Docs</h1>
+          <div class="split">
+            <ul id="doc-list" class="menu"></ul>
+            <article id="doc-body"></article>
+          </div>
+        </section>
+        <section id="adapters" class="view hidden">
+          <h1>Adapters</h1>
+          <p class="lede">Catalog slots, and the devices bound on this install.</p>
+          <div id="adapter-list"></div>
+        </section>
+        <section id="chat" class="view hidden">
+          <h1>Chat</h1>
+          <p id="chat-reason" class="note"></p>
+          <div id="transcript" class="transcript"></div>
+          <form id="chat-form" class="composer">
+            <input id="chat-text" type="text" maxlength="4000" autocomplete="off" placeholder="Message" />
+            <button type="submit" id="chat-send">Send</button>
+          </form>
+        </section>
+      </main>
+    </div>
+    <script src="policy.js"></script>
+    <script src="markdown.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

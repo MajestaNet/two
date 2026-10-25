@@ -29,7 +29,7 @@ Start with the living [setup guide](docs/setup.md). The canonical specification 
 - [ADR 0018](docs/adrs/0018-seamless-mac-install-and-shared-inference.md) — shared local inference for later clients
 - [ADR 0019](docs/adrs/0019-mini-resident-control-plane.md) — Mac mini hosts the control plane; persisted harness profiles for device actions
 - [Client API design](docs/client-api-design.md) — chat, config, graph monitoring, health, and mobile security
-- [Adapters](docs/adapters.md) — install menu (`two adapters`); only the CLI is enabled
+- [Adapters](docs/adapters.md) — install menu (`two adapters`); only the CLI is enabled. The local console is shipped and off ([ADR 0031](docs/adrs/0031-local-operator-console.md))
 - [Channels](docs/channels.md) — backend API, first-party clients, deferred messengers
 - [Remote access](docs/remote-access.md) — private-overlay CLI/mobile; optional outbound adapters
 - [Viability review](docs/viability.md)

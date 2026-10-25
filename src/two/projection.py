@@ -1081,3 +1081,38 @@ class ArtifactContent(BaseModel):
     content: str | None = None
     truncated: bool = False
     source_included: bool = False
+
+
+class AdapterDeviceView(BaseModel):
+    """One bound device id. Zone name or television set id. No address or token."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    kind: Literal["zone", "set"]
+
+
+class AdapterSlotView(BaseModel):
+    """One install-menu slot plus the devices this install has bound."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    kind: str
+    status: str
+    package: str
+    default_enabled: bool
+    selectable: bool
+    harness_profiles: list[str]
+    notes: str
+    install_enabled: bool
+    devices: list[AdapterDeviceView] = Field(default_factory=list)
+
+
+class AdapterMenuView(BaseModel):
+    """``GET /v1/system/adapters``. Catalog order. Secrets stay off this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    slots: list[AdapterSlotView]

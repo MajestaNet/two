@@ -97,6 +97,129 @@ def load_catalog(path: Path | None = None) -> InferenceCatalog:
     return InferenceCatalog(default=default, profiles=profiles)
 
 
+class ProfileFit(BaseModel):
+    """One catalog row scored against a host."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    upstream_model: str
+    alias: str
+    min_unified_memory_gb: int
+    num_ctx: int
+    fits: bool
+    recommended: bool
+    advisory: str = ""
+    notes: str = ""
+
+
+class ProfileRecommendation(BaseModel):
+    """Hardware recommendation. Memory selects a profile. MLX still needs Apple silicon."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    memory_gb: int
+    chip: str = ""
+    apple_silicon: bool
+    mlx_runnable: bool
+    recommended_id: str | None
+    reason: str
+    profiles: list[ProfileFit]
+
+
+# Floors are inclusive. 24 GB stays on the 9B profile (ADR 0026), not the 27B row.
+_RECOMMENDED_BANDS: tuple[tuple[int, str], ...] = (
+    (64, "m64-qwen38-plus"),
+    (48, "m48-qwen38-64k"),
+    (36, "m36-qwen38-32k"),
+    (24, "m24-qwen38-16k"),
+)
+
+
+def recommend_profile(
+    catalog: InferenceCatalog,
+    *,
+    memory_gb: int,
+    apple_silicon: bool,
+    chip: str = "",
+) -> ProfileRecommendation:
+    """Pick one catalog profile from unified memory. ``custom`` is never chosen."""
+
+    recommended_id: str | None = None
+    for floor, profile_id in _RECOMMENDED_BANDS:
+        if memory_gb >= floor:
+            recommended_id = profile_id
+            break
+    if recommended_id is not None:
+        catalog.require(recommended_id)
+    fits: list[ProfileFit] = []
+    for profile in catalog.profiles.values():
+        memory_fits = memory_gb >= profile.min_unified_memory_gb
+        chosen = profile.id == recommended_id
+        fits.append(
+            ProfileFit(
+                id=profile.id,
+                upstream_model=profile.upstream_model,
+                alias=profile.alias,
+                min_unified_memory_gb=profile.min_unified_memory_gb,
+                num_ctx=profile.num_ctx,
+                fits=memory_fits,
+                recommended=chosen,
+                advisory=_advisory(profile.id, recommended=chosen, fits=memory_fits),
+                notes=profile.notes,
+            )
+        )
+    return ProfileRecommendation(
+        memory_gb=memory_gb,
+        chip=chip,
+        apple_silicon=apple_silicon,
+        mlx_runnable=apple_silicon,
+        recommended_id=recommended_id,
+        reason=_reason(
+            catalog,
+            memory_gb=memory_gb,
+            recommended_id=recommended_id,
+            apple_silicon=apple_silicon,
+            chip=chip,
+        ),
+        profiles=fits,
+    )
+
+
+def _advisory(profile_id: str, *, recommended: bool, fits: bool) -> str:
+    if profile_id == "custom":
+        return "Operator-defined. Not selected automatically."
+    if profile_id == "m24-qwen38-32k":
+        return "Not recommended. The 27B tag swaps on a 24 GB Mac (ADR 0026)."
+    if not fits:
+        return "Needs more unified memory than this Mac has."
+    if recommended:
+        return "Recommended for this Mac."
+    return ""
+
+
+def _reason(
+    catalog: InferenceCatalog,
+    *,
+    memory_gb: int,
+    recommended_id: str | None,
+    apple_silicon: bool,
+    chip: str,
+) -> str:
+    if recommended_id is None:
+        text = f"{memory_gb} GB is below the 24 GB catalog minimum."
+    else:
+        profile = catalog.require(recommended_id)
+        text = f"{memory_gb} GB selects {recommended_id} ({profile.upstream_model})."
+        if recommended_id == "m24-qwen38-16k":
+            text += " The 27B profile meets the 24 GB floor and is not recommended on this host."
+    if chip:
+        text = f"{chip}. {text}"
+    if not apple_silicon:
+        text += " MLX tags run on Apple silicon, so this host cannot run them."
+    return text
+
+
 def format_catalog(catalog: InferenceCatalog) -> str:
     lines = [f"default: {catalog.default}", ""]
     for profile_id, profile in catalog.profiles.items():

@@ -21,6 +21,20 @@ slots:
       Local operator surface. Always on. Submits coding tasks.
       Not a device or messenger process.
 
+  console:
+    kind: client
+    status: shipped
+    package: apps/console
+    default_enabled: false
+    selectable: true
+    harness_profiles:
+      - chat
+    notes: >
+      Local operator window on this Mac (ADR 0031). Default off.
+      Starts and stops the control plane, recommends one catalog model,
+      and sends chat through the loopback API. Closing the window
+      leaves the server running. Not the mobile app or the watch app.
+
   mobile:
     kind: client
     status: contract

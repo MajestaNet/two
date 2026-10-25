@@ -110,6 +110,7 @@ from two.api.schemas import (
     MAX_DIFF_PATHS,
     MAX_EVENT_LIMIT,
     MAX_LIST_LIMIT,
+    AdapterMenuView,
     ApprovalDecideRequest,
     ApprovalDecideResponse,
     ApprovalRequest,
@@ -179,6 +180,7 @@ from two.devices.climate.config import load_climate_config
 from two.devices.tv.config import load_tv_config
 from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
+from two.operator.menu import project_adapter_menu
 from two.projection import voice_turn_receipt
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
 from two.routing import (
@@ -358,6 +360,7 @@ def create_app(
 
     router = APIRouter(dependencies=[Depends(_authenticate)])
     router.add_api_route("/v1/system/capabilities", _get_capabilities, methods=["GET"])
+    router.add_api_route("/v1/system/adapters", _get_system_adapters, methods=["GET"])
     router.add_api_route("/v1/system/health", _get_system_health, methods=["GET"])
     router.add_api_route("/v1/system/queue", _get_system_queue, methods=["GET"])
     router.add_api_route("/v1/tasks", _create_task, methods=["POST"], status_code=201)
@@ -1182,6 +1185,13 @@ async def _get_report(request: Request, task_id: str) -> TaskReport:
         assembled=True,
         notes=format_final_report(assembled),
     )
+
+
+async def _get_system_adapters(request: Request) -> AdapterMenuView:
+    require_scope(request, Scope.SYSTEM_READ)
+    data_dir = request.app.state.data_dir
+    directory = data_dir if isinstance(data_dir, Path) else None
+    return project_adapter_menu(directory)
 
 
 async def _get_system_health(request: Request) -> SystemHealth:
