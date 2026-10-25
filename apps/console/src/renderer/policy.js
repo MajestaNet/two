@@ -31,6 +31,8 @@
     Object.freeze(["ollamaChoose", "ollama:choose"]),
     Object.freeze(["ollamaStart", "ollama:start"]),
     Object.freeze(["ollamaStop", "ollama:stop"]),
+    Object.freeze(["ollamaInstall", "ollama:install"]),
+    Object.freeze(["ollamaPull", "ollama:pull"]),
     Object.freeze(["docsList", "docs:list"]),
     Object.freeze(["docsRead", "docs:read"]),
     Object.freeze(["docsOpenExternal", "docs:openExternal"]),
@@ -46,6 +48,12 @@
     "Load the selected model before chat. It is installed, but it is not in memory.";
   const QUEUED_COLD = "The model is not loaded, so the scheduler will not open the slot.";
   const LOOPBACK_OLLAMA_HOST = "127.0.0.1:11434";
+  const OWN_NUM_CTX = 8192;
+  const OLLAMA_ASSET_HOSTS = Object.freeze([
+    "release-assets.githubusercontent.com",
+    "objects.githubusercontent.com",
+    "github-releases.githubusercontent.com",
+  ]);
   const QUEUED_NOTE =
     "Waiting for the model slot. The worker may be down, or a coding task holds the slot.";
 
@@ -140,6 +148,98 @@
     return "http://" + host + ":" + port;
   }
 
+  function publicModelText(text) {
+    return String(text || "")
+      .replace(/\s*\(?\bADR\s*\d+\)?/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .replace(/\s+([.,])/g, "$1")
+      .trim();
+  }
+
+  function normalizeModelTag(model) {
+    return preloadBody(model).model;
+  }
+
+  function ollamaInstallPlan(platform, arch) {
+    if (platform === "darwin") {
+      return { url: "https://ollama.com/download/Ollama-darwin.zip", archive: "Ollama-darwin.zip", kind: "zip" };
+    }
+    if (platform === "linux" && arch === "x64") {
+      return {
+        url: "https://ollama.com/download/ollama-linux-amd64.tgz",
+        archive: "ollama-linux-amd64.tgz",
+        kind: "tgz",
+      };
+    }
+    if (platform === "linux" && arch === "arm64") {
+      return {
+        url: "https://ollama.com/download/ollama-linux-arm64.tgz",
+        archive: "ollama-linux-arm64.tgz",
+        kind: "tgz",
+      };
+    }
+    return null;
+  }
+
+  function acceptOllamaDownloadUrl(url, archiveName) {
+    if (typeof archiveName !== "string" || !/^[A-Za-z0-9._-]+$/.test(archiveName)) {
+      throw new Error("that Ollama archive is not allowed");
+    }
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch (_error) {
+      throw new Error("Ollama download URL is not allowed");
+    }
+    if (parsed.protocol !== "https:") {
+      throw new Error("Ollama is downloaded over HTTPS only");
+    }
+    if (parsed.username || parsed.password) {
+      throw new Error("Ollama download URL is not allowed");
+    }
+    if (parsed.hostname === "ollama.com") {
+      if (parsed.pathname === "/download/" + archiveName) return parsed.toString();
+      throw new Error("that Ollama download is not the official archive");
+    }
+    if (parsed.hostname === "github.com" && parsed.pathname.startsWith("/ollama/ollama/releases/")) {
+      return parsed.toString();
+    }
+    if (OLLAMA_ASSET_HOSTS.indexOf(parsed.hostname) !== -1) {
+      return parsed.toString();
+    }
+    throw new Error("Ollama download left the official hosts");
+  }
+
+  function ollamaPullArgv(bin, tag) {
+    const executable = acceptOllamaPath(bin);
+    const model = normalizeModelTag(tag);
+    return [executable, "pull", model];
+  }
+
+  function twoLauncher(pythonPath) {
+    if (pythonPath) {
+      if (typeof pythonPath !== "string" || pythonPath.length < 1 || /\s/.test(pythonPath)) {
+        throw new Error("the bundled Python path is not allowed");
+      }
+      return [pythonPath, "-m", "two"];
+    }
+    return ["uv", "run", "two"];
+  }
+
+  function commandArgv(launcher, args) {
+    if (!Array.isArray(launcher) || launcher.length < 1) {
+      throw new Error("command must be an argument list");
+    }
+    if (!Array.isArray(args)) {
+      throw new Error("command must be an argument list");
+    }
+    const argv = launcher.concat(args);
+    if (argv.some((part) => typeof part !== "string" || part.length < 1 || /\s/.test(part))) {
+      throw new Error("refusing a shell string");
+    }
+    return argv;
+  }
+
   function modelPullArgs(profile, replace) {
     if (typeof profile !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(profile)) {
       throw new Error("unknown profile");
@@ -152,14 +252,7 @@
   }
 
   function twoArgv(args) {
-    if (!Array.isArray(args)) {
-      throw new Error("command must be an argument list");
-    }
-    const argv = ["uv", "run", "two"].concat(args);
-    if (argv.some((part) => typeof part !== "string" || /\s/.test(part))) {
-      throw new Error("refusing a shell string");
-    }
-    return argv;
+    return commandArgv(twoLauncher(""), args);
   }
 
   function acceptOllamaPath(filePath) {
@@ -273,6 +366,19 @@
     return lines.length ? lines[lines.length - 1] : "";
   }
 
+  function preferOllamaBinary(paths) {
+    const files = (paths || []).filter((file) => {
+      if (typeof file !== "string" || file.length < 1) return false;
+      const normalized = file.replace(/\\/g, "/");
+      return normalized.split("/").pop() === "ollama";
+    });
+    const resources = files.find((file) => file.replace(/\\/g, "/").endsWith("/Contents/Resources/ollama"));
+    if (resources) return resources;
+    const bundled = files.find((file) => file.replace(/\\/g, "/").endsWith("/bin/ollama"));
+    if (bundled) return bundled;
+    return files[0] || "";
+  }
+
   function needsReplace(installed, profile) {
     const keep = new Set([profile.upstream_model, profile.alias]);
     return (installed || []).some((tag) => !keep.has(tag));
@@ -317,6 +423,7 @@
     CHAT_NEEDS_LOADED,
     QUEUED_COLD,
     LOOPBACK_OLLAMA_HOST,
+    OWN_NUM_CTX,
     QUEUED_NOTE,
     chatGate,
     queuedNote,
@@ -325,8 +432,16 @@
     chatShowPath,
     apiOrigin,
     modelPullArgs,
+    publicModelText,
+    normalizeModelTag,
+    ollamaInstallPlan,
+    acceptOllamaDownloadUrl,
+    ollamaPullArgv,
+    twoLauncher,
+    commandArgv,
     twoArgv,
     needsReplace,
+    preferOllamaBinary,
     acceptOllamaPath,
     knownOllamaPaths,
     pathCandidates,

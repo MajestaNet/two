@@ -18,7 +18,7 @@ the spec.
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
-| Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md)). Default off. Start and stop are `two up` / `two down`. It locates an existing Ollama, lists that install's models, and can start `ollama serve` on `127.0.0.1:11434`. Chat uses the control API. Closing the window leaves the control plane and that serve running. `npm test` in that directory is not part of `make ci` |
+| Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md), [ADR 0034](adrs/0034-installable-console.md)). Default off. Opening it starts `two up` when needed. Closing the window hides it and leaves the control plane running; the menu bar opens it again. `npm run package` builds a desktop directory that includes this control plane. It can install official Ollama, locate an existing binary, list models, and serve `127.0.0.1:11434`. The catalog includes 16 GB rows and one typed Ollama tag. Chat uses the control API. `npm test` in that directory is not part of `make ci` |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
 | Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate` and `tv` are shipped and off until a local binding enables them. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0029](adrs/0029-samsung-tv.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
@@ -40,7 +40,10 @@ the spec.
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
 | Harness profile `home-action` | Works when a local climate or television binding is enabled (`two climate` or `two tv`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. Without either binding the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md)) |
 
-Last updated: 25 October 2026 (ADR 0032: the local window locates an
+Last updated: 25 October 2026 (ADR 0034: the desktop build includes
+this control plane, the window hides to the menu bar, and the control
+plane keeps running. The catalog lists 16 GB models, and the window can
+install official Ollama or load one typed tag. ADR 0032: the local window locates an
 existing Ollama, lists models already in that install, and starts
 `ollama serve` on loopback. ADR 0031: the local operator console
 is an in-repo loopback window. It does not replace the CLI, and closing
@@ -76,7 +79,8 @@ Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 messenger, or public hostname. Remote clients are optional
 ([channels.md](channels.md)). The local operator console is an optional
 window on the same machine ([ADR 0031](adrs/0031-local-operator-console.md),
-[ADR 0032](adrs/0032-console-existing-ollama.md)).
+[ADR 0032](adrs/0032-console-existing-ollama.md),
+[ADR 0034](adrs/0034-installable-console.md)).
 
 ## Local operator console
 
@@ -88,22 +92,40 @@ npm install
 npm start
 ```
 
-The window starts and stops `two up`. It looks for an existing `ollama`
-at the remembered path, Homebrew, `/usr/local/bin`, and `PATH`. If none
-run, choose the binary in the file dialog. Installed tags come from
-`ollama list` when the server answers, and from the local manifest
-library when it does not. **Start Ollama** runs `ollama serve` on
-`127.0.0.1:11434` with the selected profile's context length, then loads
-that tag with keep-alive `-1`. A listening Ollama with no model loaded
-stays Cold, and chat remains queued. Model
-download is still one catalog tag, after Ollama is answering. Chat posts
+To build a directory you can run without cloning this repository again:
+
+```bash
+cd apps/console
+npm install
+npm run package
+```
+
+That stages this control plane with its own Python and packs it beside
+the window. Run it on the kind of machine that will use the app. DeepSeek
+Harness is still installed separately. From a checkout, `npm start` keeps
+using `uv run two` in this tree.
+
+Opening the window starts `two up` when the control plane is not already
+running. Closing the window hides it. The menu-bar icon opens it again.
+Quit of the window process does not stop the control plane. **Stop** does.
+The same is true of an Ollama serve this window started.
+
+The window looks for an existing `ollama` at the remembered path,
+Homebrew, `/usr/local/bin`, and `PATH`. If none run, **Install Ollama**
+downloads the official Mac or Linux archive from `ollama.com` into
+`~/.majesta-two/ollama`, or you choose the binary in the file dialog.
+Installed tags come from `ollama list` when the server answers, and from
+the local manifest library when it does not. **Start Ollama** runs
+`ollama serve` on `127.0.0.1:11434` with the selected profile's context
+length, then loads that tag with keep-alive `-1`. A typed tag uses an 8K
+window. A listening Ollama with no model loaded stays Cold, and chat
+remains queued. **Download** pulls the selected catalog profile, or the
+one tag you typed. A typed tag does not remove other models. Chat posts
 `POST /v1/voice/turns`. The profile defaults to unset, so the router
 chooses `chat` or a device slot. The menu can set `chat` or
 `home-action`. `self-build` is not offered. The box stays disabled until
 that API is up, Ollama is answering, and the selected model is installed
-and loaded. Closing
-the window leaves the control plane and that serve running. `npm test`
-checks the window policy and is not part of `make ci`.
+and loaded. `npm test` checks the window policy and is not part of `make ci`.
 
 Two tracks:
 
@@ -357,6 +379,8 @@ uv run two profiles
 
 | Profile | Min RAM | Default context | When to use |
 | --- | ---: | ---: | --- |
+| `m16-qwen35-4b` | 16 GB | 8K | Recommended on a 16 GB Mac. `qwen3.5:4b-mlx` |
+| `m16-qwen35-small` | 16 GB | 8K | Smaller `qwen3.5:0.8b-mlx` when the 4B model still swaps |
 | `m24-qwen38-16k` | 24 GB | 16K | Default. `qwen3.5:9b-mlx` on a 24 GB Mini |
 | `m24-qwen38-32k` | 24 GB | 32K | Same host, larger window; soak before production |
 | `m36-qwen38-32k` | 36 GB | 32K | Comfortable 32K on a larger Mac |

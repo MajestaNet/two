@@ -7,7 +7,8 @@ Python package for the Majesta Two control plane.
   FastAPI). CLI and `channels.*` import it.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
   `recommend_profile` scores that catalog against a memory size. It does
-  not probe the host. `two profiles --recommend` does the probe.
+  not probe the host. `two profiles --recommend` does the probe. 16 GB
+  recommends `m16-qwen35-4b`. The repository default stays 24 GB.
 - `adapters.py` may read `config/adapters/catalog.yaml` (ADR 0021). No
   network, no store, no channel import. `two adapters` prints the menu.
   `two adapters --json` adds bound device

@@ -146,6 +146,63 @@ test("ollama is a closed argv on loopback", () => {
   assert.equal(mainSource.includes("showOpenDialog"), true);
   assert.equal(mainSource.includes("ollamaArgv"), true);
   assert.equal(mainSource.includes("shell: true"), false);
+  assert.deepEqual(policy.ollamaPullArgv("/opt/homebrew/bin/ollama", "qwen3.5:4b"), [
+    "/opt/homebrew/bin/ollama",
+    "pull",
+    "qwen3.5:4b",
+  ]);
+  assert.throws(() => policy.ollamaPullArgv("/opt/homebrew/bin/ollama", "qwen;rm"));
+  assert.equal(policy.publicModelText("Served tag is qwen3.5:9b-mlx (ADR 0026)."), "Served tag is qwen3.5:9b-mlx.");
+  assert.equal(policy.publicModelText("Fits a 16 GB Mac.").includes("ADR"), false);
+  const mac = policy.ollamaInstallPlan("darwin", "arm64");
+  assert.equal(mac.archive, "Ollama-darwin.zip");
+  assert.equal(
+    policy.acceptOllamaDownloadUrl(mac.url, mac.archive),
+    "https://ollama.com/download/Ollama-darwin.zip",
+  );
+  assert.equal(
+    policy.acceptOllamaDownloadUrl(
+      "https://github.com/ollama/ollama/releases/download/v0.1.0/Ollama-darwin.zip",
+      mac.archive,
+    ),
+    "https://github.com/ollama/ollama/releases/download/v0.1.0/Ollama-darwin.zip",
+  );
+  assert.throws(() => policy.acceptOllamaDownloadUrl("https://example.com/Ollama-darwin.zip", mac.archive));
+  assert.throws(() => policy.acceptOllamaDownloadUrl("http://ollama.com/download/Ollama-darwin.zip", mac.archive));
+  assert.equal(policy.ollamaInstallPlan("linux", "x64").kind, "tgz");
+  assert.equal(policy.ollamaInstallPlan("win32", "x64"), null);
+  assert.equal(
+    policy.preferOllamaBinary([
+      "/tmp/ollama/bin/ollama",
+      "/tmp/ollama/Ollama.app/Contents/Resources/ollama",
+    ]),
+    "/tmp/ollama/Ollama.app/Contents/Resources/ollama",
+  );
+});
+
+test("the packaged window launches the bundled control plane and stays in the menu bar", () => {
+  assert.deepEqual(policy.commandArgv(policy.twoLauncher("/opt/two/venv/bin/python"), ["up"]), [
+    "/opt/two/venv/bin/python",
+    "-m",
+    "two",
+    "up",
+  ]);
+  assert.deepEqual(policy.twoArgv(["profiles", "--recommend"]), ["uv", "run", "two", "profiles", "--recommend"]);
+  assert.throws(() => policy.twoLauncher("/opt/two/python 3"));
+  assert.equal(policy.OWN_NUM_CTX, 8192);
+  assert.equal(mainSource.includes("new Tray"), true);
+  assert.equal(mainSource.includes("win.hide()"), true);
+  assert.equal(mainSource.includes("event.preventDefault()"), true);
+  assert.equal(mainSource.includes("requestSingleInstanceLock"), true);
+  assert.equal(mainSource.includes("serverStart()"), true);
+  assert.equal(/window-all-closed[\s\S]*two down/.test(mainSource), false);
+  assert.equal(mainSource.includes("shell: true"), false);
+  const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
+  assert.equal(html.includes("Install Ollama"), true);
+  assert.equal(html.includes("Choose your own"), true);
+  assert.equal(html.includes(">ADR<"), false);
+  assert.equal(appSource.includes("publicModelText"), true);
+  assert.equal(appSource.includes("ollamaPull"), true);
 });
 
 test("docs are an allowlist inside the repository", () => {

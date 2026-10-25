@@ -3,22 +3,57 @@
 //
 // Local operator window. Quitting does not stop the server.
 
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } = require("electron");
 const { execFile, spawn } = require("child_process");
 const { randomUUID } = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { Readable } = require("stream");
+const { pipeline } = require("stream/promises");
 const policy = require("./renderer/policy.js");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
+let mainWindow = null;
+let tray = null;
+let quitting = false;
+
+function bundleRoot() {
+  const override = process.env.TWO_CONSOLE_BUNDLE;
+  if (typeof override === "string" && override.trim() !== "") {
+    return path.resolve(override.trim());
+  }
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "bundle");
+  }
+  return "";
+}
+
+function bundledPython() {
+  const root = bundleRoot();
+  if (!root) return "";
+  const python = path.join(root, "venv", "bin", "python");
+  return fs.existsSync(python) ? python : "";
+}
+
+function installRoot() {
+  const bundled = bundleRoot();
+  if (bundled && fs.existsSync(path.join(bundled, "config", "inference", "profiles.yaml"))) {
+    return bundled;
+  }
+  return repoRoot;
+}
+
+function launcher() {
+  return policy.twoLauncher(bundledPython());
+}
 
 function runTwo(args, envOverlay) {
-  const argv = policy.twoArgv(args);
+  const argv = policy.commandArgv(launcher(), args);
   const env = Object.assign({}, process.env, envOverlay || {});
   return new Promise((resolve) => {
     const child = spawn(argv[0], argv.slice(1), {
-      cwd: repoRoot,
+      cwd: installRoot(),
       shell: false,
       env: env,
     });
@@ -87,12 +122,16 @@ async function serverStart() {
   if (running) {
     return { ok: true, already: true };
   }
-  const child = spawn("uv", ["run", "two", "up"], {
-    cwd: repoRoot,
+  const argv = policy.commandArgv(launcher(), ["up"]);
+  const child = spawn(argv[0], argv.slice(1), {
+    cwd: installRoot(),
     shell: false,
     detached: true,
     stdio: "ignore",
     env: process.env,
+  });
+  child.on("error", () => {
+    // A missing interpreter is reported by the next status read.
   });
   child.unref();
   return { ok: true, already: false };
@@ -317,6 +356,7 @@ async function ollamaStatus() {
     version: located.version,
     up: up,
     owned: await ourServeRunning(),
+    installable: policy.ollamaInstallPlan(process.platform, process.arch) !== null,
     models: models,
     modelsSource: modelsSource,
     loaded: up ? await loadedModelNames() : [],
@@ -479,12 +519,150 @@ async function ollamaStop() {
   return { ok: true, stopped: true };
 }
 
+function ollamaInstallDir() {
+  const root = path.join(os.homedir(), ".majesta-two", "ollama");
+  if (/\s/.test(root)) {
+    throw new Error("The home directory path contains spaces, so choose the Ollama binary instead.");
+  }
+  return root;
+}
+
+function findBundledOllama(root) {
+  const found = [];
+  function walk(dir, depth) {
+    if (depth > 8) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_error) {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      const full = path.resolve(dir, entry.name);
+      const relative = path.relative(root, full);
+      if (relative.startsWith("..") || path.isAbsolute(relative)) continue;
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        walk(full, depth + 1);
+      } else if (entry.isFile() && entry.name === "ollama") {
+        found.push(full);
+      }
+    }
+  }
+  walk(root, 0);
+  return policy.preferOllamaBinary(found);
+}
+
+async function downloadOfficial(url, archiveName, dest) {
+  let current = policy.acceptOllamaDownloadUrl(url, archiveName);
+  for (let hop = 0; hop < 5; hop += 1) {
+    const response = await fetch(current, { redirect: "manual", signal: AbortSignal.timeout(600000) });
+    if (response.status >= 300 && response.status < 400) {
+      if (response.body) await response.body.cancel();
+      const next = response.headers.get("location");
+      if (!next) throw new Error("Ollama download redirect was empty");
+      current = policy.acceptOllamaDownloadUrl(new URL(next, current).toString(), archiveName);
+      continue;
+    }
+    if (!response.ok || !response.body) {
+      throw new Error("Ollama download failed (" + response.status + ")");
+    }
+    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(dest, { mode: 0o600 }));
+    return;
+  }
+  throw new Error("Ollama download redirected too many times");
+}
+
+function unpackArchive(archive, kind, dest) {
+  const argv = kind === "zip" ? ["unzip", "-q", archive, "-d", dest] : ["tar", "-xzf", archive, "-C", dest];
+  return new Promise((resolve, reject) => {
+    execFile(argv[0], argv.slice(1), { timeout: 180000 }, (error) => {
+      if (error) reject(new Error("Could not unpack the Ollama archive"));
+      else resolve();
+    });
+  });
+}
+
+async function ollamaInstall() {
+  const plan = policy.ollamaInstallPlan(process.platform, process.arch);
+  if (!plan) {
+    throw new Error("Install Ollama from this window is available on macOS and Linux.");
+  }
+  const root = ollamaInstallDir();
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+  const archive = path.join(root, plan.archive);
+  try {
+    await downloadOfficial(plan.url, plan.archive, archive);
+    await unpackArchive(archive, plan.kind, root);
+  } finally {
+    try {
+      fs.unlinkSync(archive);
+    } catch (_error) {
+      // The archive is optional once the binary is on disk.
+    }
+  }
+  const binary = findBundledOllama(root);
+  if (!binary) {
+    throw new Error("The Ollama archive did not contain an ollama binary.");
+  }
+  const chosen = policy.acceptOllamaPath(binary);
+  try {
+    fs.chmodSync(chosen, 0o755);
+  } catch (_error) {
+    // A file that is already executable can stay as it is.
+  }
+  if (!isExecutable(chosen)) {
+    throw new Error("The installed Ollama binary cannot be run.");
+  }
+  const version = await runOllama(chosen, "version");
+  if (version.code !== 0) {
+    throw new Error((version.stderr || version.stdout || "ollama did not run").trim());
+  }
+  writeJsonFile(ollamaMemoryPath("ollama.json"), { bin: chosen });
+  return ollamaStatus();
+}
+
+async function ollamaPull(payload) {
+  const located = await locateOllama();
+  if (!located.bin) {
+    throw new Error("Install Ollama or choose the binary first.");
+  }
+  const tag = payload && payload.model;
+  const argv = policy.ollamaPullArgv(located.bin, tag);
+  const result = await new Promise((resolve) => {
+    const child = spawn(argv[0], argv.slice(1), {
+      shell: false,
+      env: Object.assign({}, process.env, { OLLAMA_HOST: policy.LOOPBACK_OLLAMA_HOST }),
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout = (stdout + chunk.toString("utf8")).slice(-200000);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString("utf8")).slice(-200000);
+    });
+    child.on("error", (error) => {
+      resolve({ code: 1, stdout, stderr: error.message });
+    });
+    child.on("close", (code) => {
+      resolve({ code: code === null ? 1 : code, stdout, stderr });
+    });
+  });
+  return {
+    ok: result.code === 0,
+    output: (result.stdout + "\n" + result.stderr).trim(),
+  };
+}
+
 function docsList() {
   return policy.DOCS.map((item) => ({ id: item.id, title: item.title }));
 }
 
 function docsRead(id) {
-  const full = policy.resolveDoc(repoRoot, id);
+  const full = policy.resolveDoc(installRoot(), id);
   const markdown = fs.readFileSync(full, "utf8");
   if (markdown.length > 1000000) {
     throw new Error("document is too large");
@@ -545,6 +723,8 @@ const handlers = {
   "ollama:choose": ollamaChoose,
   "ollama:start": ollamaStart,
   "ollama:stop": ollamaStop,
+  "ollama:install": ollamaInstall,
+  "ollama:pull": ollamaPull,
   "docs:list": docsList,
   "docs:read": docsRead,
   "docs:openExternal": docsOpenExternal,
@@ -563,6 +743,38 @@ function registerHandlers() {
   }
 }
 
+function showWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createTray() {
+  const iconPath = path.join(__dirname, "..", "assets", "tray.png");
+  let image = nativeImage.createFromPath(iconPath);
+  if (image.isEmpty()) return false;
+  if (process.platform === "darwin") image = image.resize({ width: 18, height: 18 });
+  image.setTemplateImage(process.platform === "darwin");
+  tray = new Tray(image);
+  tray.setToolTip("Majesta Two is running in the background");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Open Majesta Two", click: () => showWindow() },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => {
+          quitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on("click", () => showWindow());
+  return true;
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1100,
@@ -576,14 +788,37 @@ function createWindow() {
       sandbox: false,
     },
   });
+  mainWindow = win;
+  win.on("close", (event) => {
+    if (quitting || !tray) return;
+    event.preventDefault();
+    win.hide();
+  });
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+  });
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
 }
 
-app.whenReady().then(() => {
-  registerHandlers();
-  createWindow();
-});
+const singleInstance = app.requestSingleInstanceLock();
+if (!singleInstance) {
+  app.quit();
+} else {
+  app.on("second-instance", () => showWindow());
+  app.on("before-quit", () => {
+    quitting = true;
+  });
+  app.whenReady().then(() => {
+    registerHandlers();
+    createTray();
+    createWindow();
+    serverStart().catch(() => {
+      // Status on the Server page reports a control plane that did not start.
+    });
+  });
+  app.on("activate", () => showWindow());
+}
 
 app.on("window-all-closed", () => {
-  app.quit();
+  if (!tray) app.quit();
 });
