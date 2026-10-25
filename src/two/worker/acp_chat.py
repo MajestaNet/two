@@ -24,6 +24,7 @@ and is not executed. Injected argv keeps the JSONL fixture dialect.
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import time
 from collections.abc import Callable, Mapping
@@ -106,25 +107,35 @@ def resolve_chat_binary(
     return binary
 
 
-def ensure_harness_launcher(data_dir: Path | str | None = None) -> Path | None:
+def ensure_harness_launcher(
+    data_dir: Path | str | None = None,
+    *,
+    node: str | None = None,
+) -> Path | None:
     """Write ``harness/bin/dsh`` when the pinned checkout is present."""
     root = harness_checkout(data_dir)
     entry = root / "apps" / "cli" / "src" / "bin.ts"
     if not entry.is_file():
         return None
-    node = str(_NODE22) if _NODE22.is_file() else "node"
-    node_dir = str(_NODE22.parent) if _NODE22.is_file() else ""
+    if node is None:
+        chosen = str(_NODE22) if _NODE22.is_file() else "node"
+        node_dir = str(_NODE22.parent) if _NODE22.is_file() else ""
+    else:
+        chosen = node
+        node_path = Path(node)
+        node_dir = str(node_path.parent) if node_path.is_absolute() else ""
     launcher = harness_launcher(data_dir)
     launcher.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "#!/bin/sh",
         "# Pinned DeepSeek Harness dsh-v0.1.2-alpha.1. Do not edit by hand.",
-        f'ROOT="{root}"',
+        f"ROOT={shlex.quote(str(root))}",
         'cd "$ROOT"',
     ]
     if node_dir:
-        lines.append(f'export PATH="{node_dir}:$PATH"')
-    lines.append(f'exec "{node}" --import tsx/esm "$ROOT/apps/cli/src/bin.ts" "$@"')
+        lines.append(f'export PATH={shlex.quote(node_dir)}:"$PATH"')
+    command = f'exec {shlex.quote(chosen)} --import tsx/esm {shlex.quote(str(entry))} "$@"'
+    lines.append(command)
     lines.append("")
     launcher.write_text("\n".join(lines), encoding="utf-8")
     launcher.chmod(0o755)

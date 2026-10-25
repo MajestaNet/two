@@ -7,9 +7,42 @@
   "main": "src/main.cjs",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/bridge.test.cjs"
+    "test": "node --test test/bridge.test.cjs",
+    "stage-bundle": "bash scripts/stage-bundle.sh",
+    "package": "npm run stage-bundle && electron-builder --dir"
   },
   "devDependencies": {
-    "electron": "^33.4.11"
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "net.majesta.two.console",
+    "productName": "Majesta Two",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/bundle",
+        "to": "bundle"
+      }
+    ],
+    "mac": {
+      "identity": null,
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dir"
+      ]
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ]
+    }
   }
 }

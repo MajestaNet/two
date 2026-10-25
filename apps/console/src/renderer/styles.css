@@ -139,6 +139,19 @@ button:disabled { color: var(--muted); cursor: not-allowed; }
 
 .meta { color: var(--muted); font-size: 0.92rem; }
 
+.own { margin-top: 8px; }
+
+.field {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #0c0b0a;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
 .log, .transcript {
   margin-top: 16px;
   min-height: 180px;

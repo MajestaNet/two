@@ -27,6 +27,17 @@ def test_catalog_default_is_24gb_16k() -> None:
     assert default.num_ctx == 16384
 
 
+def test_16gb_profiles_exist() -> None:
+    catalog = load_catalog()
+    four = catalog.require(InferenceProfileId.M16_QWEN35_4B)
+    small = catalog.require(InferenceProfileId.M16_QWEN35_SMALL)
+    assert four.min_unified_memory_gb == 16
+    assert four.upstream_model == "qwen3.5:4b-mlx"
+    assert small.upstream_model == "qwen3.5:0.8b-mlx"
+    assert "ADR" not in four.notes
+    assert "ADR" not in small.notes
+
+
 def test_larger_mac_profiles_exist() -> None:
     catalog = load_catalog()
     assert InferenceProfileId.M36_QWEN38_32K in catalog.profiles

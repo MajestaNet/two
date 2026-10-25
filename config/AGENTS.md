@@ -14,7 +14,8 @@ Configuration is data. Do not put Python here.
 - `policies/context.yaml` encodes the 16K context-budget table and the
   72% compaction threshold (architecture §7.2).
 - `inference/profiles.yaml` is the hardware catalog. 24 GB / 16K is the
-  default, not a ceiling.
+  default, not a ceiling. `m16-qwen35-4b` and `m16-qwen35-small` fit a
+  16 GB Mac and are not the default.
 - `deploy/topology.yaml` is physical placement (`split` vs `colocated`).
   Do not collapse Ollama into the harness.
 - `access/remote.yaml` records API bind policy. It does not select a

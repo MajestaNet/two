@@ -55,6 +55,8 @@ uv run two profiles
 uv run two profiles --recommend
 uv run two model status
 uv run two model pull --profile ID
+uv run two harness status
+uv run two harness install
 uv run two topology
 uv run two adapters
 uv run two setup --plan
@@ -104,15 +106,26 @@ the local operator window and is not part of that gate.
 
 ## Layout
 
-- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033). Electron,
+- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035). Electron,
   loopback only, default off. It calls `two up`, `two down`,
-  `two profiles --recommend`, `two model`, and `POST /v1/voice/turns`.
+  `two profiles --recommend`, `two model`, `two harness`, and `POST /v1/voice/turns`.
   The voice profile defaults to unset. `chat` and `home-action` are the
   only explicit choices.
-  The main process may locate an existing `ollama` and run `--version`,
-  `list`, and `serve` on `127.0.0.1:11434`. The renderer does not spawn
-  a process. The API process does not call Ollama. Closing the window
-  does not stop the control plane or that serve. `npm test` there is not
+  Opening the window starts the control plane when it is not already running.
+  Closing the window hides it. The menu bar opens it again. Quit of the
+  window process does not stop the control plane or an Ollama serve this
+  window started.
+  A packaged build (`npm run package`) carries this control plane in a
+  relocatable virtualenv. A checkout still uses `uv run two`. DeepSeek
+  Harness is not baked into the package. The Server page checks for `dsh`
+  and can install the pinned release, including Node 22 when it is missing.
+  When `TWO_DATA_DIR` is unset, the window uses the platform data directory.
+  The main process may install the official Ollama archive when no binary
+  is found, or locate an existing `ollama` and run `--version`, `list`,
+  `serve`, and `pull` on `127.0.0.1:11434`. The model list includes the
+  16 GB catalog rows. One typed Ollama tag can be pulled and loaded.
+  Model text in the window does not cite an ADR. The renderer does not spawn
+  a process. The API process does not call Ollama. `npm test` there is not
   part of `make ci`.
 - `src/two/` — Python only. Package implementations live here.
   `src/two/setup.py` is the Mac mini setup plan (ADR 0019). `two setup --current` still prints the optional split list (ADR 0013).
@@ -144,7 +157,7 @@ the local operator window and is not part of that gate.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. `two adapters --json`
  adds bound device ids and omits secrets. Only the `cli` slot is
-  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032),
+  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035),
  shipped and off, and it resumes `chat` only. `watch` and `mobile`
  are clients at `contract`. `climate`
  is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).

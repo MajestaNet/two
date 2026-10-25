@@ -52,12 +52,37 @@ def test_linux_meminfo_is_not_apple_silicon() -> None:
     assert facts.apple_silicon is False
 
 
-def test_under_24_gb_selects_nothing() -> None:
-    result = recommend_profile(load_catalog(), memory_gb=16, apple_silicon=True, chip="Apple M2")
+def test_under_16_gb_selects_nothing() -> None:
+    result = recommend_profile(load_catalog(), memory_gb=12, apple_silicon=True, chip="Apple M2")
     assert result.recommended_id is None
     assert result.mlx_runnable is True
     assert all(item.recommended is False for item in result.profiles)
-    assert "24 GB" in result.reason
+    assert "16 GB" in result.reason
+
+
+def test_16_gb_recommends_the_4b_profile() -> None:
+    result = recommend_profile(load_catalog(), memory_gb=16, apple_silicon=True, chip="Apple M2")
+    assert result.recommended_id == "m16-qwen35-4b"
+    by_id = {item.id: item for item in result.profiles}
+    chosen = by_id["m16-qwen35-4b"]
+    assert chosen.recommended is True
+    assert chosen.upstream_model == "qwen3.5:4b-mlx"
+    assert chosen.num_ctx == 8192
+    smaller = by_id["m16-qwen35-small"]
+    assert smaller.fits is True
+    assert smaller.recommended is False
+    assert smaller.upstream_model == "qwen3.5:0.8b-mlx"
+    assert "ADR" not in chosen.notes
+    assert "ADR" not in chosen.advisory
+    assert "ADR" not in smaller.notes
+    assert "smaller model" in result.reason
+
+
+def test_model_descriptions_do_not_cite_adrs() -> None:
+    result = recommend_profile(load_catalog(), memory_gb=24, apple_silicon=True)
+    for item in result.profiles:
+        assert "ADR" not in item.notes
+        assert "ADR" not in item.advisory
 
 
 def test_24_gb_recommends_the_9b_profile() -> None:

@@ -127,12 +127,14 @@ class ProfileRecommendation(BaseModel):
     profiles: list[ProfileFit]
 
 
-# Floors are inclusive. 24 GB stays on the 9B profile (ADR 0026), not the 27B row.
+# Floors are inclusive. 24 GB stays on the 9B profile, not the 27B row.
+# 16 GB up to 24 GB stays on the 4B profile. The 0.8B row is listed only.
 _RECOMMENDED_BANDS: tuple[tuple[int, str], ...] = (
     (64, "m64-qwen38-plus"),
     (48, "m48-qwen38-64k"),
     (36, "m36-qwen38-32k"),
     (24, "m24-qwen38-16k"),
+    (16, "m16-qwen35-4b"),
 )
 
 
@@ -190,7 +192,9 @@ def _advisory(profile_id: str, *, recommended: bool, fits: bool) -> str:
     if profile_id == "custom":
         return "Operator-defined. Not selected automatically."
     if profile_id == "m24-qwen38-32k":
-        return "Not recommended. The 27B tag swaps on a 24 GB Mac (ADR 0026)."
+        return "Not recommended. The 27B tag swaps on a 24 GB Mac."
+    if profile_id == "m16-qwen35-small" and fits:
+        return "Smaller and faster. Use it when the 4B model does not fit comfortably."
     if not fits:
         return "Needs more unified memory than this Mac has."
     if recommended:
@@ -207,12 +211,14 @@ def _reason(
     chip: str,
 ) -> str:
     if recommended_id is None:
-        text = f"{memory_gb} GB is below the 24 GB catalog minimum."
+        text = f"{memory_gb} GB is below the 16 GB catalog minimum."
     else:
         profile = catalog.require(recommended_id)
         text = f"{memory_gb} GB selects {recommended_id} ({profile.upstream_model})."
         if recommended_id == "m24-qwen38-16k":
             text += " The 27B profile meets the 24 GB floor and is not recommended on this host."
+        if recommended_id == "m16-qwen35-4b":
+            text += " A smaller model is listed for tighter memory."
     if chip:
         text = f"{chip}. {text}"
     if not apple_silicon:

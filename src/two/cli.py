@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 from two import __version__
@@ -145,6 +146,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip API and Mac sockets (catalogs, env, bind only)",
     )
     doctor_cmd.add_argument("--data-dir", default=None, help="TWO_DATA_DIR override")
+    harness_cmd = subparsers.add_parser(
+        "harness",
+        help="Show or install the pinned DeepSeek Harness checkout",
+    )
+    harness_sub = harness_cmd.add_subparsers(dest="harness_command", required=True)
+    harness_status = harness_sub.add_parser(
+        "status",
+        help="Print whether the pinned harness is installed",
+    )
+    harness_install = harness_sub.add_parser(
+        "install",
+        help="Install the pinned DeepSeek Harness release",
+    )
+    for harness_child in (harness_status, harness_install):
+        harness_child.add_argument(
+            "--data-dir",
+            default=None,
+            help="TWO_DATA_DIR (default: $TWO_DATA_DIR or ./var/two)",
+        )
     up_cmd = subparsers.add_parser(
         "up",
         help="Start api, scheduler, and worker as one supervisor",
@@ -231,6 +251,9 @@ def main(
     host: Any = None,
     model_fetch: Callable[[str], dict[str, Any] | None] | None = None,
     model_runner: Callable[[Sequence[str]], int] | None = None,
+    harness_download: Callable[[str, Path], None] | None = None,
+    harness_run: Callable[[Sequence[str], Path, Mapping[str, str]], int] | None = None,
+    harness_version: Callable[[str], str] | None = None,
 ) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -250,6 +273,13 @@ def main(
         return _run_setup(args)
     if args.command == "doctor":
         return _run_doctor(args)
+    if args.command == "harness":
+        return _run_harness(
+            args,
+            download=harness_download,
+            run=harness_run,
+            version_of=harness_version,
+        )
     if args.command == "up":
         return _run_up(args)
     if args.command == "down":
@@ -431,6 +461,38 @@ def _run_doctor(args: argparse.Namespace) -> int:
     report = run_doctor(offline=args.offline, environ=environ)
     print(format_report(report))
     return doctor_exit_code(report)
+
+
+def _run_harness(
+    args: argparse.Namespace,
+    *,
+    download: Callable[[str, Path], None] | None,
+    run: Callable[[Sequence[str], Path, Mapping[str, str]], int] | None,
+    version_of: Callable[[str], str] | None,
+) -> int:
+    from two.operator.harness import (
+        HarnessInstallError,
+        install_pinned_harness,
+        read_harness_status,
+    )
+
+    data = args.data_dir
+    if args.harness_command == "status":
+        print(read_harness_status(data).model_dump_json(indent=2))
+        return 0
+    try:
+        result = install_pinned_harness(
+            data,
+            download=download,
+            run=run,
+            version_of=version_of,
+            log=lambda line: print(line, file=sys.stderr),
+        )
+    except HarnessInstallError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(result.model_dump_json(indent=2))
+    return 0
 
 
 def _run_profiles(args: argparse.Namespace, *, host: Any) -> int:
