@@ -35,12 +35,15 @@
 - `adrs/0030-utterance-routing-and-fanout.md` routes a transcript that
   omits the harness profile and repeats one closed action for `all`.
   Do not paste that ADR here.
+- `adrs/0031-local-operator-console.md` is the in-repo loopback window
+  at `apps/console`. It does not replace the mobile or watch apps.
+  Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
-- `backlog/` holds dedicated implementation items (B01–B21). B20
+- `backlog/` holds dedicated implementation items (B01–B24). B20
   resumes harness profile `chat`. B21 executes climate on `home-action`
   and leaves that slot default off.
   Status tables there are the tracker. Each item file ends with an

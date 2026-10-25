@@ -26,6 +26,11 @@ def test_catalog_enables_only_the_cli() -> None:
     assert [slot.id for slot in catalog.enabled()] == ["cli"]
     assert catalog.slots["cli"].selectable is True
     assert catalog.slots["cli"].harness_profiles == ["self-build"]
+    console = catalog.slots["console"]
+    assert console.status == "shipped"
+    assert console.default_enabled is False
+    assert console.harness_profiles == ["chat"]
+    assert console.package == "apps/console"
 
 
 def test_optional_slots_stay_off_and_separated() -> None:

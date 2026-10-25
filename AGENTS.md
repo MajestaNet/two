@@ -52,6 +52,9 @@ make ci
 make eval-offline
 uv run two --help
 uv run two profiles
+uv run two profiles --recommend
+uv run two model status
+uv run two model pull --profile ID
 uv run two topology
 uv run two adapters
 uv run two setup --plan
@@ -96,10 +99,16 @@ uv run python -m two.providers --check
 ```
 
 `make ci` is the required gate. Validation commands for this repo are also
-listed in `config/repositories/two.yaml`.
+listed in `config/repositories/two.yaml`. `npm test` in `apps/console` checks
+the local operator window and is not part of that gate.
 
 ## Layout
 
+- `apps/console/` — local operator window (ADR 0031). Electron, loopback
+  only, default off. It calls `two up`, `two down`, `two profiles --recommend`,
+  `two model`, and `POST /v1/voice/turns`. It does not call Ollama itself.
+  Closing the window does not stop the server. `npm test` there is not part
+  of `make ci`.
 - `src/two/` — Python only. Package implementations live here.
   `src/two/setup.py` is the Mac mini setup plan (ADR 0019). `two setup --current` still prints the optional split list (ADR 0013).
   `two setup --plan` prints it. `two setup --ollama-url` writes env via
@@ -119,7 +128,8 @@ listed in `config/repositories/two.yaml`.
  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
  `two api` lazy-imports it so `two profiles` does not load the store.
  Additive B14 slice 2 routes include conversation, SSE, aggregate health,
- queue, repository/project reads, and bounded diff/artifacts. Slice 3 adds
+ queue, repository/project reads, and bounded diff/artifacts.
+ `GET /v1/system/adapters` lists catalog slots and bound device ids. Slice 3 adds
  persisted `POST /v1/projects` and immutable config-candidate activate
  routes. `two.api.config` validates typed, non-secret fields.
  Principal/scope checks live in `two.api.principal`; correlation, ETag,
@@ -127,8 +137,11 @@ listed in `config/repositories/two.yaml`.
  SSE mapping live in `two.api.conversation`; health/queue/repo/diff/artifact
  builders live in `two.api.gui`.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
- `two adapters` prints it and writes nothing. Only the `cli` slot is
- enabled. `watch` and `mobile` are clients at `contract`. `climate`
+ `two adapters` prints it and writes nothing. `two adapters --json`
+ adds bound device ids and omits secrets. Only the `cli` slot is
+ enabled. `console` is the local window (`apps/console`, ADR 0031),
+ shipped and off, and it resumes `chat` only. `watch` and `mobile`
+ are clients at `contract`. `climate`
  is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).
  `tv` is shipped and off (`src/two/devices/tv/`, ADR 0029). The
  kind-level `device` slot and `github` (`src/two/export/`) stay

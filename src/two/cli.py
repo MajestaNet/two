@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from two import __version__
@@ -43,17 +43,48 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("version", help="Print the package version")
-    subparsers.add_parser(
+    profiles_cmd = subparsers.add_parser(
         "profiles",
         help="List inference hardware profiles (24 GB / 16K is the default)",
+    )
+    profiles_cmd.add_argument(
+        "--recommend",
+        action="store_true",
+        help="Print the catalog profile that fits this host as JSON",
     )
     subparsers.add_parser(
         "topology",
         help="List deployment topologies (colocated default; split optional)",
     )
-    subparsers.add_parser(
+    adapters_cmd = subparsers.add_parser(
         "adapters",
         help="List client, messenger, device, and export slots (only cli is enabled)",
+    )
+    adapters_cmd.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the menu and bound device ids as JSON",
+    )
+    model_cmd = subparsers.add_parser(
+        "model",
+        help="Show or pull the one catalog model for this host",
+    )
+    model_sub = model_cmd.add_subparsers(dest="model_command", required=True)
+    model_sub.add_parser(
+        "status",
+        help="Print whether Ollama is up and which catalog tags are installed",
+    )
+    model_pull = model_sub.add_parser("pull", help="Pull one profile upstream tag")
+    model_pull.add_argument("--profile", required=True, help="Catalog profile id")
+    model_pull.add_argument(
+        "--replace",
+        action="store_true",
+        help="Remove other catalog tags before the pull",
+    )
+    model_pull.add_argument(
+        "--plan",
+        action="store_true",
+        help="Print the ollama argv steps and do not run them",
     )
     setup_cmd = subparsers.add_parser(
         "setup",
@@ -122,6 +153,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Print the supervisor plan and exit 0",
+    )
+    up_cmd.add_argument(
+        "--status",
+        action="store_true",
+        help="Print pidfile status as JSON and do not start",
     )
     up_cmd.add_argument("--data-dir", default=None, help="TWO_DATA_DIR for the pidfile")
     down_cmd = subparsers.add_parser(
@@ -192,6 +228,9 @@ def main(
     argv: list[str] | None = None,
     *,
     request: Callable[..., Any] | None = None,
+    host: Any = None,
+    model_fetch: Callable[[str], dict[str, Any] | None] | None = None,
+    model_runner: Callable[[Sequence[str]], int] | None = None,
 ) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -199,14 +238,14 @@ def main(
         print(__version__)
         return 0
     if args.command == "profiles":
-        print(format_catalog(load_catalog()))
-        return 0
+        return _run_profiles(args, host=host)
     if args.command == "topology":
         print(format_topology(load_topology()))
         return 0
     if args.command == "adapters":
-        print(format_adapters(load_adapters()))
-        return 0
+        return _run_adapters(args)
+    if args.command == "model":
+        return _run_model(args, fetch=model_fetch, runner=model_runner)
     if args.command == "setup":
         return _run_setup(args)
     if args.command == "doctor":
@@ -394,14 +433,56 @@ def _run_doctor(args: argparse.Namespace) -> int:
     return doctor_exit_code(report)
 
 
+def _run_profiles(args: argparse.Namespace, *, host: Any) -> int:
+    catalog = load_catalog()
+    if not args.recommend:
+        print(format_catalog(catalog))
+        return 0
+    from two.operator.recommend import recommend_for_host
+
+    print(recommend_for_host(host).model_dump_json(indent=2))
+    return 0
+
+
+def _run_adapters(args: argparse.Namespace) -> int:
+    if not args.json:
+        print(format_adapters(load_adapters()))
+        return 0
+    from two.operator.menu import project_adapter_menu
+
+    print(project_adapter_menu().model_dump_json(indent=2))
+    return 0
+
+
+def _run_model(
+    args: argparse.Namespace,
+    *,
+    fetch: Callable[[str], dict[str, Any] | None] | None,
+    runner: Callable[[Sequence[str]], int] | None,
+) -> int:
+    from two.operator.model import run_model_command
+
+    return run_model_command(
+        str(args.model_command),
+        profile=str(getattr(args, "profile", "") or ""),
+        replace=bool(getattr(args, "replace", False)),
+        plan_only=bool(getattr(args, "plan", False)),
+        fetch=fetch,
+        runner=runner,
+    )
+
+
 def _run_up(args: argparse.Namespace) -> int:
     from pathlib import Path
 
     from two.operator.hostenv import load_data_dir_env
-    from two.operator.supervisor import run_up
+    from two.operator.supervisor import read_supervisor_status, run_up
 
     load_data_dir_env()
     data = Path(args.data_dir) if args.data_dir else None
+    if args.status:
+        print(read_supervisor_status(data_dir=data).model_dump_json(indent=2))
+        return 0
     return run_up(dry_run=args.dry_run, data_dir=data)
 
 

@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -119,6 +120,23 @@ def test_doctor_cli_offline(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     out = capsys.readouterr().out
     assert "ready: yes (offline checks passed; API and Mac were not probed)" in out
     assert "offline" in out
+
+
+def test_up_status_reads_the_pidfile(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    (tmp_path / "two.up.pid").write_text("api 10\nscheduler 11\nworker 12\n", encoding="utf-8")
+    assert main(["up", "--status", "--data-dir", str(tmp_path)]) == 0
+    body = json.loads(capsys.readouterr().out)
+    assert body["children"] == [
+        {"name": "api", "pid": 10},
+        {"name": "scheduler", "pid": 11},
+        {"name": "worker", "pid": 12},
+    ]
+
+
+def test_up_status_missing_pidfile(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    assert main(["up", "--status", "--data-dir", str(tmp_path)]) == 0
+    body = json.loads(capsys.readouterr().out)
+    assert [child["pid"] for child in body["children"]] == [None, None, None]
 
 
 def test_up_dry_run(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:

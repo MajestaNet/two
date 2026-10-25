@@ -9,6 +9,9 @@ build/
 *.egg-info/
 .uv/
 
+# Local operator console (ADR 0031). The app is tracked; its install is not.
+node_modules/
+
 # Tool caches
 .ruff_cache/
 .mypy_cache/

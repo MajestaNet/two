@@ -28,6 +28,8 @@ from pathlib import Path
 from types import FrameType
 from typing import Protocol
 
+from pydantic import BaseModel, ConfigDict
+
 from two.operator.hostenv import default_data_dir, discover_env_file, parse_env_file
 
 CHILD_NAMES = ("api", "scheduler", "worker")
@@ -51,6 +53,42 @@ class ChildProcess(Protocol):
 
 def pidfile_path(data_dir: Path) -> Path:
     return data_dir / PIDFILE_NAME
+
+
+class SupervisorChild(BaseModel):
+    """One ``two up`` child. ``pid`` is null when the pidfile has no row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    pid: int | None = None
+
+
+class SupervisorStatus(BaseModel):
+    """Pidfile snapshot. This does not start or signal a process."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    pidfile: str
+    children: list[SupervisorChild]
+
+
+def read_supervisor_status(
+    data_dir: Path | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> SupervisorStatus:
+    """Read ``two.up.pid``. A missing file reports each child with a null pid."""
+
+    resolved = resolve_supervisor_data_dir(data_dir, environ=environ)
+    path = pidfile_path(resolved)
+    found: dict[str, int] = {}
+    if path.is_file():
+        for name, pid in _read_pidfile(path):
+            if name in CHILD_NAMES and name not in found:
+                found[name] = pid
+    children = [SupervisorChild(name=name, pid=found.get(name)) for name in CHILD_NAMES]
+    return SupervisorStatus(pidfile=str(path), children=children)
 
 
 def supervisor_commands(executable: str | None = None) -> list[tuple[str, list[str]]]:

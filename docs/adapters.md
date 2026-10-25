@@ -19,7 +19,7 @@ process. Copying a package into the tree does not enable it.
 
 | Kind | Where it lives | What an install may do |
 | --- | --- | --- |
-| Client | CLI in this repo. Mobile and watch apps are specified here and built elsewhere. Watch edge is `two.edge`. | CLI is on. Mobile and watch stay `contract` until their executors exist. |
+| Client | CLI in this repo. The local operator console is `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md)). Mobile and watch apps are specified here and built elsewhere. Watch edge is `two.edge`. | CLI is on. The console is shipped and off. Mobile and watch stay `contract`. |
 | Messenger | `two.channels.<name>` | None selected. |
 | Device | `src/two/devices/climate/` (ADR 0022, ADR 0027) and `src/two/devices/tv/` (ADR 0029). The kind-level `device` slot stays reserved. | `climate` and `tv` are shipped and off. A local `climate.yaml` binds zones. A local `tv.yaml` binds Samsung sets. `home-action` only. |
 | Export | `src/two/export/` ([ADR 0012](adrs/0012-github-export-adapter.md)) | Reserved. Not a channel. |
@@ -30,7 +30,8 @@ one of these slots.
 ## Enablement
 
 A slot is on only when the catalog says `default_enabled: true`. Today
-that is `cli` alone. `selectable` is true only for `shipped` slots, so
+that is `cli` alone. The console slot is shipped and stays off until
+you open the window. `selectable` is true only for `shipped` slots, so
 an installation cannot turn on `contract`, `stub`, or `reserved`.
 Profile `chat` is resumed by the control plane
 ([B20](backlog/B20-chat-profile-resume.md)). `home-action` runs the

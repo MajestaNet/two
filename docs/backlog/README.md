@@ -69,6 +69,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B21](B21-climate-home-action.md) | Climate tools on `home-action` | 6 | B20 | done |
 | [B22](B22-tv-home-action.md) | Television tools on `home-action` | 6 | B21 | done |
 | [B23](B23-utterance-routing.md) | Route a transcript and fan out `all` | 6 | B22 | done |
+| [B24](B24-local-operator-console.md) | Local operator console | 6 | B20 | done |
 
 The skipped thin web UI in B13 is superseded by the first-party client
 direction in ADR 0015/B14.
@@ -80,8 +81,9 @@ policy, expressed as a persisted DAG.
 B20 is the `chat` profile resume. B21 is the climate executor for
 `home-action`. B22 is the television executor for the same profile.
 B23 routes an omitted profile and fans out `all` on that profile.
-Slot priority past chat-before-home-action, speech,
-and a client UI stay open.
+B24 is the local operator console on this Mac. It is not the mobile
+client. Slot priority past chat-before-home-action, speech,
+and the mobile client stay open.
 
 ## Recommended order
 

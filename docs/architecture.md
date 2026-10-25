@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); local operator console (ADR 0031); adoption, speech, and profile preload follow |
 | Version | 0.13 |
 | Date | 20 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -21,7 +21,7 @@ The system will separate **inference** from **software-development execution**. 
 - Majesta Two and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. They run on the same mini as separate processes from Ollama (`topology: colocated`). `split` remains optional when another host stays powered on. Linux Compose is that optional packaging, not the default.
 - They call Ollama through an OpenAI-compatible HTTP endpoint on `127.0.0.1`. The model process never mounts the repository and never executes commands. See ADR 0006 and `two topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
-- A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface and the only enabled slot in the install catalog (ADR 0021). Optional in-repo device adapters — home devices, wearables, and later private devices — are further control surfaces over the same installation. The first-party mobile GUI and the watch app are clients of this API; their native projects are not in this tree. Every client is a control surface over one durable task record, not a separate agent session.
+- A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface and the only enabled slot in the install catalog (ADR 0021). Optional in-repo device adapters — home devices, wearables, and later private devices — are further control surfaces over the same installation. The first-party mobile GUI and the watch app are clients of this API; their native projects are not in this tree. The local operator console is the exception: it lives in this tree (ADR 0031), binds loopback, and does not replace those apps. Every client is a control surface over one durable task record, not a separate agent session.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
 
 **Product subject (ADR 0017).** Majesta Two is a fully local, self-building system. The operator runs one installation of this repository. That installation is the development client and the only development subject: tasks change this tree, not unrelated projects. DeepSeek Harness stays the inner model/tool loop; its workspace is a worktree of this same repository. The executing tree is adopted from that worktree only after validation, fresh review, and an explicit approval, and only at a process restart. The open-source tree grows optional adapters for private local endpoints (home devices, wearables, and later similar devices) by that same loop.
@@ -115,11 +115,13 @@ These bounds stay in force after the original MVP:
 flowchart TB
     subgraph Channels["Clients and adapters"]
         CLI["CLI first-party"]
+        CONSOLE["Local operator console"]
         MOBILE["First-party mobile GUI (planned)"]
         VOICE["Wearable voice chat (planned)"]
         MSG["Optional messenger adapter"]
     end
     CLI --> API["Majesta Two control API"]
+    CONSOLE --> API
     MOBILE --> API
     VOICE --> API
     MSG --> API
@@ -536,7 +538,9 @@ Four kinds stay separate (ADR 0021): first-party clients, messenger adapters
 source-control export (`two.export`, reserved). `two.providers` is the
 model-provider contract, not a client. The committed catalog is the install
 menu. A slot that is not `shipped` cannot be selected, and landing the
-package does not enable it.
+package does not enable it. The local operator console is a client in this
+tree (`apps/console`, ADR 0031). The catalog ships it and leaves it off.
+It may resume `chat` only. Mobile and watch native projects stay elsewhere.
 
 ### 6.4 State and storage
 
@@ -917,6 +921,10 @@ Development loop, Evidence, and System health. Once B19 persists and
 populates it, the work graph—not chat prose—supplies plan topology, cursor,
 readiness, and dependency reasons.
 
+The local operator console (ADR 0031) is not that remote client. It runs
+on the Mac mini, talks to loopback, and lives in this repository. Quitting
+the window leaves the control plane running.
+
 Remote access requires:
 
 - HTTPS over a private Tailscale/WireGuard overlay; no public API bind;
@@ -1050,7 +1058,7 @@ Default policy:
 | Harness integration | Durable external Majesta Two control plane | Insulates the workflow from developer-preview churn and supplies queueing, recovery, interaction, and deterministic gates |
 | Task lifetime | Majesta Two state machine, events, leases, and checkpoints | Allows overnight execution and restart recovery independent of clients or Harness processes |
 | Developer experience | Task-scoped plan, progress, diff, evidence, and conversation contract | Preserves productive coding-agent workflows across replaceable clients |
-| Client direction | Channel-neutral backend; CLI now, secure first-party mobile GUI later | Rich graph/config/health UX without coupling workflow state to a vendor |
+| Client direction | Channel-neutral backend; CLI now, local operator console in-tree (ADR 0031), secure first-party mobile GUI later | Rich graph/config/health UX without coupling workflow state to a vendor |
 | Source-control export | Optional GitHub App after approval (ADR 0012); not a local forge | Distinct agent principal on remotes that already live on GitHub; DSH never holds the token |
 | Repository isolation | Git worktree per task | Recoverability and concurrent task safety |
 | Long-term task memory | Structured external state plus a persisted work graph (ADR 0014) | Survives compaction without replaying long reasoning traces; longer loops keep node/edge alignment |
@@ -1139,10 +1147,14 @@ Before promoting unattended overnight mode, the system must also pass:
 
 The tree below is the layout an installation is built from. Comments name
 reserved paths that are not directories yet (ADR 0021). `two adapters`
-prints which of those slots is enabled.
+prints which of those slots is enabled. The local operator console lives
+at `apps/console` (ADR 0031). It is a loopback client of this installation.
+The mobile app and the watch app stay out of this tree.
 
 ```text
 two/
+├── apps/
+│   └── console/                        # local operator window (ADR 0031)
 ├── README.md
 ├── AGENTS.md
 ├── .env.example
@@ -1261,6 +1273,10 @@ invent a second architecture.
 ### Phase 6 — Conversational control
 
 - Keep the implemented API-backed CLI as the local operator surface.
+- The local operator console (ADR 0031) is an in-repo window for this Mac:
+  start and stop `two up`, recommend and pull one catalog model, show
+  operator docs and adapter bindings, and send `chat` turns. Closing it
+  does not stop the server. It is not the mobile client.
 - Add the client API resources in ADR 0015: safe conversation/SSE,
   repository and project configuration, graph/evidence monitoring, aggregate
   health, idempotency, and scoped remote identity.
@@ -1352,6 +1368,7 @@ and the seamless install remain open.
 - [Majesta Two home-action ACP client (ADR 0028)](adrs/0028-home-action-acp-client.md)
 - [Majesta Two Samsung television tools (ADR 0029)](adrs/0029-samsung-tv.md)
 - [Majesta Two utterance routing and device fan-out (ADR 0030)](adrs/0030-utterance-routing-and-fanout.md)
+- [Majesta Two local operator console (ADR 0031)](adrs/0031-local-operator-console.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

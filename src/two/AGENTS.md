@@ -6,9 +6,13 @@ Python package for the Majesta Two control plane.
   those modules. `projection.py` is the /v1 client contract (no I/O, no
   FastAPI). CLI and `channels.*` import it.
 - `profiles.py` may read `config/inference/profiles.yaml`. No network.
+  `recommend_profile` scores that catalog against a memory size. It does
+  not probe the host. `two profiles --recommend` does the probe.
 - `adapters.py` may read `config/adapters/catalog.yaml` (ADR 0021). No
   network, no store, no channel import. `two adapters` prints the menu.
-  It does not enable a slot. `devices/climate/` is the climate package
+  `two adapters --json` adds bound device
+  ids from the operator menu and omits secrets. It does not enable a slot.
+  `console` is the in-repo window and stays off. `devices/climate/` is the climate package
   (ADR 0022) and stays default off. `devices/tv/` is the television
   package (ADR 0029) and stays default off. Do not add `export/` until the ADR
   for that slot.
@@ -22,10 +26,14 @@ Python package for the Majesta Two control plane.
   `operator/`. CLI lazy-imports `two.operator` (not `two.runtime`).
 - `runtime/` parses `models.lock`, emits the Ollama env contract, renders
   the launchd plist, and classifies Mac health from JSON. No network on
-  the default unit-test path. `runtime/poller.py` is the optional live
+  the default unit-test path. `runtime/host.py` reads unified memory for
+  `two profiles --recommend`. `runtime/poller.py` is the optional live
   Mac HTTP probe. `runtime/lan_bind.py` discovers a private Darwin bind.
 - `operator/` is the interactive LAN path (ADR 0013): env apply, doctor,
-  and `two up` supervisor. No store at import time.
+  and `two up` supervisor. `operator/model.py` plans one `ollama pull`.
+  `operator/recommend.py` joins the host probe to the catalog.
+  `operator/menu.py` projects adapter slots and device ids. No store at
+  import time. The API may call the menu. It does not call Ollama.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop.
