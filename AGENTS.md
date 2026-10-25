@@ -20,7 +20,8 @@ The SQLite WAL store (`two.store`)
 persists tasks, events, leases, the work graph (schema v5),
 projects/config candidates (schema v6), and the chat harness session
 plus turn log (schema v7), and home-action climate turns
-(schema v8), and television turns (schema v9).
+(schema v8), television turns (schema v9), and the utterance
+route plus device fan-out plan (schema v10).
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
@@ -80,6 +81,8 @@ uv run two climate send --text TEXT
 uv run two climate show TURN_ID
 uv run two climate approve TURN_ID --digest DIGEST
 uv run two climate reject TURN_ID --digest DIGEST
+uv run two route send --text TEXT
+uv run two route show TURN_ID
 uv run two tv send --text TEXT
 uv run two tv show TURN_ID
 uv run two tv approve TURN_ID --digest DIGEST
@@ -130,6 +133,10 @@ listed in `config/repositories/two.yaml`.
  `tv` is shipped and off (`src/two/devices/tv/`, ADR 0029). The
  kind-level `device` slot and `github` (`src/two/export/`) stay
  reserved. Do not enable a slot by adding a directory.
+ `src/two/routing/` chooses `chat` or a device slot for a transcript
+ that omits the profile, and expands `all` across bound targets
+ (ADR 0030). It does not call a device or load a model. The optional
+ `TWO_ROUTE_MODEL=1` tie-break runs in the worker on the resident model.
  `src/two/edge.py` is the watch edge plan (ADR 0020): private CA,
  Caddy mutual TLS, loopback upstream. `two edge plan` writes nothing.
  `two edge issue` writes under `$TWO_DATA_DIR/edge`. The watch principal

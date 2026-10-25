@@ -37,7 +37,10 @@ Profile `chat` is resumed by the control plane
 closed climate tools when the local climate binding is enabled
 ([ADR 0022](adrs/0022-climate-device-protocol.md)), and the closed
 television tools when the local television binding is enabled
-([ADR 0029](adrs/0029-samsung-tv.md)). That does not enable
+([ADR 0029](adrs/0029-samsung-tv.md)). A transcript that omits the
+profile is routed to `chat` or to those slots, and `all` can repeat
+one closed action across the bound targets
+([ADR 0030](adrs/0030-utterance-routing-and-fanout.md)). That does not enable
 the watch slot, and it does not turn either device slot on by itself.
 
 Channel behavior for messengers stays in [channels.md](channels.md).

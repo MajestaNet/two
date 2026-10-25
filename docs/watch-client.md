@@ -150,12 +150,16 @@ profiles the voice screen may send.
 {"text": "set the living room to 20", "profile": "home-action"}
 ```
 
-`profile` is `chat` or `home-action`. `text` is 1 to 4000 characters,
-the transcript only.
+`profile` is `chat` or `home-action`, or it is omitted. `text` is 1 to
+4000 characters, the transcript only. An omitted profile asks the mini
+to route the words (ADR 0030): a device phrase becomes `home-action`
+on the matching slot, and anything else becomes `chat`. "turn all tvs
+off" is one turn that repeats the closed power action on every bound
+set. Sending `profile` is still valid and keeps the previous meaning.
 
 | Status | `error.code` | What the UI does |
 | --- | --- | --- |
-| 202 | — | `profile: chat` is stored. `profile: home-action` is stored when the mini's climate or television binding is enabled. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. `climate` or `tv` is the device read-back. `awaiting_approval` carries `action_digest` and `pending_action` or `pending_tv`. Do not speak `reply` in this build. A voice turn does not add a coding-task row. |
+| 202 | — | `profile: chat` is stored. `profile: home-action` is stored when the mini's climate or television binding is enabled. An omitted profile is stored as whichever of those the route selects. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. `climate` or `tv` is the device read-back for one target. `fanout` lists every target when the instruction was repeated. `route_slots` names the device slots that were selected. `awaiting_approval` carries `action_digest` and `pending_action` or `pending_tv`. Do not speak `reply` in this build. A voice turn does not add a coding-task row. |
 | 403 | `forbidden` | The profile is not allowed. If the detail is `client cannot submit self-build`, the app tried the coding path. That is a bug in the app. Do not retry. |
 | 409 | `profile_not_executable` | `home-action` was not stored because no local climate or television binding is enabled. Tell the operator the pipe works and the binding is off. |
 | 401 | `unauthorized` | Enrollment or the edge token on the mini is wrong. Send the operator back to enrollment. |

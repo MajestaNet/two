@@ -32,6 +32,9 @@
 - `adrs/0029-samsung-tv.md` is the closed television tool contract.
   The slot stays off. The transport is the Samsung local API.
   Do not paste that ADR here.
+- `adrs/0030-utterance-routing-and-fanout.md` routes a transcript that
+  omits the harness profile and repeats one closed action for `all`.
+  Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.

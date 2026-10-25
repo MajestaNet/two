@@ -27,7 +27,7 @@ the spec.
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
-| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log; schema v8 adds home-action turns and climate approvals; schema v9 adds television tools and television approvals) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md)) |
+| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log; schema v8 adds home-action turns and climate approvals; schema v9 adds television tools and television approvals; schema v10 stores the utterance route and fan-out plan) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket). Client JSON is `two.projection`. B14 slice 3 adds persisted projects and typed config candidates on top of slice 2 conversation/SSE/health/repo reads ([B07](backlog/B07-control-api.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; `two scheduler` process) ([B08](backlog/B08-scheduler.md)) |
 | ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
@@ -37,9 +37,11 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
-| Harness profile `home-action` | Works when a local climate or television binding is enabled (`two climate` or `two tv`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. Without either binding the turn is refused and not stored ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md)) |
+| Harness profile `home-action` | Works when a local climate or television binding is enabled (`two climate` or `two tv`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. Without either binding the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md)) |
 
-Last updated: 24 October 2026 (ADR 0029: `home-action` can perform the
+Last updated: 25 October 2026 (ADR 0030: a transcript can omit the
+profile and route to chat or an enabled device slot; `all` repeats one
+closed action; schema v10. ADR 0029: `home-action` can perform the
 closed Samsung television tools when `$TWO_DATA_DIR/devices/tv.yaml`
 enables them, schema v9. The television slot stays off. ADR 0028: home-action
 production uses the
@@ -139,7 +141,7 @@ and worktree directories at mode 0700. `two up` and `two doctor` load that
 file when the process environment does not already set the same keys.
 
 `two up` starts `two api`, `two scheduler`, and `two worker` together.
-The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v9) and
+The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v10) and
 `$TWO_DATA_DIR/two.up.pid`. If any one of those three processes exits,
 the supervisor stops the other two. Stop a healthy supervisor with
 Ctrl+C or `uv run two down`. Closing `two task` detaches; it does not

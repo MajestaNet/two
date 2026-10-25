@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -483,6 +483,15 @@ _V9_STATEMENTS = (
     """,
 )
 
+# Version 10: utterance route and device fan-out (ADR 0030).
+# route_slots narrows the harness advertisement. fanout_json is the
+# per-target plan. fanout_scope tells the worker to repeat one tool.
+_V10_STATEMENTS = (
+    "ALTER TABLE home_action_turns ADD COLUMN route_slots TEXT",
+    "ALTER TABLE home_action_turns ADD COLUMN fanout_scope TEXT",
+    "ALTER TABLE home_action_turns ADD COLUMN fanout_json TEXT",
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1_STATEMENTS),
     (2, _V2_STATEMENTS),
@@ -493,6 +502,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (7, _V7_STATEMENTS),
     (8, _V8_STATEMENTS),
     (9, _V9_STATEMENTS),
+    (10, _V10_STATEMENTS),
 )
 
 

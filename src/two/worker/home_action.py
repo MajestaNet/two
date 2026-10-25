@@ -34,6 +34,7 @@ from pathlib import Path
 from two.devices.climate.broker import open_climate_broker
 from two.devices.climate.config import load_climate_config
 from two.devices.climate.contract import (
+    CLIMATE_TOOLS,
     ClimateBroker,
     ClimateInstall,
     ClimateReadback,
@@ -56,6 +57,15 @@ from two.devices.tv.contract import (
 from two.devices.tv.contract import StagedCall as TvStagedCall
 from two.devices.tv.contract import readback_reply as tv_readback_reply
 from two.providers import DSH_PIN
+from two.routing import (
+    cards_for,
+    dump_fanout,
+    dump_slots,
+    expand_tool_call,
+    load_fanout,
+    parse_route_slots,
+)
+from two.routing.model import LocalModelRouteDecider, RouteDecider, provider_complete
 from two.store.models import HomeActionTurnRecord, HomeActionTurnStatus
 from two.store.store import Store
 from two.types import ErrorCode
@@ -154,6 +164,7 @@ def run_home_action_turn(
     broker: ClimateBroker | None = None,
     tv_install: TvInstall | None = None,
     tv_broker: TvBroker | None = None,
+    route_decider: RouteDecider | None = None,
 ) -> HomeActionTurnRecord:
     """Run one already-admitted home-action turn. Does not take a coding lease."""
     turn = store.get_home_action_turn(turn_id)
@@ -163,6 +174,18 @@ def run_home_action_turn(
         return turn
     loaded = install if install is not None else load_climate_config(data_dir)
     loaded_tv = tv_install if tv_install is not None else load_tv_config(data_dir)
+    if turn.fanout_json:
+        return _execute_fanout(
+            store,
+            turn,
+            loaded,
+            broker,
+            loaded_tv,
+            tv_broker,
+            data_dir=data_dir,
+            now=now,
+        )
+    turn = _prepare_route(store, turn, route_decider, now=now)
     if turn.tool_name is not None:
         return _execute_staged(
             store,
@@ -192,7 +215,8 @@ def run_home_action_turn(
         )
     session = store.get_harness_session("home-action")
     stored = None if session is None else session.session_id
-    zones = sorted(loaded.zones) if loaded is not None else []
+    prompt_climate, _prompt_tv = _advertised(turn, loaded, loaded_tv)
+    zones = sorted(prompt_climate.zones) if prompt_climate is not None else []
     plan = plan_home_session(
         transcript=turn.request_text,
         zones=zones,
@@ -357,6 +381,22 @@ def _handle_tool(
     if parsed is None:
         return store.fail_home_action_turn(turn_id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
     tool, arguments = parsed
+    current = store.get_home_action_turn(turn_id)
+    if current is not None and current.fanout_scope and not current.fanout_json:
+        return _execute_expanded(
+            store,
+            current,
+            tool,
+            arguments,
+            install,
+            broker,
+            tv_install,
+            tv_broker,
+            data_dir=data_dir,
+            now=now,
+        )
+    if current is not None and not _tool_in_route(current, tool):
+        return store.fail_home_action_turn(turn_id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
     if tool in TV_TOOLS:
         return _handle_tv_tool(
             store,
@@ -406,6 +446,255 @@ def _handle_tool(
         data_dir=data_dir,
         now=now,
     )
+
+
+def _prepare_route(
+    store: Store,
+    turn: HomeActionTurnRecord,
+    decider: RouteDecider | None,
+    *,
+    now: datetime | None,
+) -> HomeActionTurnRecord:
+    """Ask the resident model to pick one slot when the route is still ambiguous.
+
+    The default is to leave the candidate list for the harness. ``TWO_ROUTE_MODEL=1``
+    uses one completion on the model that is already loaded, and only while this
+    turn holds the home-action slot.
+    """
+    slots = parse_route_slots(turn.route_slots)
+    if turn.fanout_scope or slots is None or len(slots) < 2:
+        return turn
+    chosen = decider
+    if chosen is None and os.environ.get("TWO_ROUTE_MODEL") == "1":
+        chosen = LocalModelRouteDecider(complete=provider_complete)
+    if chosen is None:
+        return turn
+    label = chosen.choose(turn.request_text, slots, allow_chat=False)
+    if label is None or label not in slots:
+        return turn
+    return store.set_home_action_route_slots(turn.id, dump_slots((label,)) or label, now=now)
+
+
+def _advertised(
+    turn: HomeActionTurnRecord,
+    climate: ClimateInstall | None,
+    television: TvInstall | None,
+) -> tuple[ClimateInstall | None, TvInstall | None]:
+    slots = parse_route_slots(turn.route_slots)
+    if slots is None:
+        return climate, television
+    return (
+        climate if "climate" in slots else None,
+        television if "tv" in slots else None,
+    )
+
+
+def _tool_in_route(turn: HomeActionTurnRecord, tool: str) -> bool:
+    slots = parse_route_slots(turn.route_slots)
+    if slots is None:
+        return True
+    prefix, separator, _rest = tool.partition(".")
+    if separator == "":
+        return False
+    return prefix in slots
+
+
+def _execute_expanded(
+    store: Store,
+    turn: HomeActionTurnRecord,
+    tool: str,
+    arguments: dict[str, object],
+    install: ClimateInstall | None,
+    broker: ClimateBroker | None,
+    tv_install: TvInstall | None,
+    tv_broker: TvBroker | None,
+    *,
+    data_dir: Path | str | None,
+    now: datetime | None,
+) -> HomeActionTurnRecord:
+    if not _tool_in_route(turn, tool):
+        return store.fail_home_action_turn(turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
+    items = expand_tool_call(
+        tool,
+        arguments,
+        cards_for(climate=install, television=tv_install),
+        parse_route_slots(turn.route_slots),
+    )
+    if not items:
+        return store.fail_home_action_turn(turn.id, ErrorCode.FANOUT_UNSUPPORTED.value, now=now)
+    return _execute_fanout_items(
+        store,
+        turn,
+        list(items),
+        install,
+        broker,
+        tv_install,
+        tv_broker,
+        data_dir=data_dir,
+        now=now,
+    )
+
+
+def _execute_fanout(
+    store: Store,
+    turn: HomeActionTurnRecord,
+    install: ClimateInstall | None,
+    broker: ClimateBroker | None,
+    tv_install: TvInstall | None,
+    tv_broker: TvBroker | None,
+    *,
+    data_dir: Path | str | None,
+    now: datetime | None,
+) -> HomeActionTurnRecord:
+    if turn.fanout_json is None:
+        return store.fail_home_action_turn(turn.id, ErrorCode.FANOUT_UNSUPPORTED.value, now=now)
+    try:
+        items = load_fanout(turn.fanout_json)
+    except (ValueError, json.JSONDecodeError):
+        return store.fail_home_action_turn(turn.id, ErrorCode.FANOUT_UNSUPPORTED.value, now=now)
+    return _execute_fanout_items(
+        store,
+        turn,
+        items,
+        install,
+        broker,
+        tv_install,
+        tv_broker,
+        data_dir=data_dir,
+        now=now,
+    )
+
+
+def _stage_fanout_call(
+    tool: str,
+    args: dict[str, object],
+    install: ClimateInstall | None,
+    tv_install: TvInstall | None,
+) -> StagedCall | TvStagedCall | str:
+    if tool in TV_TOOLS:
+        decision = interpret_tv_tool(tool, args, tv_install)
+        if decision.kind == "approve":
+            return ErrorCode.FANOUT_NEEDS_APPROVAL.value
+        if decision.kind != "allow" or decision.call is None:
+            return decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+        return decision.call
+    if tool not in CLIMATE_TOOLS:
+        return ErrorCode.PROFILE_TOOL_DENIED.value
+    climate = interpret_tool(tool, args, install)
+    if climate.kind == "approve":
+        return ErrorCode.FANOUT_NEEDS_APPROVAL.value
+    if climate.kind != "allow" or climate.call is None:
+        return climate.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+    return climate.call
+
+
+def _perform_fanout_call(
+    call: StagedCall | TvStagedCall,
+    install: ClimateInstall | None,
+    broker: ClimateBroker | None,
+    tv_install: TvInstall | None,
+    tv_broker: TvBroker | None,
+    *,
+    data_dir: Path | str | None,
+) -> tuple[str, object]:
+    if isinstance(call, TvStagedCall):
+        if tv_install is None:
+            raise TvUpstreamError("missing television binding")
+        readback = _perform_tv(call, tv_install, tv_broker)
+        return tv_readback_reply(readback), readback.model_dump(mode="json")
+    if install is None:
+        raise ClimateUpstreamError("missing climate binding")
+    climate = _perform(call, install, broker, data_dir=data_dir)
+    return readback_reply(climate), climate.model_dump(mode="json")
+
+
+def _execute_fanout_items(
+    store: Store,
+    turn: HomeActionTurnRecord,
+    items: list[dict[str, object]],
+    install: ClimateInstall | None,
+    broker: ClimateBroker | None,
+    tv_install: TvInstall | None,
+    tv_broker: TvBroker | None,
+    *,
+    data_dir: Path | str | None,
+    now: datetime | None,
+) -> HomeActionTurnRecord:
+    prepared: list[tuple[dict[str, object], StagedCall | TvStagedCall]] = []
+    for item in items:
+        tool = item.get("tool")
+        arguments = item.get("arguments")
+        if not isinstance(tool, str) or not isinstance(arguments, dict):
+            return store.fail_home_action_turn(
+                turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now
+            )
+        args = {str(key): value for key, value in arguments.items()}
+        staged = _stage_fanout_call(tool, args, install, tv_install)
+        if isinstance(staged, str):
+            return store.fail_home_action_turn(turn.id, staged, now=now)
+        prepared.append((item, staged))
+    results: list[dict[str, object]] = []
+    successes = 0
+    for item, call in prepared:
+        try:
+            sentence, payload = _perform_fanout_call(
+                call,
+                install,
+                broker,
+                tv_install,
+                tv_broker,
+                data_dir=data_dir,
+            )
+        except (ClimateUpstreamError, TvUpstreamError):
+            code = (
+                ErrorCode.TV_UPSTREAM.value
+                if isinstance(call, TvStagedCall)
+                else ErrorCode.CLIMATE_UPSTREAM.value
+            )
+            failed = dict(item)
+            failed["status"] = "failed"
+            failed["error_code"] = code
+            failed["readback"] = None
+            results.append(failed)
+            continue
+        done = dict(item)
+        done["status"] = "complete"
+        done["error_code"] = None
+        done["readback"] = payload
+        done["sentence"] = sentence
+        results.append(done)
+        successes += 1
+    stored = [{key: value for key, value in item.items() if key != "sentence"} for item in results]
+    encoded = dump_fanout(stored)
+    if successes == 0:
+        code = _first_fanout_error(results)
+        return store.fail_home_action_turn(turn.id, code, fanout_json=encoded, now=now)
+    reply = _fanout_reply(results)
+    return store.complete_home_action_turn(turn.id, reply, None, fanout_json=encoded, now=now)
+
+
+def _first_fanout_error(results: Sequence[Mapping[str, object]]) -> str:
+    for item in results:
+        code = item.get("error_code")
+        if isinstance(code, str) and code:
+            return code
+    return ErrorCode.INTERNAL.value
+
+
+def _fanout_reply(results: Sequence[Mapping[str, object]]) -> str:
+    parts: list[str] = []
+    for item in results:
+        sentence = item.get("sentence")
+        if isinstance(sentence, str) and sentence:
+            parts.append(sentence)
+            continue
+        target = item.get("target")
+        code = item.get("error_code")
+        if isinstance(target, str) and isinstance(code, str):
+            parts.append(f"{target}: {code}")
+    if not parts:
+        return "fan-out finished"
+    return " ".join(parts)
 
 
 def _execute_staged(

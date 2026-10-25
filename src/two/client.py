@@ -260,11 +260,16 @@ class ControlClient:
         self,
         text: str,
         *,
-        profile: str = "chat",
+        profile: str | None = "chat",
         idempotency_key: str | None = None,
     ) -> VoiceTurnReceipt:
-        """POST ``/v1/voice/turns``. Parses a ``VoiceTurnReceipt``."""
-        payload: dict[str, Any] = {"text": text, "profile": profile}
+        """POST ``/v1/voice/turns``. Parses a ``VoiceTurnReceipt``.
+
+        ``profile=None`` omits the field so the control plane routes the text.
+        """
+        payload: dict[str, Any] = {"text": text}
+        if profile is not None:
+            payload["profile"] = profile
         response = self._call(
             "POST",
             "/v1/voice/turns",

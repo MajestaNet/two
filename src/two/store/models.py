@@ -256,6 +256,9 @@ class HomeActionTurnRecord:
     revision: int
     created_at: datetime
     updated_at: datetime
+    route_slots: str | None = None
+    fanout_scope: str | None = None
+    fanout_json: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

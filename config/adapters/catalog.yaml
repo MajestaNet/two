@@ -46,7 +46,8 @@ slots:
       First-party client, not a device adapter (ADR 0020).
       two edge issue writes a private CA. The Xcode app is not in this
       repo. chat is stored. home-action is stored only when the local
-      climate binding is enabled.
+      climate or television binding is enabled. An omitted profile is
+      routed (ADR 0030).
 
   device:
     kind: device

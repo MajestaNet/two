@@ -53,6 +53,7 @@ from two.worker.climate_mcp import SERVER_NAME as CLIMATE_SERVER
 from two.worker.errors import ChildError, WorkerError
 from two.worker.home_action import (
     HomeSessionPlan,
+    _advertised,
     _handle_tool,
     ensure_home_action_profile_dir,
     home_child_env,
@@ -118,17 +119,18 @@ def run_pinned_acp_home(
         )
     session = store.get_harness_session("home-action")
     stored = None if session is None else session.session_id
-    zones = sorted(loaded.zones) if loaded is not None else []
+    prompt_climate, prompt_tv = _advertised(turn, loaded, loaded_tv)
+    prompt_zones = sorted(prompt_climate.zones) if prompt_climate is not None else []
     plan = plan_home_session(
         transcript=turn.request_text,
-        zones=zones,
+        zones=prompt_zones,
         stored_session_id=stored,
         session_is_valid=session_is_valid or default_session_validator,
     )
-    prompt = _acp_prompt(turn.request_text, zones, loaded_tv)
+    prompt = _acp_prompt(turn.request_text, prompt_zones, prompt_tv)
     profile_dir = ensure_home_action_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
-    home = _ensure_home_patch(data_dir, zones, loaded_tv)
+    home = _ensure_home_patch(data_dir, prompt_zones, prompt_tv)
     env = dict(child_env) if child_env is not None else home_child_env()
     env.update(_inference_env(home))
     config = child_config if child_config is not None else ChildConfig()
@@ -157,6 +159,8 @@ def run_pinned_acp_home(
             broker,
             loaded_tv,
             tv_broker,
+            advertise_climate=prompt_climate is not None,
+            advertise_television=prompt_tv is not None,
             data_dir=data_dir,
             now=now,
         )
@@ -177,6 +181,8 @@ def _drive(
     tv_install: TvInstall | None,
     tv_broker: TvBroker | None,
     *,
+    advertise_climate: bool,
+    advertise_television: bool,
     data_dir: Path | str | None,
     now: datetime | None,
 ) -> HomeActionTurnRecord:
@@ -188,7 +194,7 @@ def _drive(
             rpc,
             plan,
             str(profile_dir),
-            _mcp_servers(climate=install is not None, television=tv_install is not None),
+            _mcp_servers(climate=advertise_climate, television=advertise_television),
         )
         if plan.mode is SessionMode.FRESH or session_id != plan.session_id:
             store.set_home_action_session_id(session_id, now=now)
