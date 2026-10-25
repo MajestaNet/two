@@ -17,7 +17,7 @@ Dedicated, agent-executable implementation items. One file per item.
   [B23](B23-utterance-routing.md) routes an omitted profile and repeats
   one closed action for `all` (ADR 0030). The device slots stay off.
   [B24](B24-local-operator-console.md) is the loopback operator window
-  (ADR 0031). It stays default off and does not replace B14.
+  (ADR 0031, ADR 0032). It stays default off and does not replace B14.
   Landing any of these items does not close architecture §21 item 20.
   Do not merge two items in one PR unless the item file says they may
   land together.

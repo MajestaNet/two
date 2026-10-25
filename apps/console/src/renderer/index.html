@@ -20,17 +20,32 @@
       <main>
         <section id="server" class="view">
           <h1>Server</h1>
-          <p class="lede">Start and stop the control plane. Ollama stays its own service.</p>
+          <p class="lede">Start and stop the control plane. Serve the model with the Ollama already on this Mac.</p>
           <div class="row">
             <button type="button" id="start">Start</button>
             <button type="button" id="stop" class="quiet">Stop</button>
           </div>
           <ul id="server-lines" class="facts"></ul>
           <p id="server-note" class="note"></p>
+          <h2>Ollama</h2>
+          <p id="ollama-path" class="note"></p>
+          <div class="row">
+            <button type="button" id="ollama-start">Start Ollama</button>
+            <button type="button" id="ollama-stop" class="quiet">Stop Ollama</button>
+            <button type="button" id="ollama-choose" class="quiet">Choose binary…</button>
+          </div>
+          <p id="ollama-note" class="note"></p>
         </section>
         <section id="model" class="view hidden">
           <h1>Model</h1>
           <p id="model-reason" class="lede"></p>
+          <h2>Installed</h2>
+          <p id="installed-note" class="note"></p>
+          <div class="row">
+            <button type="button" id="ollama-choose-model" class="quiet">Choose binary…</button>
+          </div>
+          <ul id="installed-models" class="facts"></ul>
+          <h2>Catalog</h2>
           <ul id="model-list" class="cards"></ul>
           <div class="row">
             <button type="button" id="download">Download</button>
@@ -54,6 +69,11 @@
           <p id="chat-reason" class="note"></p>
           <div id="transcript" class="transcript"></div>
           <form id="chat-form" class="composer">
+            <select id="chat-profile" aria-label="Profile">
+              <option value="">Unset</option>
+              <option value="chat">chat</option>
+              <option value="home-action">home-action</option>
+            </select>
             <input id="chat-text" type="text" maxlength="4000" autocomplete="off" placeholder="Message" />
             <button type="submit" id="chat-send">Send</button>
           </form>

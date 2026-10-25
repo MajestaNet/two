@@ -20,7 +20,8 @@ turn.
 ## Out of scope
 
 - The secure mobile client (B14) and the watch app.
-- Starting Ollama from the window.
+- Starting Ollama from the window. ADR 0032 later allows a closed
+  locate, list, and loopback serve against an existing binary.
 - A host shell, a self-build submit, or a home-action sender.
 - Putting `npm test` on the `make ci` gate.
 

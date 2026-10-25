@@ -104,11 +104,16 @@ the local operator window and is not part of that gate.
 
 ## Layout
 
-- `apps/console/` — local operator window (ADR 0031). Electron, loopback
-  only, default off. It calls `two up`, `two down`, `two profiles --recommend`,
-  `two model`, and `POST /v1/voice/turns`. It does not call Ollama itself.
-  Closing the window does not stop the server. `npm test` there is not part
-  of `make ci`.
+- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033). Electron,
+  loopback only, default off. It calls `two up`, `two down`,
+  `two profiles --recommend`, `two model`, and `POST /v1/voice/turns`.
+  The voice profile defaults to unset. `chat` and `home-action` are the
+  only explicit choices.
+  The main process may locate an existing `ollama` and run `--version`,
+  `list`, and `serve` on `127.0.0.1:11434`. The renderer does not spawn
+  a process. The API process does not call Ollama. Closing the window
+  does not stop the control plane or that serve. `npm test` there is not
+  part of `make ci`.
 - `src/two/` — Python only. Package implementations live here.
   `src/two/setup.py` is the Mac mini setup plan (ADR 0019). `two setup --current` still prints the optional split list (ADR 0013).
   `two setup --plan` prints it. `two setup --ollama-url` writes env via
@@ -139,7 +144,7 @@ the local operator window and is not part of that gate.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. `two adapters --json`
  adds bound device ids and omits secrets. Only the `cli` slot is
- enabled. `console` is the local window (`apps/console`, ADR 0031),
+  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032),
  shipped and off, and it resumes `chat` only. `watch` and `mobile`
  are clients at `contract`. `climate`
  is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).

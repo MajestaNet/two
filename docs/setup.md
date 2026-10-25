@@ -18,7 +18,7 @@ the spec.
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)) |
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
-| Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md)). Default off. Start and stop are `two up` / `two down`. Chat uses the control API. Closing the window leaves the server running. `npm test` in that directory is not part of `make ci` |
+| Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md)). Default off. Start and stop are `two up` / `two down`. It locates an existing Ollama, lists that install's models, and can start `ollama serve` on `127.0.0.1:11434`. Chat uses the control API. Closing the window leaves the control plane and that serve running. `npm test` in that directory is not part of `make ci` |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
 | Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate` and `tv` are shipped and off until a local binding enables them. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0029](adrs/0029-samsung-tv.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
@@ -40,7 +40,9 @@ the spec.
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
 | Harness profile `home-action` | Works when a local climate or television binding is enabled (`two climate` or `two tv`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. Without either binding the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md)) |
 
-Last updated: 25 October 2026 (ADR 0031: the local operator console
+Last updated: 25 October 2026 (ADR 0032: the local window locates an
+existing Ollama, lists models already in that install, and starts
+`ollama serve` on loopback. ADR 0031: the local operator console
 is an in-repo loopback window. It does not replace the CLI, and closing
 it does not stop `two up`. ADR 0030: a transcript can omit the
 profile and route to chat or an enabled device slot; `all` repeats one
@@ -73,7 +75,8 @@ Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 **CLI on the Mac mini is enough.** You do not need a mobile app,
 messenger, or public hostname. Remote clients are optional
 ([channels.md](channels.md)). The local operator console is an optional
-window on the same machine ([ADR 0031](adrs/0031-local-operator-console.md)).
+window on the same machine ([ADR 0031](adrs/0031-local-operator-console.md),
+[ADR 0032](adrs/0032-console-existing-ollama.md)).
 
 ## Local operator console
 
@@ -85,12 +88,22 @@ npm install
 npm start
 ```
 
-The window starts and stops `two up`. It does not start Ollama. Model
-download is one catalog tag, after Ollama is answering. Chat sends
-`profile: chat` to the loopback API and stays disabled until that API
-is up and the selected model is installed. Closing the window leaves
-the server running. `npm test` checks the window policy and is not
-part of `make ci`.
+The window starts and stops `two up`. It looks for an existing `ollama`
+at the remembered path, Homebrew, `/usr/local/bin`, and `PATH`. If none
+run, choose the binary in the file dialog. Installed tags come from
+`ollama list` when the server answers, and from the local manifest
+library when it does not. **Start Ollama** runs `ollama serve` on
+`127.0.0.1:11434` with the selected profile's context length, then loads
+that tag with keep-alive `-1`. A listening Ollama with no model loaded
+stays Cold, and chat remains queued. Model
+download is still one catalog tag, after Ollama is answering. Chat posts
+`POST /v1/voice/turns`. The profile defaults to unset, so the router
+chooses `chat` or a device slot. The menu can set `chat` or
+`home-action`. `self-build` is not offered. The box stays disabled until
+that API is up, Ollama is answering, and the selected model is installed
+and loaded. Closing
+the window leaves the control plane and that serve running. `npm test`
+checks the window policy and is not part of `make ci`.
 
 Two tracks:
 
