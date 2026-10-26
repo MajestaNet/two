@@ -1928,6 +1928,8 @@ class Store:
         route_slots: str | None = None,
         fanout_scope: str | None = None,
         fanout_json: str | None = None,
+        tool_name: str | None = None,
+        arguments_json: str | None = None,
     ) -> HomeActionTurnRecord:
         """Insert one queued home-action turn. Does not insert a task or a lease."""
         if turn_id.strip() == "":
@@ -1955,7 +1957,7 @@ class Store:
                     revision, created_at, updated_at, route_slots, fanout_scope, fanout_json
                 ) VALUES (
                     ?, 'home-action', ?, 'queued', ?, NULL, NULL,
-                    ?, NULL, NULL, NULL, NULL,
+                    ?, ?, ?, NULL, NULL,
                     1, ?, ?, ?, ?, ?
                 )
                 """,
@@ -1964,6 +1966,8 @@ class Store:
                     seq,
                     request_text,
                     principal,
+                    tool_name,
+                    arguments_json,
                     stamp,
                     stamp,
                     route_slots,
@@ -2098,6 +2102,19 @@ class Store:
             if str(existing["status"]) != HomeActionTurnStatus.RUNNING.value:
                 raise StoreError(f"home-action turn {turn_id} is not running")
             if existing["tool_name"] is not None:
+                if existing["action_digest"] is None and str(existing["tool_name"]) == tool_name:
+                    self._connection.execute(
+                        """
+                        UPDATE home_action_turns
+                        SET arguments_json = ?, action_digest = ?,
+                            revision = revision + 1, updated_at = ?
+                        WHERE id = ? AND status = 'running' AND action_digest IS NULL
+                        """,
+                        (arguments_json, action_digest, stamp, turn_id),
+                    )
+                    existing = self._home_action_turn_row(turn_id)
+                    if existing is None:
+                        raise StoreError(f"home-action turn missing after digest stamp: {turn_id}")
                 return _home_action_turn_from_row(existing)
             self._connection.execute(
                 """

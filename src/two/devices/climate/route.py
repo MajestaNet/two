@@ -19,7 +19,16 @@
 from __future__ import annotations
 
 from two.devices.climate.contract import ClimateInstall
-from two.routing.cards import DeviceRouteCard, FanoutVerb
+from two.routing.cards import ClosedVerb, DeviceRouteCard, FanoutVerb
+
+_CLOSED = (
+    ClosedVerb(("off",), "climate.set_mode", (("mode", "off"),)),
+    ClosedVerb(("heat", "heating"), "climate.set_mode", (("mode", "heat"),)),
+    ClosedVerb(("cool", "cooling"), "climate.set_mode", (("mode", "cool"),)),
+    ClosedVerb(("auto",), "climate.set_mode", (("mode", "auto"),)),
+    ClosedVerb(("temperature", "temp"), "climate.read", ()),
+    ClosedVerb(("set", "setpoint", "degrees"), "climate.set_setpoint", (), "celsius"),
+)
 
 _TERMS = (
     "air conditioner",
@@ -49,4 +58,5 @@ def climate_route_card(install: ClimateInstall | None) -> DeviceRouteCard:
                 arguments=(("mode", "off"),),
             ),
         ),
+        closed_verbs=_CLOSED,
     )

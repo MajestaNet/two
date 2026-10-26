@@ -14,12 +14,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Home-action profile. The harness requests one closed device tool. This process performs it.
+"""Home-action profile. This process performs closed climate and television tools.
 
-Production uses the pinned ACP client in ``acp_home``. Injected argv stays on
-the JSONL fixture. Does not call ``plan_session``. Does not send ``execute``
-to the child. Does not write the coding action ledger. A tool outside the
-enabled climate and television lists fails the turn.
+An obvious compiled utterance is staged here and does not start a child.
+Otherwise the harness requests one closed tool. Production uses the pinned
+ACP client in ``acp_home``. Injected argv stays on the JSONL fixture. Does
+not call ``plan_session``. Does not send ``execute`` to the child. Does not
+write the coding action ledger. A tool outside the enabled climate and
+television lists fails the turn.
 """
 
 from __future__ import annotations
@@ -186,6 +188,32 @@ def run_home_action_turn(
             now=now,
         )
     turn = _prepare_route(store, turn, route_decider, now=now)
+    if (
+        turn.tool_name is not None
+        and turn.arguments_json is not None
+        and turn.action_digest is None
+    ):
+        try:
+            raw = json.loads(turn.arguments_json)
+        except json.JSONDecodeError:
+            return store.fail_home_action_turn(
+                turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now
+            )
+        if not isinstance(raw, dict):
+            return store.fail_home_action_turn(
+                turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now
+            )
+        return _handle_tool(
+            store,
+            turn.id,
+            {"intent": {"tool": turn.tool_name, "arguments": raw}},
+            loaded,
+            broker,
+            loaded_tv,
+            tv_broker,
+            data_dir=data_dir,
+            now=now,
+        )
     if turn.tool_name is not None:
         return _execute_staged(
             store,

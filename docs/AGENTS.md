@@ -35,6 +35,9 @@
 - `adrs/0030-utterance-routing-and-fanout.md` routes a transcript that
   omits the harness profile and repeats one closed action for `all`.
   Do not paste that ADR here.
+- `adrs/0036-closed-utterance-compile.md` compiles an obvious named
+  climate or television command without the harness. Do not paste that
+  ADR here.
 - `adrs/0031-local-operator-console.md` is the in-repo loopback window
   at `apps/console`. It does not replace the mobile or watch apps.
   Do not paste that ADR here.

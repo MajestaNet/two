@@ -18,14 +18,16 @@
 
 A future client submits text. This package decides ``chat`` or
 ``home-action``, which enabled device slots to advertise, and whether
-one closed action applies to every bound target. Device packages add a
-route card. They do not gain an Ollama client or an agent loop.
+one closed action applies to a named target or every bound target.
+Device packages add a route card. They do not gain an Ollama client or
+an agent loop.
 """
 
-from two.routing.cards import DeviceRouteCard, FanoutVerb
+from two.routing.cards import ClosedVerb, DeviceRouteCard, FanoutVerb
 from two.routing.catalog import cards_for
 from two.routing.decide import (
     RouteDecision,
+    compiled_call,
     decide_route,
     dump_fanout,
     dump_slots,
@@ -42,6 +44,7 @@ from two.routing.model import (
 )
 
 __all__ = [
+    "ClosedVerb",
     "DeviceRouteCard",
     "FanoutVerb",
     "LocalModelRouteDecider",
@@ -49,6 +52,7 @@ __all__ = [
     "RouteDecision",
     "apply_model_choice",
     "cards_for",
+    "compiled_call",
     "decide_route",
     "dump_fanout",
     "dump_slots",

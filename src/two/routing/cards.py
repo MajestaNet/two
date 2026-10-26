@@ -25,6 +25,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+Scalar = str | int | bool
+
 
 @dataclass(frozen=True, slots=True)
 class FanoutVerb:
@@ -33,6 +35,16 @@ class FanoutVerb:
     verb: Literal["off", "on"]
     tool: str
     arguments: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedVerb:
+    """One closed tool the router may compile from an obvious utterance."""
+
+    phrases: tuple[str, ...]
+    tool: str
+    arguments: tuple[tuple[str, Scalar], ...]
+    extract: Literal["", "celsius", "volume", "target"] = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +58,8 @@ class DeviceRouteCard:
     target_argument: str
     enabled: bool
     fanout_verbs: tuple[FanoutVerb, ...]
+    aliases: tuple[str, ...] = ()
+    closed_verbs: tuple[ClosedVerb, ...] = ()
 
     def fanout_for(self, verb: str) -> FanoutVerb | None:
         for item in self.fanout_verbs:

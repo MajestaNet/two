@@ -14,12 +14,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Television route card. Power on and off fan out. Other actions stay on the harness."""
+"""Television route card. Power on and off fan out. Obvious named-set tools compile."""
 
 from __future__ import annotations
 
 from two.devices.tv.contract import TvInstall
-from two.routing.cards import DeviceRouteCard, FanoutVerb
+from two.routing.cards import ClosedVerb, DeviceRouteCard, FanoutVerb
+
+_CLOSED = (
+    ClosedVerb(("off",), "tv.set_power", (("power", "off"),)),
+    ClosedVerb(("on",), "tv.set_power", (("power", "on"),)),
+    ClosedVerb(("mute",), "tv.set_volume", (("mute", True),)),
+    ClosedVerb(("unmute",), "tv.set_volume", (("mute", False),)),
+    ClosedVerb(("volume", "louder", "quieter", "softer"), "tv.set_volume", (), "volume"),
+    ClosedVerb(("open", "watch", "play"), "tv.open", (), "target"),
+    ClosedVerb(("status", "what"), "tv.read", ()),
+)
 
 _TERMS = ("tv", "television", "telly")
 
@@ -27,6 +37,10 @@ _TERMS = ("tv", "television", "telly")
 def television_route_card(install: TvInstall | None) -> DeviceRouteCard:
     """Set ids come from the binding. A missing binding stays disabled."""
     targets = () if install is None else tuple(sorted(install.sets))
+    aliases: tuple[str, ...] = ()
+    if install is not None:
+        names = {alias for policy in install.sets.values() for alias in policy.targets}
+        aliases = tuple(sorted(names))
     return DeviceRouteCard(
         slot="tv",
         tool_prefix="tv",
@@ -38,4 +52,6 @@ def television_route_card(install: TvInstall | None) -> DeviceRouteCard:
             FanoutVerb(verb="off", tool="tv.set_power", arguments=(("power", "off"),)),
             FanoutVerb(verb="on", tool="tv.set_power", arguments=(("power", "on"),)),
         ),
+        aliases=aliases,
+        closed_verbs=_CLOSED,
     )

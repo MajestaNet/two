@@ -83,9 +83,10 @@ Python package for the Majesta Two control plane.
   Assistant REST or ECHONET Lite (ADR 0027). `devices/tv/` is ADR 0029
   and stays default off. The transport is the Samsung local API.
 - `routing/` classifies a transcript onto `chat` or an enabled device
-  slot and plans a fan-out (ADR 0030). No store, no socket, no model
-  client. Device packages add a route card; `routing/catalog.py` lists
-  the shipped cards.
+  slot and plans a fan-out (ADR 0030). An obvious named-target command
+  compiles the closed tool without the harness (ADR 0036). No store,
+  no socket, no model client. Device packages add a route card;
+  `routing/catalog.py` lists the shipped cards.
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
   It is not implemented. Do not add `push` to `workspace/`. Do not put
   GitHub tokens in `worker/` or `channels/`.
