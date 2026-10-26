@@ -642,7 +642,7 @@ def test_cli_send_show_and_child_env_omits_the_token(
 ) -> None:
     _binding(tmp_path)
     transport = transport_from_testclient(client)
-    assert main(["climate", "send", "--text", "set living to 20"], request=transport) == 0
+    assert main(["climate", "send", "--text", "please set the living room"], request=transport) == 0
     sent = capsys.readouterr().out
     assert "profile: home-action" in sent
     assert "status: queued" in sent

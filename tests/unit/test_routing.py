@@ -84,11 +84,22 @@ def test_kind_and_target_select_one_slot() -> None:
     assert climate.profile == "home-action"
     assert climate.slots == ("climate",)
     assert climate.confident is True
-    assert climate.fanout == ()
+    assert climate.fanout == (
+        {
+            "slot": "climate",
+            "target": "living-room",
+            "tool": "climate.set_mode",
+            "arguments": {"mode": "off", "zone": "living-room"},
+            "status": "pending",
+        },
+    )
     named = decide_route("set living room to 20", cards)
     assert named.slots == ("climate",)
+    assert named.fanout[0]["tool"] == "climate.set_setpoint"
+    assert named.fanout[0]["arguments"] == {"zone": "living-room", "celsius": 20}
     television = decide_route("turn the lounge tv off", cards)
     assert television.slots == ("tv",)
+    assert television.fanout[0]["arguments"] == {"power": "off", "set": "lounge"}
 
 
 def test_all_tvs_off_expands_every_bound_set() -> None:
@@ -117,6 +128,18 @@ def test_everything_off_includes_each_enabled_slot() -> None:
     assert {item["target"] for item in decision.fanout} == {"living", "study", "lounge"}
 
 
+def test_all_acs_to_heat_repeats_set_mode() -> None:
+    decision = decide_route(
+        "turn all acs to heat",
+        _cards(climate=_climate("living", "study"), television=_tv("lounge")),
+    )
+    assert decision.fanout_scope == "kind"
+    assert [item["target"] for item in decision.fanout] == ["living", "study"]
+    assert all(
+        item["arguments"] == {"mode": "heat", "zone": item["target"]} for item in decision.fanout
+    )
+
+
 def test_all_on_skips_climate_because_on_is_not_one_mode() -> None:
     decision = decide_route(
         "turn all devices on",
@@ -126,14 +149,18 @@ def test_all_on_skips_climate_because_on_is_not_one_mode() -> None:
     assert all(item["arguments"]["power"] == "on" for item in decision.fanout)
 
 
-def test_open_on_all_tvs_stays_for_the_harness() -> None:
+def test_open_on_all_tvs_compiles_each_set() -> None:
     decision = decide_route(
         "open netflix on all tvs",
         _cards(television=_tv("lounge", "bedroom")),
     )
-    assert decision.fanout == ()
     assert decision.fanout_scope == "kind"
     assert decision.slots == ("tv",)
+    assert [item["target"] for item in decision.fanout] == ["bedroom", "lounge"]
+    assert all(
+        item["arguments"] == {"set": item["target"], "target": "netflix"}
+        for item in decision.fanout
+    )
 
 
 def test_disabled_kind_is_not_executable() -> None:
@@ -183,3 +210,33 @@ def test_expand_replaces_only_the_target() -> None:
     )
     assert [item["target"] for item in items] == ["bedroom", "lounge"]
     assert all(item["arguments"]["target"] == "netflix" for item in items)
+
+
+def test_heat_on_a_named_zone_skips_the_harness() -> None:
+    cards = _cards(climate=_climate("upstairs_office", "vida_bedroom"), television=_tv("lounge"))
+    decision = decide_route("turn on heat upstairs office", cards)
+    assert decision.fanout == (
+        {
+            "slot": "climate",
+            "target": "upstairs_office",
+            "tool": "climate.set_mode",
+            "arguments": {"mode": "heat", "zone": "upstairs_office"},
+            "status": "pending",
+        },
+    )
+    both = decide_route("upstairs office heat 22", cards)
+    assert both.fanout == ()
+    assert both.slots == ("climate",)
+
+
+def test_named_tv_volume_and_mute_compile() -> None:
+    cards = _cards(television=_tv("lounge", "bedroom"))
+    mute = decide_route("mute the lounge tv", cards)
+    assert mute.fanout[0]["arguments"] == {"mute": True, "set": "lounge"}
+    louder = decide_route("turn the lounge volume up", cards)
+    assert louder.fanout[0]["arguments"] == {"set": "lounge", "step": "up"}
+    level = decide_route("set lounge volume to 12", cards)
+    assert level.fanout[0]["arguments"] == {"set": "lounge", "level": 12}
+    asked = decide_route("what is on the lounge tv", cards)
+    assert asked.fanout[0]["tool"] == "tv.read"
+    assert asked.fanout[0]["arguments"] == {"set": "lounge"}

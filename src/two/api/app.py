@@ -185,6 +185,7 @@ from two.projection import voice_turn_receipt
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
 from two.routing import (
     cards_for,
+    compiled_call,
     decide_route,
     dump_fanout,
     dump_slots,
@@ -661,6 +662,8 @@ async def _queue_home(
     route_slots: str | None = None,
     fanout_scope: str | None = None,
     fanout_json: str | None = None,
+    tool_name: str | None = None,
+    arguments_json: str | None = None,
 ) -> JSONResponse:
     async with box.lock:
         ensure_home_action_profile_dir(directory)
@@ -672,6 +675,8 @@ async def _queue_home(
             route_slots=route_slots,
             fanout_scope=fanout_scope,
             fanout_json=fanout_json,
+            tool_name=tool_name,
+            arguments_json=arguments_json,
         )
         latest = box.store.get_home_action_turn(record.id)
     receipt = _home_receipt(latest if latest is not None else record)
@@ -771,6 +776,7 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
         return await _queue_home(box, directory, body.text, principal.id)
     if not chosen.executable:
         raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
+    compiled = compiled_call(chosen)
     return await _queue_home(
         box,
         directory,
@@ -778,7 +784,9 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
         principal.id,
         route_slots=dump_slots(chosen.slots),
         fanout_scope=chosen.fanout_scope,
-        fanout_json=dump_fanout(chosen.fanout),
+        fanout_json=None if compiled is not None else dump_fanout(chosen.fanout),
+        tool_name=None if compiled is None else compiled[0],
+        arguments_json=None if compiled is None else json.dumps(compiled[1], separators=(",", ":")),
     )
 
 

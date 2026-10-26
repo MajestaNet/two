@@ -392,6 +392,42 @@ def test_model_decider_narrows_before_a_missing_child(store: Store) -> None:
     assert finished.route_slots == '["tv"]'
 
 
+def test_named_heat_runs_without_a_child(store: Store, tmp_path: Path) -> None:
+    _bind(tmp_path, climate=True, modes='"heat"')
+    from two.devices.climate.config import load_climate_config
+
+    install = load_climate_config(tmp_path)
+    assert install is not None
+    accepted_body = {
+        "arguments": {"mode": "heat", "zone": "living"},
+        "slot": "climate",
+        "status": "pending",
+        "target": "living",
+        "tool": "climate.set_mode",
+    }
+    store.ensure_home_action_session(now=T0)
+    store.insert_home_action_turn(
+        "turn heat on living",
+        "local",
+        turn_id="heat",
+        now=T0,
+        route_slots='["climate"]',
+        fanout_json=json.dumps([accepted_body], separators=(",", ":")),
+    )
+    store.admit_home_action_turn(now=T0)
+    broker = FakeClimate()
+    finished = run_home_action_turn(
+        store,
+        "heat",
+        now=T0,
+        install=install,
+        broker=broker,
+        argv=["/nonexistent/dsh"],
+    )
+    assert finished.status is HomeActionTurnStatus.COMPLETE
+    assert broker.calls == [("mode", "living", "heat")]
+
+
 def test_expand_runs_the_harness_tool_on_every_set(store: Store, tmp_path: Path) -> None:
     _bind(tmp_path)
     install = load_tv_config(tmp_path)

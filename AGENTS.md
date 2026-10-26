@@ -165,9 +165,11 @@ the local operator window and is not part of that gate.
  kind-level `device` slot and `github` (`src/two/export/`) stay
  reserved. Do not enable a slot by adding a directory.
  `src/two/routing/` chooses `chat` or a device slot for a transcript
- that omits the profile, and expands `all` across bound targets
- (ADR 0030). It does not call a device or load a model. The optional
- `TWO_ROUTE_MODEL=1` tie-break runs in the worker on the resident model.
+ that omits the profile, expands `all` across bound targets
+ (ADR 0030), and compiles an obvious named-target climate or television
+ command without the harness (ADR 0036). It does not call a device or
+ load a model. The optional `TWO_ROUTE_MODEL=1` tie-break runs in the
+ worker on the resident model.
  `src/two/edge.py` is the watch edge plan (ADR 0020): private CA,
  Caddy mutual TLS, loopback upstream. `two edge plan` writes nothing.
  `two edge issue` writes under `$TWO_DATA_DIR/edge`. The watch principal

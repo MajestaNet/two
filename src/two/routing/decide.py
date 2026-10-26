@@ -17,9 +17,9 @@
 """Lexical route from a transcript to chat or one or more device slots.
 
 No I/O. A confident kind or target match narrows the harness advertisement.
-``all`` with a closed off/on verb expands in the control plane. Anything
-less confident stays on ``home-action`` with the candidate slots so the
-harness, not a second model, chooses the tool.
+``all`` with a closed verb expands in the control plane. An obvious
+single-target command compiles the same way (ADR 0036). Anything less
+confident stays on ``home-action`` so the harness chooses the tool.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from two.routing.cards import DeviceRouteCard, FanoutVerb
+from two.routing.compile import compile_one, compile_scope
 
 _TOKEN = re.compile(r"[^a-z0-9]+")
 _DEVICE_VERBS = frozenset(
@@ -46,6 +47,14 @@ _DEVICE_VERBS = frozenset(
         "open",
         "off",
         "on",
+        "heat",
+        "heating",
+        "cool",
+        "cooling",
+        "unmute",
+        "temperature",
+        "temp",
+        "degrees",
     }
 )
 _ALL_DEVICE_PHRASES = (
@@ -141,6 +150,18 @@ def route_for_explicit_home(decision: RouteDecision) -> RouteDecision | None:
     if decision.profile != "home-action" or not decision.confident:
         return None
     return decision
+
+
+def compiled_call(decision: RouteDecision) -> tuple[str, dict[str, object]] | None:
+    """One named-target closed tool. ``all`` / kind fan-out stays a plan."""
+    if decision.fanout_scope is not None or len(decision.fanout) != 1:
+        return None
+    item = decision.fanout[0]
+    tool = item.get("tool")
+    arguments = item.get("arguments")
+    if not isinstance(tool, str) or not isinstance(arguments, dict):
+        return None
+    return tool, {str(key): value for key, value in arguments.items()}
 
 
 def dump_slots(slots: tuple[str, ...] | None) -> str | None:
@@ -261,6 +282,14 @@ def _fanout_decision(
                 fanout=tuple(items),
                 confident=True,
             )
+    compiled = compile_scope(norm, scope)
+    if compiled:
+        return _home(
+            slots=_slot_ids_from_items(compiled),
+            fanout_scope=scope_name,
+            fanout=compiled,
+            confident=True,
+        )
     if not scope:
         return _unavailable()
     return _home(
@@ -275,6 +304,9 @@ def _narrow(chosen: Sequence[DeviceRouteCard], norm: str) -> RouteDecision:
     if not usable:
         return _unavailable()
     if len(usable) == 1:
+        compiled = compile_one(norm, usable[0])
+        if compiled:
+            return _home(slots=(usable[0].slot,), fanout=compiled, confident=True)
         return _home(slots=(usable[0].slot,), confident=True)
     verb = _power_verb(norm, usable)
     if verb is not None:
@@ -352,6 +384,10 @@ def _target_hit(norm: str, card: DeviceRouteCard) -> bool:
     for target in card.targets:
         spaced = target.replace("-", " ").replace("_", " ")
         if _term_hit(norm, target) or _term_hit(norm, spaced):
+            return True
+    for alias in card.aliases:
+        spaced = alias.replace("-", " ").replace("_", " ")
+        if _term_hit(norm, alias) or _term_hit(norm, spaced):
             return True
     return False
 
