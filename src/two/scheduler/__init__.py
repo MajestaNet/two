@@ -26,6 +26,7 @@ See docs/architecture.md §6.3.G and §12.2–12.5.
 from two.scheduler.config import (
     DEFAULT_WORKER_ID,
     HEARTBEAT_INTERVAL_SECONDS,
+    IDLE_POLL_SECONDS,
     LEASE_TTL_SECONDS,
     LOCAL_SLOT_COUNT,
     PROFILE_ACTIVE_TIME_MINUTES,
@@ -52,6 +53,7 @@ from two.scheduler.scheduler import Scheduler
 __all__ = [
     "DEFAULT_WORKER_ID",
     "HEARTBEAT_INTERVAL_SECONDS",
+    "IDLE_POLL_SECONDS",
     "LEASE_TTL_SECONDS",
     "LOCAL_SLOT_COUNT",
     "PROFILE_ACTIVE_TIME_MINUTES",

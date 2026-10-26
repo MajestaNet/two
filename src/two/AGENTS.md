@@ -119,7 +119,9 @@ Python package for the Majesta Two control plane.
   them and does not send `execute` to the child (ADR 0022, ADR 0029).
   The climate transport is Home Assistant REST or ECHONET Lite (ADR 0027).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
-  and the `two scheduler` / `two worker` process loops. `run_worker` drives
+  and the `two scheduler` / `two worker` process loops. The scheduler
+  idle poll is 1s (`IDLE_POLL_SECONDS`); lease heartbeat stays 10s.
+  `run_worker` drives
   `WorkflowController` with `AcpPhaseWorker` and heartbeats the lease.
   It hooks `ActionLedger.recover` (no duplicate replay) and `Scheduler.start`
   (expired leases only). Human-paused tasks stay paused. Inject health

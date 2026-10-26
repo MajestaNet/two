@@ -36,9 +36,11 @@ DEFAULT_WORKER_ID = "local-qwen-1"
 
 # Lease loop. The process supervisor should call ``Scheduler.tick`` at
 # least once per heartbeat interval so the lease does not expire while
-# the worker is healthy.
+# the worker is healthy. The idle poll is how often ``two scheduler``
+# looks for a queued chat or home-action turn when the slot is free.
 LEASE_TTL_SECONDS = 30
 HEARTBEAT_INTERVAL_SECONDS = 10
+IDLE_POLL_SECONDS = 1.0
 
 # retry_wait: bounded exponential backoff for transient 429/503/connection
 # failures (architecture §12.4). delay = min(max, base * multiplier ** (n-1)).
