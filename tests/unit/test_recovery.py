@@ -228,6 +228,25 @@ def test_run_scheduler_calls_recover_then_stops(store: Store) -> None:
     assert EVENT_STARTUP_RECOVERY in types
 
 
+def test_run_scheduler_idle_poll_is_one_second(store: Store) -> None:
+    calls = {"n": 0}
+    slept: list[float] = []
+
+    def stop() -> bool:
+        calls["n"] += 1
+        return calls["n"] > 1
+
+    code = run_scheduler(
+        store=store,
+        health_probe=lambda: HealthState.HEALTHY,
+        recover=False,
+        should_stop=stop,
+        sleep=slept.append,
+    )
+    assert code == 0
+    assert slept == [1.0]
+
+
 class _DriveWorker:
     def run_phase(
         self,

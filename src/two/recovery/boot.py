@@ -31,7 +31,7 @@ from two.recovery.drive import AcpPhaseWorker, ProfileValidationGate
 from two.recovery.models import HarnessProbe, WorktreeVerifier
 from two.recovery.recover import recover_startup
 from two.runtime.poller import mac_health_probe_from_env
-from two.scheduler.config import DEFAULT_WORKER_ID, HEARTBEAT_INTERVAL_SECONDS, LEASE_TTL_SECONDS
+from two.scheduler.config import DEFAULT_WORKER_ID, IDLE_POLL_SECONDS, LEASE_TTL_SECONDS
 from two.scheduler.models import HealthProbe
 from two.scheduler.scheduler import Scheduler
 from two.store.models import TaskRecord
@@ -55,11 +55,17 @@ def run_scheduler(
     recover: bool = True,
     env: Mapping[str, str] | None = None,
 ) -> int:
-    """Verify the store, run startup recovery, then tick until stopped."""
+    """Verify the store, run startup recovery, then tick until stopped.
+
+    The default wait is ``IDLE_POLL_SECONDS`` so a queued chat or
+    home-action turn is admitted within about one second. Lease TTL
+    and heartbeat remain ``LEASE_TTL_SECONDS`` /
+    ``HEARTBEAT_INTERVAL_SECONDS``.
+    """
     opened = store is None
     owned = store if store is not None else open_store()
     probe = health_probe if health_probe is not None else mac_health_probe_from_env(env)
-    wait = interval if interval is not None else float(HEARTBEAT_INTERVAL_SECONDS)
+    wait = interval if interval is not None else IDLE_POLL_SECONDS
     nap = sleep if sleep is not None else time.sleep
     try:
         if recover:
@@ -84,7 +90,7 @@ def run_worker(
     *,
     store: Store | None = None,
     worker_id: str = DEFAULT_WORKER_ID,
-    poll_interval: float = 1.0,
+    poll_interval: float = IDLE_POLL_SECONDS,
     should_stop: ShouldStop | None = None,
     sleep: SleepFn | None = None,
     now: datetime | None = None,

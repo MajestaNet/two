@@ -24,7 +24,9 @@ Unavailable). The scheduler does not run ACP.
 - Execution profiles and budgets live in `config/policies/default.yaml`
   and `types.ExecutionProfile`. Heartbeat interval and lease TTL are
   named constants on `SchedulerConfig` (`LEASE_TTL_SECONDS=30`,
-  `HEARTBEAT_INTERVAL_SECONDS=10`).
+  `HEARTBEAT_INTERVAL_SECONDS=10`). `two scheduler` looks for a queued
+  chat or home-action turn every `IDLE_POLL_SECONDS` (1s), not every
+  heartbeat.
 - Health states are classified by `two.runtime.health` (B01). The
   scheduler injects a probe; it does not call the network.
 - Store schema v2 adds `next_attempt_at`, `retry_count`,
