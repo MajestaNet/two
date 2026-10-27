@@ -53,6 +53,9 @@
 - `adrs/0035-console-harness-install.md` lets that window install the
   pinned DeepSeek Harness checkout. It does not install a newer release
   and it does not reimplement the agent loop. Do not paste that ADR here.
+- `adrs/0037-openrouter-inference-backend.md` lets that window send chat
+  and home-action through OpenRouter after PKCE sign-in. Local Qwen
+  stays the default. Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.

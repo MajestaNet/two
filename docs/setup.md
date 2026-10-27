@@ -18,7 +18,7 @@ the spec.
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)). `two harness status` reports the checkout. `two harness install` downloads that tag only, builds host libraries with Node 22 and `pnpm@11.7.0`, and writes `$TWO_DATA_DIR/harness/bin/dsh`. The local window can run the same install ([ADR 0035](adrs/0035-console-harness-install.md)) |
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
-| Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md), [ADR 0034](adrs/0034-installable-console.md), [ADR 0035](adrs/0035-console-harness-install.md)). Default off. Opening it starts `two up` when needed. Closing the window hides it and leaves the control plane running; the menu bar opens it again. `npm run package` builds a desktop directory that includes this control plane. It can install official Ollama, locate an existing binary, list models, and serve `127.0.0.1:11434`. It can install the pinned DeepSeek Harness when `dsh` is missing. The catalog includes 16 GB rows and one typed Ollama tag. Chat uses the control API. `npm test` in that directory is not part of `make ci` |
+| Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md), [ADR 0034](adrs/0034-installable-console.md), [ADR 0035](adrs/0035-console-harness-install.md), [ADR 0037](adrs/0037-openrouter-inference-backend.md)). Default off. Opening it starts `two up` when needed. Closing the window hides it and leaves the control plane running; the menu bar opens it again. `npm run package` builds a desktop directory that includes this control plane. It can install official Ollama, locate an existing binary, list models, and serve `127.0.0.1:11434`. It can install the pinned DeepSeek Harness when `dsh` is missing. The catalog includes 16 GB rows and one typed Ollama tag. The Model page can select OpenRouter (default `deepseek/deepseek-v4-flash`) and sign in with PKCE. Chat uses the control API. `npm test` in that directory is not part of `make ci` |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
 | Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate` and `tv` are shipped and off until a local binding enables them. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0029](adrs/0029-samsung-tv.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
@@ -40,7 +40,9 @@ the spec.
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
 | Harness profile `home-action` | Works when a local climate or television binding is enabled (`two climate` or `two tv`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. Without either binding the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set; "turn heat on upstairs office" compiles `climate.set_mode` without the harness ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [ADR 0036](adrs/0036-closed-utterance-compile.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md)) |
 
-Last updated: 26 October 2026 (ADR 0035: the window checks for DeepSeek
+Last updated: 27 October 2026 (ADR 0037: the Model page can send chat
+and home-action through OpenRouter after PKCE sign-in. Local Qwen stays
+the default. ADR 0035: the window checks for DeepSeek
 Harness and can install the pinned release, including Node 22 when it is
 missing. ADR 0034: the desktop build includes
 this control plane, the window hides to the menu bar, and the control
@@ -83,7 +85,8 @@ messenger, or public hostname. Remote clients are optional
 window on the same machine ([ADR 0031](adrs/0031-local-operator-console.md),
 [ADR 0032](adrs/0032-console-existing-ollama.md),
 [ADR 0034](adrs/0034-installable-console.md),
-[ADR 0035](adrs/0035-console-harness-install.md)).
+[ADR 0035](adrs/0035-console-harness-install.md),
+[ADR 0037](adrs/0037-openrouter-inference-backend.md)).
 
 ## Local operator console
 
@@ -131,12 +134,16 @@ the local manifest library when it does not. **Start Ollama** runs
 length, then loads that tag with keep-alive `-1`. A typed tag uses an 8K
 window. A listening Ollama with no model loaded stays Cold, and chat
 remains queued. **Download** pulls the selected catalog profile, or the
-one tag you typed. A typed tag does not remove other models. Chat posts
+one tag you typed. A typed tag does not remove other models. The Model
+page can select **OpenRouter** instead, defaulting to DeepSeek V4 Flash.
+**Sign in with OpenRouter** opens the system browser. The key stays in
+`$TWO_DATA_DIR` and never appears in the window. Chat then uses that
+cloud model and does not need a local tag loaded. Chat posts
 `POST /v1/voice/turns`. The profile defaults to unset, so the router
 chooses `chat` or a device slot. The menu can set `chat` or
 `home-action`. `self-build` is not offered. The box stays disabled until
-that API is up, Ollama is answering, and the selected model is installed
-and loaded. `npm test` checks the window policy and is not part of `make ci`.
+that API is up and either a local model is loaded or OpenRouter is
+signed in. `npm test` checks the window policy and is not part of `make ci`.
 
 Two tracks:
 
@@ -244,6 +251,9 @@ hostname in git. Optional `split` is the place for a private hostname.
 Majesta Two is **private by default**. Prompts and repository excerpts stay
 on the private network unless a task sets `cloud_allowed: true` (paid
 routes are [B16](backlog/B16-paid-model-routes.md) and default **off**).
+The Model page can send chat and home-action turns to OpenRouter after
+the operator signs in ([ADR 0037](adrs/0037-openrouter-inference-backend.md)).
+That is install consent, not a `cloud_allowed` task escalation.
 
 ### Two processes, two binds
 

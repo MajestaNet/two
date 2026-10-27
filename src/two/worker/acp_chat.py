@@ -31,8 +31,8 @@ from collections.abc import Callable, Mapping
 from datetime import datetime
 from pathlib import Path
 
-from two.profiles import load_catalog
-from two.providers.render import render_mac_qwen_yaml
+from two.providers.backend import OpenRouterNotSignedIn, openrouter_child_env
+from two.providers.render import acp_route, render_active_harness_yaml
 from two.store.models import ChatTurnRecord, ChatTurnStatus
 from two.store.store import Store
 from two.types import ErrorCode
@@ -143,15 +143,16 @@ def ensure_harness_launcher(
 
 
 def ensure_chat_harness_home(data_dir: Path | str | None = None) -> Path:
-    """Write the Mac Qwen provider and the chat ACP patch. Mode 0700."""
+    """Write the selected provider and the chat ACP patch. Mode 0700."""
     home = resolve_data_dir(data_dir) / "harness" / "home"
     home.mkdir(parents=True, exist_ok=True)
     home.chmod(0o700)
     settings_path = home / "settings.yaml"
-    settings_path.write_text(render_mac_qwen_yaml(), encoding="utf-8")
+    settings_path.write_text(render_active_harness_yaml(data_dir=data_dir), encoding="utf-8")
     settings_path.chmod(0o600)
     patch = home / "cordis.patch.yml"
-    patch.write_text(_chat_patch(_served_model_id()), encoding="utf-8")
+    provider, model_id = acp_route(data_dir)
+    patch.write_text(_chat_patch(model_id, provider=provider), encoding="utf-8")
     patch.chmod(0o600)
     return home
 
@@ -181,12 +182,17 @@ def run_pinned_acp_chat(
     )
     profile_dir = ensure_chat_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
+    try:
+        overlay = openrouter_child_env(data_dir)
+    except OpenRouterNotSignedIn:
+        return store.fail_chat_turn(turn_id, ErrorCode.OPENROUTER_NOT_SIGNED_IN.value, now=now)
     home = ensure_chat_harness_home(data_dir)
     env = dict(child_env) if child_env is not None else chat_child_env()
     env["DSH_HOME"] = str(home)
     env["DSH_TELEMETRY_DISABLED"] = "1"
     key = os.environ.get("MAC_QWEN_API_KEY", "ollama").strip() or "ollama"
     env["MAC_QWEN_API_KEY"] = key
+    env.update(overlay)
     for name in ("HOME", "TMPDIR", "LANG", "LC_ALL", "USER", "LOGNAME"):
         value = os.environ.get(name, "").strip()
         if value:
@@ -393,13 +399,7 @@ def _result(message: Mapping[str, object], method: str) -> dict[str, object]:
     return {}
 
 
-def _served_model_id() -> str:
-    catalog = load_catalog()
-    profile_id = os.environ.get("TWO_INFERENCE_PROFILE", "").strip() or catalog.default
-    return catalog.require(profile_id).alias
-
-
-def _chat_patch(model_id: str) -> str:
+def _chat_patch(model_id: str, *, provider: str = "mac-qwen") -> str:
     """Home patch for profile ``acp``. The tool registry stays loaded.
 
     Disabling ``@deepseek-ai/dsh-tools`` also stops the agent loop from
@@ -410,12 +410,12 @@ def _chat_patch(model_id: str) -> str:
         f"- id: {row_id}\n  name: '{name}'\n  disabled: true" for row_id, name in _DISABLED_TOOLS
     )
     return (
-        "# Chat home patch. Same weights as the served Ollama tag. No tools.\n"
+        "# Chat home patch. Provider and model come from the install backend.\n"
         "- id: acp\n"
         "  name: '@deepseek-ai/dsh-acp'\n"
         "  config:\n"
-        "    provider: mac-qwen\n"
-        f"    model: {model_id}\n"
+        f"    provider: {provider}\n"
+        f'    model: "{model_id}"\n'
         "- id: system-prompt\n"
         "  name: '@deepseek-ai/dsh-system-prompt'\n"
         "  config:\n"

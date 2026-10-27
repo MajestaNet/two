@@ -35,6 +35,8 @@ from two.devices.climate.config import load_climate_config
 from two.devices.climate.contract import ClimateBroker, ClimateInstall
 from two.devices.tv.config import load_tv_config
 from two.devices.tv.contract import TvBroker, TvInstall
+from two.providers.backend import OpenRouterNotSignedIn, openrouter_child_env
+from two.providers.render import acp_route
 from two.store.models import HomeActionTurnRecord, HomeActionTurnStatus
 from two.store.store import Store
 from two.types import ErrorCode
@@ -42,7 +44,6 @@ from two.worker.acp_chat import (
     _DISABLED_TOOLS,
     _PROVIDER_READY_SECONDS,
     _Rpc,
-    _served_model_id,
     ensure_chat_harness_home,
     ensure_harness_launcher,
 )
@@ -130,9 +131,16 @@ def run_pinned_acp_home(
     prompt = _acp_prompt(turn.request_text, prompt_zones, prompt_tv)
     profile_dir = ensure_home_action_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
+    try:
+        overlay = openrouter_child_env(data_dir)
+    except OpenRouterNotSignedIn:
+        return store.fail_home_action_turn(
+            turn_id, ErrorCode.OPENROUTER_NOT_SIGNED_IN.value, now=now
+        )
     home = _ensure_home_patch(data_dir, prompt_zones, prompt_tv)
     env = dict(child_env) if child_env is not None else home_child_env()
     env.update(_inference_env(home))
+    env.update(overlay)
     config = child_config if child_config is not None else ChildConfig()
     child = SupervisedChild(
         build_chat_argv(data_dir=data_dir),
@@ -403,7 +411,8 @@ def _ensure_home_patch(
     """Write the mac-qwen settings and the home-action patch. Mode 0600."""
     home = ensure_chat_harness_home(data_dir)
     patch = home / "cordis.patch.yml"
-    patch.write_text(_home_patch(_served_model_id(), zones, tv_install), encoding="utf-8")
+    provider, model_id = acp_route(data_dir)
+    patch.write_text(_home_patch(model_id, zones, tv_install, provider=provider), encoding="utf-8")
     patch.chmod(0o600)
     return home
 
@@ -424,18 +433,24 @@ def _inference_env(home: Path) -> dict[str, str]:
     return env
 
 
-def _home_patch(model_id: str, zones: list[str], tv_install: TvInstall | None) -> str:
+def _home_patch(
+    model_id: str,
+    zones: list[str],
+    tv_install: TvInstall | None,
+    *,
+    provider: str = "mac-qwen",
+) -> str:
     disabled = "\n".join(
         f"- id: {row_id}\n  name: '{name}'\n  disabled: true" for row_id, name in _DISABLED_TOOLS
     )
     persona = "\n".join(f"      {line}" for line in _persona_lines(zones, tv_install))
     return (
-        "# Home-action patch. Same weights as the served Ollama tag.\n"
+        "# Home-action patch. Provider and model come from the install backend.\n"
         "# The device advertisement carries no binding and performs nothing.\n"
         "- id: acp\n"
         "  name: '@deepseek-ai/dsh-acp'\n"
         "  config:\n"
-        "    provider: mac-qwen\n"
+        f"    provider: {provider}\n"
         f'    model: "{model_id}"\n'
         "- id: system-prompt\n"
         "  name: '@deepseek-ai/dsh-system-prompt'\n"
