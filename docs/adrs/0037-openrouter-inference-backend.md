@@ -66,6 +66,8 @@ reference `apiKeyEnv`, not an inline `apiKey`.
 - `npm test` in `apps/console` covers the Model-page choice, the chat
   gate, and a fake OAuth callback. It stays off `make ci`.
 - Unit tests never call OpenRouter.
+- Chat and home-action are admitted while the Mac is Cold when the
+  backend file is OpenRouter. Coding dispatch still requires Healthy.
 
 ## Alternatives rejected
 

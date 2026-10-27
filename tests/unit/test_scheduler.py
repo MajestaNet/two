@@ -215,6 +215,32 @@ def test_human_paused_and_awaiting_input_not_auto_started(store: Store) -> None:
     assert store.list_tasks(lifecycle=LifecycleState.RUNNING) == []
 
 
+def test_openrouter_chat_runs_while_the_mac_is_cold(store: Store) -> None:
+    from two.providers.backend import InferenceBackend, write_inference_backend
+
+    write_inference_backend(
+        store.path.parent,
+        InferenceBackend(kind="openrouter", model="deepseek/deepseek-v4-flash"),
+    )
+    store.insert_chat_turn("hello", "local", turn_id="c1", now=T0)
+    store.insert_task(_manifest(id="task-a"), now=T0)
+    health = FakeHealth(HealthState.COLD)
+    result = Scheduler(store, health_probe=health).tick(now=T0)
+    chat = store.get_chat_turn("c1")
+    task = store.get_task("task-a")
+    assert chat is not None and chat.status.value == "running"
+    assert task is not None and task.lifecycle is LifecycleState.QUEUED
+    assert result.dispatched is None
+
+
+def test_local_chat_stays_queued_while_the_mac_is_cold(store: Store) -> None:
+    store.insert_chat_turn("hello", "local", turn_id="c1", now=T0)
+    health = FakeHealth(HealthState.COLD)
+    Scheduler(store, health_probe=health).tick(now=T0)
+    chat = store.get_chat_turn("c1")
+    assert chat is not None and chat.status.value == "queued"
+
+
 def test_cold_and_busy_leave_queued_tasks(store: Store) -> None:
     store.insert_task(_manifest(id="task-a"), now=T0)
     health = FakeHealth(HealthState.COLD)

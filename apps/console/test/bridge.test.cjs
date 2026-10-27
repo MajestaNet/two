@@ -90,6 +90,7 @@ test("chat stays closed until the server, Ollama, and model are up", () => {
     true,
   );
   assert.match(policy.queuedNote("queued", false), /not loaded/);
+  assert.doesNotMatch(policy.queuedNote("queued", false, "openrouter"), /not loaded/);
   assert.deepEqual(policy.preloadBody("qwen3.5:9b-mlx"), {
     model: "qwen3.5:9b-mlx",
     prompt: "",

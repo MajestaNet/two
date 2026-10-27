@@ -599,6 +599,7 @@ function addLine(role, text) {
 
 async function followTurn(turnId) {
   let tries = 0;
+  let failures = 0;
   let busy = false;
   if (state.poll) clearInterval(state.poll);
   state.poll = setInterval(async () => {
@@ -607,8 +608,13 @@ async function followTurn(turnId) {
     tries += 1;
     try {
       const result = await globalThis.two.chatShow(turnId);
+      failures = 0;
       const receipt = result.body;
-      const note = policy.queuedNote(receipt.status, modelLoaded());
+      const note = policy.queuedNote(
+        receipt.status,
+        modelLoaded(),
+        state.selected === "openrouter" ? "openrouter" : "local",
+      );
       if (note) $("chat-reason").textContent = note;
       const line = policy.receiptText(receipt);
       const settled =
@@ -623,10 +629,14 @@ async function followTurn(turnId) {
         refreshChatGate();
       }
     } catch (error) {
-      clearInterval(state.poll);
-      state.poll = null;
-      addLine("two", error.message);
-      refreshChatGate();
+      failures += 1;
+      const missing = /not reachable|fetch failed/i.test(error.message || "");
+      if (!missing || failures > 8) {
+        clearInterval(state.poll);
+        state.poll = null;
+        addLine("two", error.message);
+        refreshChatGate();
+      }
     } finally {
       busy = false;
     }

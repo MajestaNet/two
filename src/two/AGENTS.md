@@ -76,6 +76,8 @@ Python package for the Majesta Two control plane.
 - `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
   budgets clock, and Mac health mapping. It admits a queued chat turn,
   then a queued home-action turn, only when no coding lease is held.
+  OpenRouter chat and home-action do not wait for Mac health. Coding
+  still does. The backend file is read locally. No network.
   Inject a health probe and worker
   callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Messaging

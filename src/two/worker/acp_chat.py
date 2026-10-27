@@ -72,7 +72,7 @@ _DISABLED_TOOLS = (
 )
 _NODE22 = Path("/opt/homebrew/opt/node@22/bin/node")
 # Settings load after the ACP server accepts initialize. Session create
-# retries until the mac-qwen route is registered.
+# retries until the selected provider route is registered.
 _PROVIDER_READY_SECONDS = 8.0
 MessageHandler = Callable[[Mapping[str, object]], None]
 
@@ -278,11 +278,11 @@ def _open_session_once(rpc: _Rpc, plan: ChatSessionPlan, cwd: str) -> str:
                 "session/resume",
                 {"sessionId": plan.session_id, "cwd": cwd, "mcpServers": []},
             )
-        except ChildError as exc:
-            # A stored session from a removed model cannot resume.
-            # The provider-ready retry still sees "no adapter registered".
-            if "no adapter registered" in str(exc):
-                raise
+        except ChildError:
+            # A stored session from a removed provider cannot resume. Fall
+            # through to session/new. If the current route is not registered
+            # yet, that call fails the same way and the outer loop waits.
+            pass
         else:
             return plan.session_id
     created = rpc.request("session/new", {"cwd": cwd, "mcpServers": []})
