@@ -241,6 +241,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_route_parser(subparsers)
     _add_climate_parser(subparsers)
     _add_tv_parser(subparsers)
+    _add_vacuum_parser(subparsers)
     return parser
 
 
@@ -326,6 +327,11 @@ def main(
         from two.cli_tv import run_tv
 
         return run_tv(args, request=request)
+    if args.command == "vacuum":
+        _load_host_env()
+        from two.cli_vacuum import run_vacuum
+
+        return run_vacuum(args, request=request)
     if args.command is None:
         parser.print_help()
         return 0
@@ -838,6 +844,42 @@ def _add_tv_parser(subparsers: Any) -> None:
     )
     apps.add_argument("--set", required=True, help="Set id from the binding")
     apps.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
+
+
+def _add_vacuum_parser(subparsers: Any) -> None:
+    transport = _transport_parser()
+    vacuum = subparsers.add_parser(
+        "vacuum",
+        help="Send or show one home-action vacuum turn",
+        description=(
+            "send and show talk only to the control API. "
+            "robots lists account nicknames and writes nothing. "
+            "The turn runs only when the local vacuum binding is enabled."
+        ),
+    )
+    vacuum_sub = vacuum.add_subparsers(dest="vacuum_command", required=True)
+    send = vacuum_sub.add_parser(
+        "send",
+        parents=[transport],
+        help="POST a home-action turn and print the receipt",
+    )
+    send.add_argument("--text", required=True, help="User transcript")
+    send.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Optional Idempotency-Key for this POST",
+    )
+    show = vacuum_sub.add_parser(
+        "show",
+        parents=[transport],
+        help="Print the receipt for TURN_ID",
+    )
+    show.add_argument("turn_id", help="Home-action turn id")
+    robots = vacuum_sub.add_parser(
+        "robots",
+        help="Print Ecovacs account nicknames and write nothing",
+    )
+    robots.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
 
 
 if __name__ == "__main__":

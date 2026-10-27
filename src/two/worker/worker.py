@@ -31,6 +31,7 @@ from two.context.errors import MemoryPersistenceError
 from two.context.persist import load_task_memory
 from two.devices.climate.contract import ClimateBroker, ClimateInstall
 from two.devices.tv.contract import TvBroker, TvInstall
+from two.devices.vacuum.contract import VacuumBroker, VacuumInstall
 from two.providers import DSH_PIN
 from two.scheduler.models import WorkerOutcome, WorkerResult
 from two.store.models import ActionStatus, ChatTurnRecord, HomeActionTurnRecord, TaskRecord
@@ -87,6 +88,8 @@ class AcpWorker:
         climate_broker: ClimateBroker | None = None,
         tv_install: TvInstall | None = None,
         tv_broker: TvBroker | None = None,
+        vacuum_install: VacuumInstall | None = None,
+        vacuum_broker: VacuumBroker | None = None,
         child_env: Mapping[str, str] | None = None,
         child_config: ChildConfig | None = None,
         session_is_valid: SessionValidator | None = None,
@@ -107,6 +110,8 @@ class AcpWorker:
         self._climate_broker = climate_broker
         self._tv_install = tv_install
         self._tv_broker = tv_broker
+        self._vacuum_install = vacuum_install
+        self._vacuum_broker = vacuum_broker
         self._child_env = dict(child_env) if child_env is not None else None
         self._child_config = child_config if child_config is not None else ChildConfig()
         self._session_is_valid = session_is_valid
@@ -173,6 +178,8 @@ class AcpWorker:
             broker=self._climate_broker,
             tv_install=self._tv_install,
             tv_broker=self._tv_broker,
+            vacuum_install=self._vacuum_install,
+            vacuum_broker=self._vacuum_broker,
         )
 
     def _run(self, task_id: str, *, now: datetime | None) -> WorkerResult:

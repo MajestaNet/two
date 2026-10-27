@@ -21,7 +21,7 @@ process. Copying a package into the tree does not enable it.
 | --- | --- | --- |
 | Client | CLI in this repo. The local operator console is `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md)). Mobile and watch apps are specified here and built elsewhere. Watch edge is `two.edge`. | CLI is on. The console is shipped and off. Mobile and watch stay `contract`. |
 | Messenger | `two.channels.<name>` | None selected. |
-| Device | `src/two/devices/climate/` (ADR 0022, ADR 0027) and `src/two/devices/tv/` (ADR 0029). The kind-level `device` slot stays reserved. | `climate` and `tv` are shipped and off. A local `climate.yaml` binds zones. A local `tv.yaml` binds Samsung sets. `home-action` only. |
+| Device | `src/two/devices/climate/` (ADR 0022, ADR 0027), `src/two/devices/tv/` (ADR 0029), and `src/two/devices/vacuum/` (ADR 0038). The kind-level `device` slot stays reserved. | `climate`, `tv`, and `vacuum` are shipped and off. A local `climate.yaml` binds zones. A local `tv.yaml` binds Samsung sets. A local `vacuum.yaml` binds Ecovacs robots. `home-action` only. |
 | Export | `src/two/export/` ([ADR 0012](adrs/0012-github-export-adapter.md)) | Reserved. Not a channel. |
 
 `two.providers` configures the model DeepSeek Harness calls. It is not
@@ -38,11 +38,13 @@ Profile `chat` is resumed by the control plane
 closed climate tools when the local climate binding is enabled
 ([ADR 0022](adrs/0022-climate-device-protocol.md)), and the closed
 television tools when the local television binding is enabled
-([ADR 0029](adrs/0029-samsung-tv.md)). A transcript that omits the
+([ADR 0029](adrs/0029-samsung-tv.md)), and the closed vacuum tools when
+the local vacuum binding is enabled
+([ADR 0038](adrs/0038-ecovacs-vacuum.md)). A transcript that omits the
 profile is routed to `chat` or to those slots, and `all` can repeat
 one closed action across the bound targets
 ([ADR 0030](adrs/0030-utterance-routing-and-fanout.md)). That does not enable
-the watch slot, and it does not turn either device slot on by itself.
+the watch slot, and it does not turn a device slot on by itself.
 
 Channel behavior for messengers stays in [channels.md](channels.md).
 The watch client spec stays in [watch-client.md](watch-client.md).

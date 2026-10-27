@@ -32,7 +32,7 @@ Scalar = str | int | bool
 class FanoutVerb:
     """One closed action the control plane may repeat without the model."""
 
-    verb: Literal["off", "on"]
+    verb: Literal["off", "on", "start", "pause", "stop", "dock"]
     tool: str
     arguments: tuple[tuple[str, str], ...]
 

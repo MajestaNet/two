@@ -36,8 +36,11 @@
   omits the harness profile and repeats one closed action for `all`.
   Do not paste that ADR here.
 - `adrs/0036-closed-utterance-compile.md` compiles an obvious named
-  climate or television command without the harness. Do not paste that
+  climate, television, or vacuum command without the harness. Do not paste that
   ADR here.
+- `adrs/0038-ecovacs-vacuum.md` is the closed vacuum tool contract.
+  The slot stays off. The transport is the Ecovacs Open API on the two
+  official hosts. Do not paste that ADR here.
 - `adrs/0031-local-operator-console.md` is the in-repo loopback window
   at `apps/console`. It does not replace the mobile or watch apps.
   Do not paste that ADR here.
@@ -61,9 +64,10 @@
   Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
-- `backlog/` holds dedicated implementation items (B01–B24). B20
+- `backlog/` holds dedicated implementation items (B01–B25). B20
   resumes harness profile `chat`. B21 executes climate on `home-action`
-  and leaves that slot default off.
+  and leaves that slot default off. B25 executes the closed vacuum
+  tools on the same profile (ADR 0038) and leaves that slot default off.
   Status tables there are the tracker. Each item file ends with an
   agentic prompt. Do not copy the spec into those files; point at
   sections.

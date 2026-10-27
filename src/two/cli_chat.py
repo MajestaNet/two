@@ -95,6 +95,13 @@ def format_receipt(receipt: VoiceTurnReceipt) -> str:
         lines.append(f"tv_volume: {television.volume}")
         lines.append(f"tv_mute: {television.mute}")
         lines.append(f"tv_reachable: {television.reachable}")
+    if receipt.vacuum is not None:
+        vacuum = receipt.vacuum
+        lines.append(f"vacuum_robot: {vacuum.robot}")
+        lines.append(f"vacuum_activity: {vacuum.activity}")
+        lines.append(f"vacuum_charging: {vacuum.charging}")
+        lines.append(f"vacuum_station: {vacuum.station}")
+        lines.append(f"vacuum_reachable: {vacuum.reachable}")
     for item in receipt.fanout:
         lines.append(f"fanout: {item.target} {item.tool} {item.status}")
     if receipt.route_slots:

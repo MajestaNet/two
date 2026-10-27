@@ -159,9 +159,9 @@ set. Sending `profile` is still valid and keeps the previous meaning.
 
 | Status | `error.code` | What the UI does |
 | --- | --- | --- |
-| 202 | — | `profile: chat` is stored. `profile: home-action` is stored when the mini's climate or television binding is enabled. An omitted profile is stored as whichever of those the route selects. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. `climate` or `tv` is the device read-back for one target. `fanout` lists every target when the instruction was repeated. `route_slots` names the device slots that were selected. `awaiting_approval` carries `action_digest` and `pending_action` or `pending_tv`. Do not speak `reply` in this build. A voice turn does not add a coding-task row. |
+| 202 | — | `profile: chat` is stored. `profile: home-action` is stored when the mini's climate, television, or vacuum binding is enabled. An omitted profile is stored as whichever of those the route selects. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. `climate`, `tv`, or `vacuum` is the device read-back for one target. `fanout` lists every target when the instruction was repeated. `route_slots` names the device slots that were selected. `awaiting_approval` carries `action_digest` and `pending_action` or `pending_tv`. Do not speak `reply` in this build. A voice turn does not add a coding-task row. |
 | 403 | `forbidden` | The profile is not allowed. If the detail is `client cannot submit self-build`, the app tried the coding path. That is a bug in the app. Do not retry. |
-| 409 | `profile_not_executable` | `home-action` was not stored because no local climate or television binding is enabled. Tell the operator the pipe works and the binding is off. |
+| 409 | `profile_not_executable` | `home-action` was not stored because no local climate, television, or vacuum binding is enabled. Tell the operator the pipe works and the binding is off. |
 | 401 | `unauthorized` | Enrollment or the edge token on the mini is wrong. Send the operator back to enrollment. |
 | 422 | `validation_error` | The transcript was empty or the JSON gained a field. |
 

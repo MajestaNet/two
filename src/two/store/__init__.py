@@ -24,6 +24,7 @@ Schema v7 persists one ``chat`` harness session and its turn log (B20).
 Schema v8 persists ``home-action`` turns and climate approvals (ADR 0022).
 Schema v9 adds the television tool names and ``tv_approvals`` (ADR 0029).
 Schema v10 stores the utterance route and a device fan-out plan (ADR 0030).
+Schema v11 adds the vacuum tool names (ADR 0038).
 See docs/architecture.md §6.3.G, §8.4, §8.5, and §12.5.
 """
 
