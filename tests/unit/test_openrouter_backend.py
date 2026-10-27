@@ -33,7 +33,6 @@ from two.providers.render import (
 )
 from two.worker.acp_chat import ensure_chat_harness_home
 
-
 FAKE_KEY = "sk-or-v1-testkeyvalue0001"
 
 

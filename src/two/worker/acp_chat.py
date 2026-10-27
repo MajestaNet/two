@@ -185,9 +185,7 @@ def run_pinned_acp_chat(
     try:
         overlay = openrouter_child_env(data_dir)
     except OpenRouterNotSignedIn:
-        return store.fail_chat_turn(
-            turn_id, ErrorCode.OPENROUTER_NOT_SIGNED_IN.value, now=now
-        )
+        return store.fail_chat_turn(turn_id, ErrorCode.OPENROUTER_NOT_SIGNED_IN.value, now=now)
     home = ensure_chat_harness_home(data_dir)
     env = dict(child_env) if child_env is not None else chat_child_env()
     env["DSH_HOME"] = str(home)

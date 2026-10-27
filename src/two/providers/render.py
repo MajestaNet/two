@@ -164,7 +164,9 @@ def render_mac_qwen_yaml(
     payload = render_mac_qwen_settings(profile=profile, topology=topology, environ=environ)
     return _dump_settings(
         payload,
-        extra_header="# Do not commit a real LAN hostname. Placeholder is mac-inference.internal.\n",
+        extra_header=(
+            "# Do not commit a real LAN hostname. Placeholder is mac-inference.internal.\n"
+        ),
     )
 
 
@@ -200,7 +202,9 @@ def render_openrouter_yaml(*, model: str | None = None) -> str:
     _assert_openrouter_invariants(payload)
     return _dump_settings(
         payload,
-        extra_header="# OpenRouter is an operator-selected backend (ADR 0037). No inline apiKey.\n",
+        extra_header=(
+            "# OpenRouter is an operator-selected backend (ADR 0037). No inline apiKey.\n"
+        ),
     )
 
 
