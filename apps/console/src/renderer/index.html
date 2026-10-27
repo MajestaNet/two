@@ -87,6 +87,20 @@
               <input id="own-model" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="qwen3.5:4b" aria-label="Your Ollama model" />
             </div>
           </div>
+          <h2>OpenRouter</h2>
+          <div class="card own">
+            <input type="radio" name="profile" value="openrouter" id="openrouter-radio" />
+            <div>
+              <strong>OpenRouter</strong>
+              <div class="meta">Use a cloud model when this machine cannot run a local one. Default is DeepSeek V4 Flash.</div>
+              <input id="openrouter-model" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="deepseek/deepseek-v4-flash" aria-label="OpenRouter model" />
+              <p id="openrouter-note" class="note"></p>
+              <div class="row">
+                <button type="button" id="openrouter-login">Sign in with OpenRouter</button>
+                <button type="button" id="openrouter-logout" class="quiet">Sign out</button>
+              </div>
+            </div>
+          </div>
           <div class="row">
             <button type="button" id="download">Download</button>
           </div>

@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037); adoption, speech, and profile preload follow |
 | Version | 0.14 |
 | Date | 26 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -1380,6 +1380,7 @@ and the seamless install remain open.
 - [Majesta Two console voice profile (ADR 0033)](adrs/0033-console-voice-profile.md)
 - [Majesta Two installable console (ADR 0034)](adrs/0034-installable-console.md)
 - [Majesta Two console harness install (ADR 0035)](adrs/0035-console-harness-install.md)
+- [Majesta Two OpenRouter inference backend (ADR 0037)](adrs/0037-openrouter-inference-backend.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

@@ -3,11 +3,13 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
 const policy = require("../src/renderer/policy.js");
 const markdown = require("../src/renderer/markdown.js");
+const openrouter = require("../src/openrouter.cjs");
 
 const root = path.resolve(__dirname, "..", "..", "..");
 const mainSource = fs.readFileSync(path.join(__dirname, "../src/main.cjs"), "utf8");
@@ -251,4 +253,87 @@ test("markdown keeps html as text and drops off-list links", () => {
   );
   assert.equal(markdown.externalUrlAllowed("javascript:alert(1)"), false);
   assert.equal(markdown.externalUrlAllowed("file:///etc/passwd"), false);
+});
+
+test("OpenRouter chat needs a sign-in, not a local model", () => {
+  assert.equal(
+    policy.chatGate({
+      apiUp: true,
+      backend: "openrouter",
+      openrouterSignedIn: false,
+      ollamaUp: false,
+      modelPresent: false,
+      modelLoaded: false,
+    }).reason,
+    policy.CHAT_NEEDS_OPENROUTER,
+  );
+  assert.equal(
+    policy.chatGate({
+      apiUp: true,
+      backend: "openrouter",
+      openrouterSignedIn: true,
+      ollamaUp: false,
+      modelPresent: false,
+      modelLoaded: false,
+    }).enabled,
+    true,
+  );
+  assert.equal(policy.normalizeOpenRouterModel("deepseek/deepseek-v4-flash"), "deepseek/deepseek-v4-flash");
+  assert.throws(() => policy.normalizeOpenRouterModel("qwen3.5:9b-mlx"));
+  assert.throws(() => policy.normalizeOpenRouterModel("rm -rf /"));
+  assert.deepEqual(policy.openRouterBackend({ backend: "openrouter" }), {
+    backend: "openrouter",
+    model: policy.OPENROUTER_DEFAULT_MODEL,
+  });
+  assert.equal(policy.openRouterBackend({ backend: "local" }).backend, "local");
+  const names = policy.rendererMethods.map((pair) => pair[0]);
+  for (const name of ["openrouterStatus", "openrouterSave", "openrouterLogin", "openrouterLogout"]) {
+    assert.equal(names.includes(name), true);
+  }
+  assert.equal(mainSource.includes("openrouter:status"), true);
+  assert.equal(mainSource.includes("signedIn: true"), true);
+  assert.equal(mainSource.includes("body.key"), false);
+  assert.match(mainSource, /return \{ signedIn: true \}/);
+  const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
+  assert.equal(html.includes("Sign in with OpenRouter"), true);
+  assert.equal(html.includes("deepseek/deepseek-v4-flash"), true);
+  assert.equal(appSource.includes("openrouterLogin"), true);
+  assert.equal(policy.openRouterAuthAllowed("https://openrouter.ai/auth?callback_url=http://127.0.0.1:9/callback"), true);
+  assert.equal(policy.openRouterAuthAllowed("https://evil.example/auth"), false);
+});
+
+test("OpenRouter OAuth uses a loopback callback and never stores the key in status", async () => {
+  const session = await openrouter.startCallback();
+  try {
+    const response = await fetch(session.callbackUrl + "?code=oauth-code-1234");
+    assert.equal(response.status, 200);
+    assert.equal(await session.code, "oauth-code-1234");
+  } finally {
+    await session.close();
+  }
+  const key = await openrouter.exchangeCode("oauth-code-1234", "a".repeat(43), async (url, opts) => {
+    assert.equal(url, policy.openRouterExchangeUrl());
+    const body = JSON.parse(String(opts.body));
+    assert.equal(body.code, "oauth-code-1234");
+    assert.equal(body.code_challenge_method, "S256");
+    assert.equal(JSON.stringify(body).includes("sk-or-"), false);
+    return {
+      ok: true,
+      json: async () => ({ key: "sk-or-v1-testkeyvalue0001" }),
+    };
+  });
+  assert.equal(key, "sk-or-v1-testkeyvalue0001");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "two-openrouter-"));
+  try {
+    openrouter.writeBackend(dir, { backend: "openrouter", model: "deepseek/deepseek-v4-flash" });
+    openrouter.writeKey(dir, key);
+    const status = openrouter.statusPayload(dir);
+    assert.equal(status.backend, "openrouter");
+    assert.equal(status.model, "deepseek/deepseek-v4-flash");
+    assert.equal(status.signedIn, true);
+    assert.equal(JSON.stringify(status).includes("sk-or-"), false);
+    assert.equal(fs.statSync(path.join(dir, openrouter.KEY_FILE)).mode & 0o777, 0o600);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

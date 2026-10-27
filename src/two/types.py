@@ -166,6 +166,7 @@ class ErrorCode(StrEnum):
     TV_REJECTED = "tv_rejected"
     FANOUT_NEEDS_APPROVAL = "fanout_needs_approval"
     FANOUT_UNSUPPORTED = "fanout_unsupported"
+    OPENROUTER_NOT_SIGNED_IN = "openrouter_not_signed_in"
     INTERNAL = "internal"
 
 

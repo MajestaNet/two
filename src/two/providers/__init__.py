@@ -16,13 +16,25 @@
 
 """Model-provider adapters. Local Qwen is the default; paid routes are gated.
 
-Cloud access requires cloud_allowed on the task. Not implemented yet.
-See docs/architecture.md §6.3.C and §11.
+Cloud access requires cloud_allowed on the task (architecture §11 / B16).
+The Model page may select OpenRouter for chat and home-action (ADR 0037).
+That is install consent, not a task escalation.
 
 This package renders DeepSeek Harness settings and records the OpenAI-
 compatible HTTP contract. It does not reimplement the DSH agent loop.
 """
 
+from two.providers.backend import (
+    OPENROUTER_API_KEY_ENV,
+    OPENROUTER_BASE_URL,
+    OPENROUTER_DEFAULT_MODEL,
+    OPENROUTER_PROVIDER_ID,
+    InferenceBackend,
+    OpenRouterNotSignedIn,
+    load_inference_backend,
+    load_openrouter_key,
+    openrouter_child_env,
+)
 from two.providers.patch import (
     ProfilePatchFile,
     load_profile_patch,
@@ -34,8 +46,12 @@ from two.providers.render import (
     DUMMY_API_KEY,
     PLACEHOLDER_BASE_URL,
     REASONING_EFFORTS,
+    acp_route,
+    render_active_harness_yaml,
     render_mac_qwen_settings,
     render_mac_qwen_yaml,
+    render_openrouter_settings,
+    render_openrouter_yaml,
     validate_rendered_against_template,
 )
 
@@ -43,12 +59,25 @@ __all__ = [
     "DSH_PIN",
     "DSH_PIN_COMMIT",
     "DUMMY_API_KEY",
+    "OPENROUTER_API_KEY_ENV",
+    "OPENROUTER_BASE_URL",
+    "OPENROUTER_DEFAULT_MODEL",
+    "OPENROUTER_PROVIDER_ID",
     "PLACEHOLDER_BASE_URL",
     "REASONING_EFFORTS",
+    "InferenceBackend",
+    "OpenRouterNotSignedIn",
     "ProfilePatchFile",
+    "acp_route",
+    "load_inference_backend",
+    "load_openrouter_key",
     "load_profile_patch",
+    "openrouter_child_env",
+    "render_active_harness_yaml",
     "render_mac_qwen_settings",
     "render_mac_qwen_yaml",
+    "render_openrouter_settings",
+    "render_openrouter_yaml",
     "validate_mvp_policy",
     "validate_rendered_against_template",
 ]
