@@ -132,7 +132,7 @@ Installed tags come from `ollama list` when the server answers, and from
 the local manifest library when it does not. **Start Ollama** runs
 `ollama serve` on `127.0.0.1:11434` with the selected profile's context
 length, then loads that tag with keep-alive `-1`. A typed tag uses an 8K
-window. A listening Ollama with no model loaded stays Cold, and chat
+window. A listening Ollama with no model loaded stays Cold, and local chat
 remains queued. **Download** pulls the selected catalog profile, or the
 one tag you typed. A typed tag does not remove other models. The Model
 page can select **OpenRouter** instead, defaulting to DeepSeek V4 Flash.

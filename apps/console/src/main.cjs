@@ -730,9 +730,24 @@ async function adapters() {
   return parseJson(await runTwo(["adapters", "--json"]), "adapters failed");
 }
 
+function controlPlaneError(error) {
+  const cause = error && error.cause;
+  const detail = cause && typeof cause.message === "string" ? cause.message : "";
+  const suffix = detail ? " (" + detail + ")" : "";
+  return new Error("the control plane is not reachable" + suffix);
+}
+
+async function controlFetch(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch (error) {
+    throw controlPlaneError(error);
+  }
+}
+
 async function chatSend(text, profile) {
   const request = policy.chatRequest(text, profile);
-  const response = await fetch(policy.apiOrigin(process.env) + request.path, {
+  const response = await controlFetch(policy.apiOrigin(process.env) + request.path, {
     method: request.method,
     redirect: "error",
     headers: Object.assign({ "Idempotency-Key": randomUUID() }, request.headers),
@@ -742,7 +757,7 @@ async function chatSend(text, profile) {
 }
 
 async function chatShow(turnId) {
-  const response = await fetch(policy.apiOrigin(process.env) + policy.chatShowPath(turnId), {
+  const response = await controlFetch(policy.apiOrigin(process.env) + policy.chatShowPath(turnId), {
     method: "GET",
     redirect: "error",
   });

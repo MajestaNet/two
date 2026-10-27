@@ -91,8 +91,9 @@
     return { enabled: true, reason: "" };
   }
 
-  function queuedNote(status, modelLoaded) {
+  function queuedNote(status, modelLoaded, backend) {
     if (status !== "queued") return "";
+    if (backend === "openrouter") return QUEUED_NOTE;
     if (modelLoaded === false) return QUEUED_COLD;
     return QUEUED_NOTE;
   }

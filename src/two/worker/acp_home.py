@@ -266,9 +266,11 @@ def _open_session_once(
                 "session/resume",
                 {"sessionId": plan.session_id, "cwd": cwd, "mcpServers": servers},
             )
-        except ChildError as exc:
-            if "no adapter registered" in str(exc):
-                raise
+        except ChildError:
+            # A stored session from a removed provider cannot resume. Fall
+            # through to session/new. If the current route is not registered
+            # yet, that call fails the same way and the outer loop waits.
+            pass
         else:
             return plan.session_id
     created = rpc.request("session/new", {"cwd": cwd, "mcpServers": servers})
