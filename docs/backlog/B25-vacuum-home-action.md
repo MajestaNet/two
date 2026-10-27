@@ -4,7 +4,7 @@
 | --- | --- |
 | ID | B25 |
 | Phase | 6 — Conversational control (device action, not a GUI) |
-| Status | in_progress |
+| Status | done |
 | Depends on | B22, B23 |
 | Blocks | Nothing. Landing this item does not close architecture §21 item 20. |
 | Architecture | §5.2, §5.4, ADR 0037 |

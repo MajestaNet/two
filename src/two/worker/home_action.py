@@ -266,9 +266,7 @@ def run_home_action_turn(
         )
     session = store.get_harness_session("home-action")
     stored = None if session is None else session.session_id
-    prompt_climate, _prompt_tv, _prompt_vacuum = _advertised(
-        turn, loaded, loaded_tv, loaded_vacuum
-    )
+    prompt_climate, _prompt_tv, _prompt_vacuum = _advertised(turn, loaded, loaded_tv, loaded_vacuum)
     zones = sorted(prompt_climate.zones) if prompt_climate is not None else []
     plan = plan_home_session(
         transcript=turn.request_text,
@@ -665,17 +663,17 @@ def _stage_fanout_call(
     vacuum_install: VacuumInstall | None,
 ) -> StagedCall | TvStagedCall | VacuumStagedCall | str:
     if tool in VACUUM_TOOLS:
-        decision = interpret_vacuum_tool(tool, args, vacuum_install)
-        if decision.kind != "allow" or decision.call is None:
-            return decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
-        return decision.call
+        vacuum = interpret_vacuum_tool(tool, args, vacuum_install)
+        if vacuum.kind != "allow" or vacuum.call is None:
+            return vacuum.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+        return vacuum.call
     if tool in TV_TOOLS:
-        decision = interpret_tv_tool(tool, args, tv_install)
-        if decision.kind == "approve":
+        television = interpret_tv_tool(tool, args, tv_install)
+        if television.kind == "approve":
             return ErrorCode.FANOUT_NEEDS_APPROVAL.value
-        if decision.kind != "allow" or decision.call is None:
-            return decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
-        return decision.call
+        if television.kind != "allow" or television.call is None:
+            return television.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+        return television.call
     if tool not in CLIMATE_TOOLS:
         return ErrorCode.PROFILE_TOOL_DENIED.value
     climate = interpret_tool(tool, args, install)
@@ -700,13 +698,13 @@ def _perform_fanout_call(
     if isinstance(call, VacuumStagedCall):
         if vacuum_install is None:
             raise VacuumUpstreamError("missing vacuum binding")
-        readback = _perform_vacuum(call, vacuum_install, vacuum_broker)
-        return vacuum_readback_reply(readback), readback.model_dump(mode="json")
+        vacuum_seen = _perform_vacuum(call, vacuum_install, vacuum_broker)
+        return vacuum_readback_reply(vacuum_seen), vacuum_seen.model_dump(mode="json")
     if isinstance(call, TvStagedCall):
         if tv_install is None:
             raise TvUpstreamError("missing television binding")
-        readback = _perform_tv(call, tv_install, tv_broker)
-        return tv_readback_reply(readback), readback.model_dump(mode="json")
+        television_seen = _perform_tv(call, tv_install, tv_broker)
+        return tv_readback_reply(television_seen), television_seen.model_dump(mode="json")
     if install is None:
         raise ClimateUpstreamError("missing climate binding")
     climate = _perform(call, install, broker, data_dir=data_dir)

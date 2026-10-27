@@ -692,9 +692,9 @@ class VoiceTurnReceipt(BaseModel):
         if self.status == "complete" and self.fanout:
             if not any(item.status == "complete" for item in self.fanout):
                 raise ValueError("complete fan-out has a read-back")
-            if (
-                self.climate is not None or self.tv is not None or self.vacuum is not None
-            ) and len(self.fanout) != 1:
+            if (self.climate is not None or self.tv is not None or self.vacuum is not None) and len(
+                self.fanout
+            ) != 1:
                 raise ValueError("a multi-target fan-out keeps the single read-back empty")
         return self
 

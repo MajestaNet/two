@@ -73,7 +73,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B22](B22-tv-home-action.md) | Television tools on `home-action` | 6 | B21 | done |
 | [B23](B23-utterance-routing.md) | Route a transcript and fan out `all` | 6 | B22 | done |
 | [B24](B24-local-operator-console.md) | Local operator console | 6 | B20 | done |
-| [B25](B25-vacuum-home-action.md) | Vacuum tools on `home-action` | 6 | B22, B23 | in_progress |
+| [B25](B25-vacuum-home-action.md) | Vacuum tools on `home-action` | 6 | B22, B23 | done |
 
 The skipped thin web UI in B13 is superseded by the first-party client
 direction in ADR 0015/B14.

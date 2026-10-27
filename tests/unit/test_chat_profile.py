@@ -636,6 +636,7 @@ def test_receipt_json_has_no_path_or_secret(
         "error_code",
         "climate",
         "tv",
+        "vacuum",
         "action_digest",
         "pending_action",
         "pending_tv",

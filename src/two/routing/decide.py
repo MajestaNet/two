@@ -57,9 +57,7 @@ _DEVICE_VERBS = frozenset(
         "degrees",
     }
 )
-_VACUUM_VERBS = frozenset(
-    {"start", "pause", "resume", "stop", "dock", "charge", "clean", "status"}
-)
+_VACUUM_VERBS = frozenset({"start", "pause", "resume", "stop", "dock", "charge", "clean", "status"})
 _ALL_DEVICE_PHRASES = (
     "everything",
     "all devices",
