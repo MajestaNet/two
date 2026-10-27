@@ -81,9 +81,9 @@ def remote(store: Store, repos_dir: Path) -> Iterator[TestClient]:
         yield test_client
 
 
-def test_schema_is_v7(store: Store) -> None:
+def test_schema_is_current(store: Store) -> None:
     assert store.schema_version() == SCHEMA_VERSION
-    assert SCHEMA_VERSION == 10
+    assert SCHEMA_VERSION == 11
 
 
 def test_create_and_get_project(client: TestClient) -> None:

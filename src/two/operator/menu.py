@@ -23,6 +23,7 @@ from pathlib import Path
 from two.adapters import load_catalog
 from two.devices.climate.config import load_climate_config
 from two.devices.tv.config import load_tv_config
+from two.devices.vacuum.config import load_vacuum_config
 from two.projection import AdapterDeviceView, AdapterMenuView, AdapterSlotView
 
 
@@ -31,7 +32,7 @@ def project_adapter_menu(
     *,
     repo_root: Path | None = None,
 ) -> AdapterMenuView:
-    """Catalog slots plus bound climate zones and television set ids.
+    """Catalog slots plus bound climate zones, television sets, and vacuum robots.
 
     A missing or disabled binding contributes no devices. Entity ids, hosts,
     MAC addresses, and token env names are not copied onto the view.
@@ -40,6 +41,7 @@ def project_adapter_menu(
     catalog = load_catalog(repo_root=repo_root) if repo_root is not None else load_catalog()
     climate = load_climate_config(data_dir)
     television = load_tv_config(data_dir)
+    vacuum = load_vacuum_config(data_dir)
     slots: list[AdapterSlotView] = []
     for slot in catalog.slots.values():
         install_enabled = slot.default_enabled
@@ -52,6 +54,12 @@ def project_adapter_menu(
             install_enabled = television is not None
             if television is not None:
                 devices = [AdapterDeviceView(id=set_id, kind="set") for set_id in television.sets]
+        elif slot.id == "vacuum":
+            install_enabled = vacuum is not None
+            if vacuum is not None:
+                devices = [
+                    AdapterDeviceView(id=robot_id, kind="robot") for robot_id in vacuum.robots
+                ]
         slots.append(
             AdapterSlotView(
                 id=slot.id,

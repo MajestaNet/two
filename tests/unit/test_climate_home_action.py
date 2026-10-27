@@ -435,10 +435,12 @@ def test_removed_provider_home_session_starts_fresh(
                 "    elif method == 'session/resume':",
                 "        send({'jsonrpc': '2.0', 'id': mid, 'error': {",
                 "            'message': 'Internal error',",
-                "            'data': {'details': 'no adapter registered for provider \"mac-qwen\"'},",
+                "            'data': {'details':"
+                " 'no adapter registered for provider \"mac-qwen\"'},",
                 "        }})",
                 "    elif method == 'session/new':",
-                "        send({'jsonrpc': '2.0', 'id': mid, 'result': {'sessionId': 'sess-openrouter'}})",
+                "        send({'jsonrpc': '2.0', 'id': mid,"
+                " 'result': {'sessionId': 'sess-openrouter'}})",
                 "    elif method == 'session/prompt':",
                 "        chunk = {'sessionUpdate': 'agent_message_chunk',",
                 "                 'content': {'type': 'text', 'text': 'pong'}}",
@@ -680,7 +682,7 @@ def test_v7_session_survives_the_home_action_migration(tmp_path: Path) -> None:
     connection.commit()
     connection.close()
     with open_store(path) as opened:
-        assert opened.schema_version() == 10
+        assert opened.schema_version() == 11
         session = opened.get_harness_session()
         assert session is not None
         assert session.session_id == "sess-old"

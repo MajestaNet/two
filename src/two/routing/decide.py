@@ -57,6 +57,7 @@ _DEVICE_VERBS = frozenset(
         "degrees",
     }
 )
+_VACUUM_VERBS = frozenset({"start", "pause", "resume", "stop", "dock", "charge", "clean", "status"})
 _ALL_DEVICE_PHRASES = (
     "everything",
     "all devices",
@@ -117,7 +118,7 @@ def decide_route(text: str, cards: Sequence[DeviceRouteCard]) -> RouteDecision:
     targets = [card for card in cards if _target_hit(norm, card)]
     quant_kinds = [card for card in kinds if _near_kind(norm, card)]
     all_devices = _phrase_hit(norm, _ALL_DEVICE_PHRASES)
-    command = any(token in _DEVICE_VERBS for token in tokens)
+    command = any(token in _DEVICE_VERBS for token in tokens) or _vacuum_command(norm, cards)
 
     if command and (quant_kinds or all_devices):
         return _fanout_decision(norm, cards, quant_kinds, all_devices)
@@ -272,7 +273,7 @@ def _fanout_decision(
     if not quant_kinds and not requested:
         return _unavailable()
     scope = [card for card in requested if _usable(card)]
-    verb = _power_verb(norm, scope)
+    verb = _fanout_verb(norm, scope)
     if verb is not None:
         items = _verb_items(scope, verb)
         if items:
@@ -308,7 +309,7 @@ def _narrow(chosen: Sequence[DeviceRouteCard], norm: str) -> RouteDecision:
         if compiled:
             return _home(slots=(usable[0].slot,), fanout=compiled, confident=True)
         return _home(slots=(usable[0].slot,), confident=True)
-    verb = _power_verb(norm, usable)
+    verb = _fanout_verb(norm, usable)
     if verb is not None:
         items = _verb_items(usable, verb)
         if items:
@@ -354,6 +355,29 @@ def _item(
         "arguments": dict(arguments),
         "status": "pending",
     }
+
+
+def _vacuum_command(norm: str, cards: Sequence[DeviceRouteCard]) -> bool:
+    """Start, dock, and the other vacuum verbs count only beside a vacuum word or id."""
+    vacuum_cards = [card for card in cards if card.slot == "vacuum"]
+    if not any(_kind_hit(norm, card) or _target_hit(norm, card) for card in vacuum_cards):
+        return False
+    return any(token in _VACUUM_VERBS for token in norm.split())
+
+
+def _fanout_verb(norm: str, cards: Sequence[DeviceRouteCard]) -> str | None:
+    """On and off stay first. A vacuum verb fans out only when it is the only one."""
+    power = _power_verb(norm, cards)
+    if power is not None:
+        return power
+    known = {item.verb for card in cards for item in card.fanout_verbs}
+    hits: list[str] = []
+    for token in norm.split():
+        if token in known and token not in {"on", "off"} and token not in hits:
+            hits.append(token)
+    if len(hits) == 1:
+        return hits[0]
+    return None
 
 
 def _power_verb(norm: str, cards: Sequence[DeviceRouteCard]) -> str | None:
