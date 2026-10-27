@@ -155,6 +155,7 @@ from two.api.schemas import (
     TaskReport,
     TodoItem,
     TvReadbackView,
+    VacuumReadbackView,
     TvRequestView,
     ValidationGateView,
     ValidationSummary,
@@ -178,6 +179,7 @@ from two.approvals import (
 )
 from two.devices.climate.config import load_climate_config
 from two.devices.tv.config import load_tv_config
+from two.devices.vacuum.config import load_vacuum_config
 from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
 from two.operator.menu import project_adapter_menu
@@ -534,17 +536,22 @@ def _home_receipt(turn: HomeActionTurnRecord) -> VoiceTurnReceipt:
     fanout = _fanout_views(turn)
     climate = None
     tv = None
+    vacuum = None
     pending = None
     pending_tv = None
     television = turn.tool_name is not None and turn.tool_name.startswith("tv.")
+    vacuum_tool = turn.tool_name is not None and turn.tool_name.startswith("vacuum.")
     if turn.status.value == "complete" and turn.readback_json and not fanout:
         if television:
             tv = TvReadbackView.model_validate_json(turn.readback_json)
+        elif vacuum_tool:
+            vacuum = VacuumReadbackView.model_validate_json(turn.readback_json)
         else:
             climate = ClimateReadbackView.model_validate_json(turn.readback_json)
     elif turn.status.value == "complete" and len(fanout) == 1 and fanout[0].status == "complete":
         climate = fanout[0].climate
         tv = fanout[0].tv
+        vacuum = fanout[0].vacuum
     if turn.status.value == "awaiting_approval":
         if television:
             pending_tv = _pending_tv(turn)
@@ -560,6 +567,7 @@ def _home_receipt(turn: HomeActionTurnRecord) -> VoiceTurnReceipt:
         revision=turn.revision,
         climate=climate,
         tv=tv,
+        vacuum=vacuum,
         action_digest=turn.action_digest,
         pending_action=pending,
         pending_tv=pending_tv,
@@ -612,10 +620,13 @@ def _one_fanout(item: dict[str, object], turn_status: str) -> FanoutItemView | N
         return None
     climate = None
     tv = None
+    vacuum = None
     readback = item.get("readback")
     if status == "complete" and isinstance(readback, dict):
         if slot == "tv" or tool.startswith("tv."):
             tv = TvReadbackView.model_validate(readback)
+        elif slot == "vacuum" or tool.startswith("vacuum."):
+            vacuum = VacuumReadbackView.model_validate(readback)
         else:
             climate = ClimateReadbackView.model_validate(readback)
     try:
@@ -628,6 +639,7 @@ def _one_fanout(item: dict[str, object], turn_status: str) -> FanoutItemView | N
                 "error_code": error_code,
                 "climate": None if climate is None else climate.model_dump(mode="json"),
                 "tv": None if tv is None else tv.model_dump(mode="json"),
+                "vacuum": None if vacuum is None else vacuum.model_dump(mode="json"),
             }
         )
     except ValidationError:
@@ -738,8 +750,8 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
     """Accept one transcript. An omitted profile is routed (ADR 0030).
 
     Coding tasks stay on ``POST /v1/tasks``. ``self-build`` on this route is
-    forbidden. ``home-action`` is stored only when a local climate or
-    television binding is enabled. Neither turn takes a coding lease.
+    forbidden. ``home-action`` is stored only when a local climate,
+    television, or vacuum binding is enabled. Neither turn takes a coding lease.
     """
     principal = principal_from_request(request)
     if body.profile == HarnessProfile.SELF_BUILD.value:
@@ -754,7 +766,11 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
     directory = data_dir if isinstance(data_dir, Path) else None
     climate = load_climate_config(directory)
     television = load_tv_config(directory)
-    decision = decide_route(body.text, cards_for(climate=climate, television=television))
+    vacuum = load_vacuum_config(directory)
+    decision = decide_route(
+        body.text,
+        cards_for(climate=climate, television=television, vacuum=vacuum),
+    )
     if body.profile == HarnessProfile.CHAT.value or (
         body.profile is None and decision.profile == HarnessProfile.CHAT.value
     ):
@@ -771,7 +787,7 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
         )
     chosen = decision if body.profile is None else route_for_explicit_home(decision)
     if chosen is None:
-        if climate is None and television is None:
+        if climate is None and television is None and vacuum is None:
             raise HTTPException(status_code=409, detail=PROFILE_NOT_EXECUTABLE)
         return await _queue_home(box, directory, body.text, principal.id)
     if not chosen.executable:

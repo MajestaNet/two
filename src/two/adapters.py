@@ -43,6 +43,7 @@ _REQUIRED_IDS: tuple[str, ...] = (
     "device",
     "climate",
     "tv",
+    "vacuum",
     "github",
 )
 _DEVICE_PROFILES: frozenset[str] = frozenset({"chat", "home-action"})
@@ -195,6 +196,15 @@ def validate_catalog(catalog: AdapterCatalog, repo_root: Path) -> None:
     _require(not television.default_enabled, "tv stays off until an install binds it")
     _require(television.selectable, "tv is selectable once shipped")
     _require(television.harness_profiles == ["home-action"], "tv resumes home-action only")
+    vacuum = catalog.slots["vacuum"]
+    _require(
+        vacuum.kind == "device" and vacuum.status == "shipped",
+        "vacuum is a shipped device package",
+    )
+    _require(vacuum.package == "two.devices.vacuum", "vacuum package is two.devices.vacuum")
+    _require(not vacuum.default_enabled, "vacuum stays off until an install binds it")
+    _require(vacuum.selectable, "vacuum is selectable once shipped")
+    _require(vacuum.harness_profiles == ["home-action"], "vacuum resumes home-action only")
     github = catalog.slots["github"]
     _require(
         github.kind == "export" and github.status == "reserved" and github.package == "",

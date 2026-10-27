@@ -99,7 +99,7 @@ def test_schema_v7_round_trips_one_chat_session_and_ordered_turns(tmp_path: Path
     path = tmp_path / "two.sqlite"
     with open_store(path) as opened:
         assert opened.schema_version() == SCHEMA_VERSION
-        assert SCHEMA_VERSION == 10
+        assert SCHEMA_VERSION == 11
         opened.ensure_chat_session(now=T0)
         opened.set_chat_session_id("sess-1", now=T0)
         first = opened.insert_chat_turn("one", "local", turn_id="turn-1", now=T0)

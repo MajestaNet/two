@@ -29,6 +29,8 @@ _WRITE_TOOLS = frozenset(
         "tv.set_power",
         "tv.set_volume",
         "tv.open",
+        "vacuum.clean",
+        "vacuum.dock",
     }
 )
 

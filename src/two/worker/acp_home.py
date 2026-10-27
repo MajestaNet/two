@@ -35,6 +35,8 @@ from two.devices.climate.config import load_climate_config
 from two.devices.climate.contract import ClimateBroker, ClimateInstall
 from two.devices.tv.config import load_tv_config
 from two.devices.tv.contract import TvBroker, TvInstall
+from two.devices.vacuum.config import load_vacuum_config
+from two.devices.vacuum.contract import VacuumBroker, VacuumInstall
 from two.store.models import HomeActionTurnRecord, HomeActionTurnStatus
 from two.store.store import Store
 from two.types import ErrorCode
@@ -63,10 +65,13 @@ from two.worker.models import ChildConfig, SessionMode
 from two.worker.session import SessionValidator, default_session_validator
 from two.worker.tv_mcp import PUBLIC_TOOLS as TV_PUBLIC_TOOLS
 from two.worker.tv_mcp import SERVER_NAME as TV_SERVER
+from two.worker.vacuum_mcp import PUBLIC_TOOLS as VACUUM_PUBLIC_TOOLS
+from two.worker.vacuum_mcp import SERVER_NAME as VACUUM_SERVER
 
 _MCP_SCRIPT = Path(__file__).with_name("climate_mcp.py")
 _TV_MCP_SCRIPT = Path(__file__).with_name("tv_mcp.py")
-_PUBLIC_TOOLS = {**CLIMATE_PUBLIC_TOOLS, **TV_PUBLIC_TOOLS}
+_VACUUM_MCP_SCRIPT = Path(__file__).with_name("vacuum_mcp.py")
+_PUBLIC_TOOLS = {**CLIMATE_PUBLIC_TOOLS, **TV_PUBLIC_TOOLS, **VACUUM_PUBLIC_TOOLS}
 
 
 class _DeviceCall(Exception):
@@ -95,6 +100,8 @@ def run_pinned_acp_home(
     broker: ClimateBroker | None = None,
     tv_install: TvInstall | None = None,
     tv_broker: TvBroker | None = None,
+    vacuum_install: VacuumInstall | None = None,
+    vacuum_broker: VacuumBroker | None = None,
 ) -> HomeActionTurnRecord:
     """One home-action turn through the pinned harness. No coding lease."""
     turn = store.get_home_action_turn(turn_id)
@@ -104,6 +111,7 @@ def run_pinned_acp_home(
         return turn
     loaded = install if install is not None else load_climate_config(data_dir)
     loaded_tv = tv_install if tv_install is not None else load_tv_config(data_dir)
+    loaded_vacuum = vacuum_install if vacuum_install is not None else load_vacuum_config(data_dir)
     if turn.tool_name is not None:
         from two.worker.home_action import _execute_staged
 
@@ -114,12 +122,14 @@ def run_pinned_acp_home(
             broker,
             loaded_tv,
             tv_broker,
+            loaded_vacuum,
+            vacuum_broker,
             data_dir=data_dir,
             now=now,
         )
     session = store.get_harness_session("home-action")
     stored = None if session is None else session.session_id
-    prompt_climate, prompt_tv = _advertised(turn, loaded, loaded_tv)
+    prompt_climate, prompt_tv, prompt_vacuum = _advertised(turn, loaded, loaded_tv, loaded_vacuum)
     prompt_zones = sorted(prompt_climate.zones) if prompt_climate is not None else []
     plan = plan_home_session(
         transcript=turn.request_text,
@@ -127,10 +137,10 @@ def run_pinned_acp_home(
         stored_session_id=stored,
         session_is_valid=session_is_valid or default_session_validator,
     )
-    prompt = _acp_prompt(turn.request_text, prompt_zones, prompt_tv)
+    prompt = _acp_prompt(turn.request_text, prompt_zones, prompt_tv, prompt_vacuum)
     profile_dir = ensure_home_action_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
-    home = _ensure_home_patch(data_dir, prompt_zones, prompt_tv)
+    home = _ensure_home_patch(data_dir, prompt_zones, prompt_tv, prompt_vacuum)
     env = dict(child_env) if child_env is not None else home_child_env()
     env.update(_inference_env(home))
     config = child_config if child_config is not None else ChildConfig()
@@ -159,8 +169,11 @@ def run_pinned_acp_home(
             broker,
             loaded_tv,
             tv_broker,
+            loaded_vacuum,
+            vacuum_broker,
             advertise_climate=prompt_climate is not None,
             advertise_television=prompt_tv is not None,
+            advertise_vacuum=prompt_vacuum is not None,
             data_dir=data_dir,
             now=now,
         )
@@ -180,9 +193,12 @@ def _drive(
     broker: ClimateBroker | None,
     tv_install: TvInstall | None,
     tv_broker: TvBroker | None,
+    vacuum_install: VacuumInstall | None,
+    vacuum_broker: VacuumBroker | None,
     *,
     advertise_climate: bool,
     advertise_television: bool,
+    advertise_vacuum: bool,
     data_dir: Path | str | None,
     now: datetime | None,
 ) -> HomeActionTurnRecord:
@@ -194,7 +210,11 @@ def _drive(
             rpc,
             plan,
             str(profile_dir),
-            _mcp_servers(climate=advertise_climate, television=advertise_television),
+            _mcp_servers(
+                climate=advertise_climate,
+                television=advertise_television,
+                vacuum=advertise_vacuum,
+            ),
         )
         if plan.mode is SessionMode.FRESH or session_id != plan.session_id:
             store.set_home_action_session_id(session_id, now=now)
@@ -216,6 +236,8 @@ def _drive(
             broker,
             tv_install,
             tv_broker,
+            vacuum_install,
+            vacuum_broker,
             data_dir=data_dir,
             now=now,
         )
@@ -331,7 +353,7 @@ def _arguments(raw: object) -> dict[str, object] | None:
     return {str(key): value for key, value in raw.items()}
 
 
-def _mcp_servers(*, climate: bool, television: bool) -> list[dict[str, object]]:
+def _mcp_servers(*, climate: bool, television: bool, vacuum: bool) -> list[dict[str, object]]:
     env: list[dict[str, str]] = []
     for name in ("PATH", "HOME", "LANG"):
         value = os.environ.get(name, "").strip()
@@ -356,10 +378,24 @@ def _mcp_servers(*, climate: bool, television: bool) -> list[dict[str, object]]:
                 "env": env,
             }
         )
+    if vacuum:
+        servers.append(
+            {
+                "name": VACUUM_SERVER,
+                "command": sys.executable,
+                "args": [str(_VACUUM_MCP_SCRIPT)],
+                "env": env,
+            }
+        )
     return servers
 
 
-def _acp_prompt(transcript: str, zones: list[str], tv_install: TvInstall | None) -> str:
+def _acp_prompt(
+    transcript: str,
+    zones: list[str],
+    tv_install: TvInstall | None,
+    vacuum_install: VacuumInstall | None,
+) -> str:
     """Name the advertised tools. Addresses and tokens stay out of this text."""
     lines = [transcript, "profile: home-action", "Call one tool and stop."]
     if zones:
@@ -375,6 +411,8 @@ def _acp_prompt(transcript: str, zones: list[str], tv_install: TvInstall | None)
         )
     if tv_install is not None:
         lines.extend(_tv_prompt_lines(tv_install))
+    if vacuum_install is not None:
+        lines.extend(_vacuum_prompt_lines(vacuum_install))
     return "\n".join(lines) + "\n"
 
 
@@ -395,15 +433,32 @@ def _tv_prompt_lines(install: TvInstall) -> list[str]:
     ]
 
 
+def _vacuum_prompt_lines(install: VacuumInstall) -> list[str]:
+    robots = ", ".join(sorted(install.robots))
+    return [
+        "Do not invent a robot.",
+        "mcp__vacuum__vacuum_read arguments: robot",
+        "mcp__vacuum__vacuum_clean arguments: robot, action",
+        "mcp__vacuum__vacuum_dock arguments: robot, action",
+        "clean actions: start, pause, resume, stop.",
+        "dock actions: start, stop.",
+        f"robots: {robots}",
+    ]
+
+
 def _ensure_home_patch(
     data_dir: Path | str | None,
     zones: list[str],
     tv_install: TvInstall | None,
+    vacuum_install: VacuumInstall | None,
 ) -> Path:
     """Write the mac-qwen settings and the home-action patch. Mode 0600."""
     home = ensure_chat_harness_home(data_dir)
     patch = home / "cordis.patch.yml"
-    patch.write_text(_home_patch(_served_model_id(), zones, tv_install), encoding="utf-8")
+    patch.write_text(
+        _home_patch(_served_model_id(), zones, tv_install, vacuum_install),
+        encoding="utf-8",
+    )
     patch.chmod(0o600)
     return home
 
@@ -424,11 +479,18 @@ def _inference_env(home: Path) -> dict[str, str]:
     return env
 
 
-def _home_patch(model_id: str, zones: list[str], tv_install: TvInstall | None) -> str:
+def _home_patch(
+    model_id: str,
+    zones: list[str],
+    tv_install: TvInstall | None,
+    vacuum_install: VacuumInstall | None,
+) -> str:
     disabled = "\n".join(
         f"- id: {row_id}\n  name: '{name}'\n  disabled: true" for row_id, name in _DISABLED_TOOLS
     )
-    persona = "\n".join(f"      {line}" for line in _persona_lines(zones, tv_install))
+    persona = "\n".join(
+        f"      {line}" for line in _persona_lines(zones, tv_install, vacuum_install)
+    )
     return (
         "# Home-action patch. Same weights as the served Ollama tag.\n"
         "# The device advertisement carries no binding and performs nothing.\n"
@@ -455,7 +517,11 @@ def _home_patch(model_id: str, zones: list[str], tv_install: TvInstall | None) -
     )
 
 
-def _persona_lines(zones: list[str], tv_install: TvInstall | None) -> list[str]:
+def _persona_lines(
+    zones: list[str],
+    tv_install: TvInstall | None,
+    vacuum_install: VacuumInstall | None,
+) -> list[str]:
     lines: list[str] = []
     if zones:
         listed = ", ".join(zones)
@@ -474,6 +540,9 @@ def _persona_lines(zones: list[str], tv_install: TvInstall | None) -> list[str]:
     if tv_install is not None:
         lines.append("You control bound televisions only by calling a tool.")
         lines.extend(_tv_prompt_lines(tv_install))
+    if vacuum_install is not None:
+        lines.append("You control bound vacuum robots only by calling a tool.")
+        lines.extend(_vacuum_prompt_lines(vacuum_install))
     if not lines:
         lines.append("You have no device tools. Reply briefly and do not call a tool.")
     lines.append("Do not use any other tool.")

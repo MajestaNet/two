@@ -14,8 +14,9 @@ Python package for the Majesta Two control plane.
   `two adapters --json` adds bound device
   ids from the operator menu and omits secrets. It does not enable a slot.
   `console` is the in-repo window and stays off. `devices/climate/` is the climate package
-  (ADR 0022) and stays default off. `devices/tv/` is the television
-  package (ADR 0029) and stays default off. Do not add `export/` until the ADR
+  (ADR 0022) and stays default off.   `devices/tv/` is the television
+  package (ADR 0029) and stays default off. `devices/vacuum/` is the
+  vacuum package (ADR 0037) and stays default off. Do not add `export/` until the ADR
   for that slot.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
@@ -47,7 +48,8 @@ Python package for the Majesta Two control plane.
   `home_action_turns` and `climate_approvals` (ADR 0022). Schema v9
   adds television tool names and `tv_approvals` (ADR 0029). Schema v10
   stores `route_slots`, `fanout_scope`, and `fanout_json` on
-  `home_action_turns` (ADR 0030). Do not open databases from
+  `home_action_turns` (ADR 0030). Schema v11 adds the three vacuum
+  tool names (ADR 0037). There is no vacuum approval table. Do not open databases from
   `cli.py` at import time. The `two api` subcommand lazy-imports
   `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
@@ -82,9 +84,12 @@ Python package for the Majesta Two control plane.
   is ADR 0022 and stays default off. The binding transport is Home
   Assistant REST or ECHONET Lite (ADR 0027). `devices/tv/` is ADR 0029
   and stays default off. The transport is the Samsung local API.
+  `devices/vacuum/` is ADR 0037 and stays default off. The transport is
+  the Ecovacs Open API on the two official hosts.
 - `routing/` classifies a transcript onto `chat` or an enabled device
   slot and plans a fan-out (ADR 0030). An obvious named-target command
-  compiles the closed tool without the harness (ADR 0036). No store,
+  compiles the closed climate, television, or vacuum tool without the
+  harness (ADR 0036). No store,
   no socket, no model client. Device packages add a route card;
   `routing/catalog.py` lists the shipped cards.
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
@@ -115,9 +120,10 @@ Python package for the Majesta Two control plane.
   lifecycle `complete`. Local Qwen worker count is one. Profile `chat`
   resumes `harness_sessions` with no worktree and no tools. A tool
   request fails the chat turn and is not executed. Profile `home-action`
-  may request the closed climate tools and, when the television binding
-  is enabled, the closed television tools. The control plane performs
-  them and does not send `execute` to the child (ADR 0022, ADR 0029).
+  may request the closed climate tools and, when those bindings are
+  enabled, the closed television and vacuum tools. The control plane
+  performs them and does not send `execute` to the child (ADR 0022,
+  ADR 0029, ADR 0037).
   The climate transport is Home Assistant REST or ECHONET Lite (ADR 0027).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. The scheduler

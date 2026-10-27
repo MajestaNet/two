@@ -14,14 +14,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Home-action profile. This process performs closed climate and television tools.
+"""Home-action profile. This process performs closed climate, television, and vacuum tools.
 
 An obvious compiled utterance is staged here and does not start a child.
 Otherwise the harness requests one closed tool. Production uses the pinned
 ACP client in ``acp_home``. Injected argv stays on the JSONL fixture. Does
 not call ``plan_session``. Does not send ``execute`` to the child. Does not
-write the coding action ledger. A tool outside the enabled climate and
-television lists fails the turn.
+write the coding action ledger. A tool outside the enabled device lists
+fails the turn.
 """
 
 from __future__ import annotations
@@ -58,6 +58,18 @@ from two.devices.tv.contract import (
 )
 from two.devices.tv.contract import StagedCall as TvStagedCall
 from two.devices.tv.contract import readback_reply as tv_readback_reply
+from two.devices.vacuum.broker import open_vacuum_broker
+from two.devices.vacuum.config import load_vacuum_config
+from two.devices.vacuum.contract import (
+    VACUUM_TOOLS,
+    VacuumBroker,
+    VacuumInstall,
+    VacuumReadback,
+    VacuumUpstreamError,
+    interpret_vacuum_tool,
+)
+from two.devices.vacuum.contract import StagedCall as VacuumStagedCall
+from two.devices.vacuum.contract import readback_reply as vacuum_readback_reply
 from two.providers import DSH_PIN
 from two.routing import (
     cards_for,
@@ -166,6 +178,8 @@ def run_home_action_turn(
     broker: ClimateBroker | None = None,
     tv_install: TvInstall | None = None,
     tv_broker: TvBroker | None = None,
+    vacuum_install: VacuumInstall | None = None,
+    vacuum_broker: VacuumBroker | None = None,
     route_decider: RouteDecider | None = None,
 ) -> HomeActionTurnRecord:
     """Run one already-admitted home-action turn. Does not take a coding lease."""
@@ -176,6 +190,7 @@ def run_home_action_turn(
         return turn
     loaded = install if install is not None else load_climate_config(data_dir)
     loaded_tv = tv_install if tv_install is not None else load_tv_config(data_dir)
+    loaded_vacuum = vacuum_install if vacuum_install is not None else load_vacuum_config(data_dir)
     if turn.fanout_json:
         return _execute_fanout(
             store,
@@ -184,6 +199,8 @@ def run_home_action_turn(
             broker,
             loaded_tv,
             tv_broker,
+            loaded_vacuum,
+            vacuum_broker,
             data_dir=data_dir,
             now=now,
         )
@@ -211,6 +228,8 @@ def run_home_action_turn(
             broker,
             loaded_tv,
             tv_broker,
+            loaded_vacuum,
+            vacuum_broker,
             data_dir=data_dir,
             now=now,
         )
@@ -222,6 +241,8 @@ def run_home_action_turn(
             broker,
             loaded_tv,
             tv_broker,
+            loaded_vacuum,
+            vacuum_broker,
             data_dir=data_dir,
             now=now,
         )
@@ -240,10 +261,14 @@ def run_home_action_turn(
             broker=broker,
             tv_install=loaded_tv,
             tv_broker=tv_broker,
+            vacuum_install=loaded_vacuum,
+            vacuum_broker=vacuum_broker,
         )
     session = store.get_harness_session("home-action")
     stored = None if session is None else session.session_id
-    prompt_climate, _prompt_tv = _advertised(turn, loaded, loaded_tv)
+    prompt_climate, _prompt_tv, _prompt_vacuum = _advertised(
+        turn, loaded, loaded_tv, loaded_vacuum
+    )
     zones = sorted(prompt_climate.zones) if prompt_climate is not None else []
     plan = plan_home_session(
         transcript=turn.request_text,
@@ -281,6 +306,8 @@ def run_home_action_turn(
             broker,
             loaded_tv,
             tv_broker,
+            loaded_vacuum,
+            vacuum_broker,
             data_dir=data_dir,
             now=now,
         )
@@ -306,6 +333,8 @@ def _supervise(
     broker: ClimateBroker | None,
     tv_install: TvInstall | None,
     tv_broker: TvBroker | None,
+    vacuum_install: VacuumInstall | None,
+    vacuum_broker: VacuumBroker | None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -325,6 +354,8 @@ def _supervise(
                 broker,
                 tv_install,
                 tv_broker,
+                vacuum_install,
+                vacuum_broker,
                 data_dir=data_dir,
                 now=now,
             )
@@ -343,6 +374,8 @@ def _supervise(
                     broker,
                     tv_install,
                     tv_broker,
+                    vacuum_install,
+                    vacuum_broker,
                     data_dir=data_dir,
                     now=now,
                 )
@@ -360,6 +393,8 @@ def _handle_message(
     broker: ClimateBroker | None,
     tv_install: TvInstall | None,
     tv_broker: TvBroker | None,
+    vacuum_install: VacuumInstall | None,
+    vacuum_broker: VacuumBroker | None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -388,6 +423,8 @@ def _handle_message(
         broker,
         tv_install,
         tv_broker,
+        vacuum_install,
+        vacuum_broker,
         data_dir=data_dir,
         now=now,
     )
@@ -401,6 +438,8 @@ def _handle_tool(
     broker: ClimateBroker | None,
     tv_install: TvInstall | None = None,
     tv_broker: TvBroker | None = None,
+    vacuum_install: VacuumInstall | None = None,
+    vacuum_broker: VacuumBroker | None = None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -420,11 +459,24 @@ def _handle_tool(
             broker,
             tv_install,
             tv_broker,
+            vacuum_install,
+            vacuum_broker,
             data_dir=data_dir,
             now=now,
         )
     if current is not None and not _tool_in_route(current, tool):
         return store.fail_home_action_turn(turn_id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
+    if tool in VACUUM_TOOLS:
+        return _handle_vacuum_tool(
+            store,
+            turn_id,
+            tool,
+            arguments,
+            vacuum_install,
+            vacuum_broker,
+            data_dir=data_dir,
+            now=now,
+        )
     if tool in TV_TOOLS:
         return _handle_tv_tool(
             store,
@@ -471,6 +523,8 @@ def _handle_tool(
         broker,
         tv_install,
         tv_broker,
+        vacuum_install,
+        vacuum_broker,
         data_dir=data_dir,
         now=now,
     )
@@ -507,13 +561,15 @@ def _advertised(
     turn: HomeActionTurnRecord,
     climate: ClimateInstall | None,
     television: TvInstall | None,
-) -> tuple[ClimateInstall | None, TvInstall | None]:
+    vacuum: VacuumInstall | None = None,
+) -> tuple[ClimateInstall | None, TvInstall | None, VacuumInstall | None]:
     slots = parse_route_slots(turn.route_slots)
     if slots is None:
-        return climate, television
+        return climate, television, vacuum
     return (
         climate if "climate" in slots else None,
         television if "tv" in slots else None,
+        vacuum if "vacuum" in slots else None,
     )
 
 
@@ -536,6 +592,8 @@ def _execute_expanded(
     broker: ClimateBroker | None,
     tv_install: TvInstall | None,
     tv_broker: TvBroker | None,
+    vacuum_install: VacuumInstall | None,
+    vacuum_broker: VacuumBroker | None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -545,7 +603,7 @@ def _execute_expanded(
     items = expand_tool_call(
         tool,
         arguments,
-        cards_for(climate=install, television=tv_install),
+        cards_for(climate=install, television=tv_install, vacuum=vacuum_install),
         parse_route_slots(turn.route_slots),
     )
     if not items:
@@ -558,6 +616,8 @@ def _execute_expanded(
         broker,
         tv_install,
         tv_broker,
+        vacuum_install,
+        vacuum_broker,
         data_dir=data_dir,
         now=now,
     )
@@ -570,6 +630,8 @@ def _execute_fanout(
     broker: ClimateBroker | None,
     tv_install: TvInstall | None,
     tv_broker: TvBroker | None,
+    vacuum_install: VacuumInstall | None,
+    vacuum_broker: VacuumBroker | None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
@@ -588,6 +650,8 @@ def _execute_fanout(
         broker,
         tv_install,
         tv_broker,
+        vacuum_install,
+        vacuum_broker,
         data_dir=data_dir,
         now=now,
     )
@@ -598,7 +662,13 @@ def _stage_fanout_call(
     args: dict[str, object],
     install: ClimateInstall | None,
     tv_install: TvInstall | None,
-) -> StagedCall | TvStagedCall | str:
+    vacuum_install: VacuumInstall | None,
+) -> StagedCall | TvStagedCall | VacuumStagedCall | str:
+    if tool in VACUUM_TOOLS:
+        decision = interpret_vacuum_tool(tool, args, vacuum_install)
+        if decision.kind != "allow" or decision.call is None:
+            return decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+        return decision.call
     if tool in TV_TOOLS:
         decision = interpret_tv_tool(tool, args, tv_install)
         if decision.kind == "approve":
@@ -617,14 +687,21 @@ def _stage_fanout_call(
 
 
 def _perform_fanout_call(
-    call: StagedCall | TvStagedCall,
+    call: StagedCall | TvStagedCall | VacuumStagedCall,
     install: ClimateInstall | None,
     broker: ClimateBroker | None,
     tv_install: TvInstall | None,
     tv_broker: TvBroker | None,
+    vacuum_install: VacuumInstall | None,
+    vacuum_broker: VacuumBroker | None,
     *,
     data_dir: Path | str | None,
 ) -> tuple[str, object]:
+    if isinstance(call, VacuumStagedCall):
+        if vacuum_install is None:
+            raise VacuumUpstreamError("missing vacuum binding")
+        readback = _perform_vacuum(call, vacuum_install, vacuum_broker)
+        return vacuum_readback_reply(readback), readback.model_dump(mode="json")
     if isinstance(call, TvStagedCall):
         if tv_install is None:
             raise TvUpstreamError("missing television binding")
@@ -644,11 +721,13 @@ def _execute_fanout_items(
     broker: ClimateBroker | None,
     tv_install: TvInstall | None,
     tv_broker: TvBroker | None,
+    vacuum_install: VacuumInstall | None,
+    vacuum_broker: VacuumBroker | None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
 ) -> HomeActionTurnRecord:
-    prepared: list[tuple[dict[str, object], StagedCall | TvStagedCall]] = []
+    prepared: list[tuple[dict[str, object], StagedCall | TvStagedCall | VacuumStagedCall]] = []
     for item in items:
         tool = item.get("tool")
         arguments = item.get("arguments")
@@ -657,7 +736,7 @@ def _execute_fanout_items(
                 turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now
             )
         args = {str(key): value for key, value in arguments.items()}
-        staged = _stage_fanout_call(tool, args, install, tv_install)
+        staged = _stage_fanout_call(tool, args, install, tv_install, vacuum_install)
         if isinstance(staged, str):
             return store.fail_home_action_turn(turn.id, staged, now=now)
         prepared.append((item, staged))
@@ -671,14 +750,17 @@ def _execute_fanout_items(
                 broker,
                 tv_install,
                 tv_broker,
+                vacuum_install,
+                vacuum_broker,
                 data_dir=data_dir,
             )
-        except (ClimateUpstreamError, TvUpstreamError):
-            code = (
-                ErrorCode.TV_UPSTREAM.value
-                if isinstance(call, TvStagedCall)
-                else ErrorCode.CLIMATE_UPSTREAM.value
-            )
+        except (ClimateUpstreamError, TvUpstreamError, VacuumUpstreamError):
+            if isinstance(call, VacuumStagedCall):
+                code = ErrorCode.VACUUM_UPSTREAM.value
+            elif isinstance(call, TvStagedCall):
+                code = ErrorCode.TV_UPSTREAM.value
+            else:
+                code = ErrorCode.CLIMATE_UPSTREAM.value
             failed = dict(item)
             failed["status"] = "failed"
             failed["error_code"] = code
@@ -732,10 +814,21 @@ def _execute_staged(
     broker: ClimateBroker | None,
     tv_install: TvInstall | None = None,
     tv_broker: TvBroker | None = None,
+    vacuum_install: VacuumInstall | None = None,
+    vacuum_broker: VacuumBroker | None = None,
     *,
     data_dir: Path | str | None,
     now: datetime | None,
 ) -> HomeActionTurnRecord:
+    if turn.tool_name in VACUUM_TOOLS:
+        return _execute_vacuum_staged(
+            store,
+            turn,
+            vacuum_install,
+            vacuum_broker,
+            data_dir=data_dir,
+            now=now,
+        )
     if turn.tool_name in TV_TOOLS:
         return _execute_tv_staged(
             store,
@@ -906,6 +999,90 @@ def _perform_tv(
             raise TvUpstreamError("missing target")
         return target.open_target(call.set_id, call.target)
     return target.set_volume(call.set_id, level=call.level, mute=call.mute, step=call.step)
+
+
+def _handle_vacuum_tool(
+    store: Store,
+    turn_id: str,
+    tool: str,
+    arguments: dict[str, object],
+    install: VacuumInstall | None,
+    broker: VacuumBroker | None,
+    *,
+    data_dir: Path | str | None,
+    now: datetime | None,
+) -> HomeActionTurnRecord:
+    decision = interpret_vacuum_tool(tool, arguments, install)
+    if decision.kind == "deny" or decision.call is None:
+        code = decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+        return store.fail_home_action_turn(turn_id, code, now=now)
+    call = decision.call
+    store.stage_home_action_tool(
+        turn_id,
+        call.tool,
+        call.arguments_json,
+        call.digest,
+        now=now,
+    )
+    staged = store.get_home_action_turn(turn_id)
+    if staged is None:
+        raise WorkerError(f"unknown home-action turn: {turn_id}")
+    return _execute_vacuum_staged(store, staged, install, broker, data_dir=data_dir, now=now)
+
+
+def _execute_vacuum_staged(
+    store: Store,
+    turn: HomeActionTurnRecord,
+    install: VacuumInstall | None,
+    broker: VacuumBroker | None,
+    *,
+    data_dir: Path | str | None,
+    now: datetime | None,
+) -> HomeActionTurnRecord:
+    del data_dir
+    if install is None or turn.tool_name is None or turn.arguments_json is None:
+        return store.fail_home_action_turn(turn.id, ErrorCode.VACUUM_NOT_CONFIGURED.value, now=now)
+    try:
+        arguments = json.loads(turn.arguments_json)
+    except json.JSONDecodeError:
+        return store.fail_home_action_turn(turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
+    if not isinstance(arguments, dict):
+        return store.fail_home_action_turn(turn.id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
+    decision = interpret_vacuum_tool(
+        turn.tool_name,
+        {str(key): value for key, value in arguments.items()},
+        install,
+    )
+    if decision.call is None or decision.call.digest != turn.action_digest:
+        return store.fail_home_action_turn(turn.id, ErrorCode.STALE_DIGEST.value, now=now)
+    if decision.kind != "allow":
+        code = decision.error_code or ErrorCode.PROFILE_TOOL_DENIED.value
+        return store.fail_home_action_turn(turn.id, code, now=now)
+    try:
+        readback = _perform_vacuum(decision.call, install, broker)
+    except VacuumUpstreamError:
+        return store.fail_home_action_turn(turn.id, ErrorCode.VACUUM_UPSTREAM.value, now=now)
+    return store.complete_home_action_turn(
+        turn.id,
+        vacuum_readback_reply(readback),
+        readback.model_dump_json(),
+        now=now,
+    )
+
+
+def _perform_vacuum(
+    call: VacuumStagedCall,
+    install: VacuumInstall,
+    broker: VacuumBroker | None,
+) -> VacuumReadback:
+    target = broker if broker is not None else open_vacuum_broker(install)
+    if call.tool == "vacuum.read":
+        return target.read(call.robot_id)
+    if call.action is None:
+        raise VacuumUpstreamError("missing vacuum action")
+    if call.tool == "vacuum.clean":
+        return target.clean(call.robot_id, call.action)
+    return target.dock(call.robot_id, call.action)
 
 
 def _parse_intent(message: Mapping[str, object]) -> tuple[str, dict[str, object]] | None:

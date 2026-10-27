@@ -532,6 +532,18 @@ class TvReadbackView(BaseModel):
     reachable: bool
 
 
+class VacuumReadbackView(BaseModel):
+    """Observed vacuum state. Nicknames, hosts, and keys stay off this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    robot: str = Field(min_length=1, max_length=64)
+    activity: Literal["cleaning", "paused", "idle", "returning", "docked", "other"]
+    charging: bool
+    station: Literal["idle", "wash", "dry", "dust", "clean", "paused", "unknown"]
+    reachable: bool
+
+
 class FanoutItemView(BaseModel):
     """One target in a fan-out. Addresses and tokens stay off this body."""
 
@@ -544,18 +556,28 @@ class FanoutItemView(BaseModel):
     error_code: ErrorCode | None = None
     climate: ClimateReadbackView | None = None
     tv: TvReadbackView | None = None
+    vacuum: VacuumReadbackView | None = None
 
     @model_validator(mode="after")
     def _item_shape(self) -> Self:
+        readbacks = _readback_count(self.climate, self.tv, self.vacuum)
         if self.status == "pending":
-            if self.error_code is not None or self.climate is not None or self.tv is not None:
+            if self.error_code is not None or readbacks != 0:
                 raise ValueError("pending fan-out has no result")
         elif self.status == "failed":
-            if self.error_code is None or self.climate is not None or self.tv is not None:
+            if self.error_code is None or readbacks != 0:
                 raise ValueError("failed fan-out has an error and no read-back")
-        elif self.error_code is not None or (self.climate is None) == (self.tv is None):
+        elif self.error_code is not None or readbacks != 1:
             raise ValueError("complete fan-out has one read-back and no error")
         return self
+
+
+def _readback_count(
+    climate: ClimateReadbackView | None,
+    tv: TvReadbackView | None,
+    vacuum: VacuumReadbackView | None,
+) -> int:
+    return sum(item is not None for item in (climate, tv, vacuum))
 
 
 class TvRequestView(BaseModel):
@@ -588,6 +610,7 @@ class VoiceTurnReceipt(BaseModel):
     ``pending_action`` are set only when ``status`` is ``awaiting_approval``.
     ``climate`` is the device read-back on a completed climate action.
     ``tv`` is the device read-back on a completed television action.
+    ``vacuum`` is the device read-back on a completed vacuum action.
     ``fanout`` lists every target when one instruction was repeated.
     ``route_slots`` names the device slots the utterance selected.
     Host paths, session ids, entity ids, and tokens stay off this body.
@@ -602,6 +625,7 @@ class VoiceTurnReceipt(BaseModel):
     error_code: ErrorCode | None = None
     climate: ClimateReadbackView | None = None
     tv: TvReadbackView | None = None
+    vacuum: VacuumReadbackView | None = None
     action_digest: str | None = None
     pending_action: ClimateRequestView | None = None
     pending_tv: TvRequestView | None = None
@@ -619,7 +643,7 @@ class VoiceTurnReceipt(BaseModel):
                 raise ValueError("complete receipt has no pending action")
             if self.pending_tv is not None:
                 raise ValueError("complete receipt has no pending action")
-            if self.climate is not None and self.tv is not None:
+            if _readback_count(self.climate, self.tv, self.vacuum) > 1:
                 raise ValueError("complete receipt has one device read-back")
         elif self.status == "failed":
             if self.error_code is None or self.reply is not None:
@@ -627,6 +651,7 @@ class VoiceTurnReceipt(BaseModel):
             if (
                 self.climate is not None
                 or self.tv is not None
+                or self.vacuum is not None
                 or self.action_digest is not None
                 or self.pending_action is not None
                 or self.pending_tv is not None
@@ -640,6 +665,7 @@ class VoiceTurnReceipt(BaseModel):
                 or self.error_code is not None
                 or self.climate is not None
                 or self.tv is not None
+                or self.vacuum is not None
             ):
                 raise ValueError("awaiting approval has no reply or device result")
             climate_pending = self.pending_action is not None
@@ -653,6 +679,7 @@ class VoiceTurnReceipt(BaseModel):
         elif (
             self.climate is not None
             or self.tv is not None
+            or self.vacuum is not None
             or self.action_digest is not None
             or self.pending_action is not None
             or self.pending_tv is not None
@@ -665,7 +692,9 @@ class VoiceTurnReceipt(BaseModel):
         if self.status == "complete" and self.fanout:
             if not any(item.status == "complete" for item in self.fanout):
                 raise ValueError("complete fan-out has a read-back")
-            if (self.climate is not None or self.tv is not None) and len(self.fanout) != 1:
+            if (
+                self.climate is not None or self.tv is not None or self.vacuum is not None
+            ) and len(self.fanout) != 1:
                 raise ValueError("a multi-target fan-out keeps the single read-back empty")
         return self
 
@@ -681,6 +710,7 @@ def voice_turn_receipt(
     profile: str = "chat",
     climate: ClimateReadbackView | None = None,
     tv: TvReadbackView | None = None,
+    vacuum: VacuumReadbackView | None = None,
     action_digest: str | None = None,
     pending_action: ClimateRequestView | None = None,
     pending_tv: TvRequestView | None = None,
@@ -692,6 +722,7 @@ def voice_turn_receipt(
     shown_error = error_code if status == "failed" else None
     shown_climate = climate if status == "complete" else None
     shown_tv = tv if status == "complete" else None
+    shown_vacuum = vacuum if status == "complete" else None
     shown_digest = action_digest if status == "awaiting_approval" else None
     shown_pending = pending_action if status == "awaiting_approval" else None
     shown_pending_tv = pending_tv if status == "awaiting_approval" else None
@@ -706,6 +737,7 @@ def voice_turn_receipt(
             "error_code": shown_error,
             "climate": None if shown_climate is None else shown_climate.model_dump(mode="json"),
             "tv": None if shown_tv is None else shown_tv.model_dump(mode="json"),
+            "vacuum": None if shown_vacuum is None else shown_vacuum.model_dump(mode="json"),
             "action_digest": shown_digest,
             "pending_action": (
                 None if shown_pending is None else shown_pending.model_dump(mode="json")
@@ -1089,7 +1121,7 @@ class AdapterDeviceView(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    kind: Literal["zone", "set"]
+    kind: Literal["zone", "set", "robot"]
 
 
 class AdapterSlotView(BaseModel):

@@ -72,9 +72,12 @@ stored and can run the closed climate tools when
 [ADR 0028](adrs/0028-home-action-acp-client.md),
 [B21](backlog/B21-climate-home-action.md)), and the closed television
 tools when `$TWO_DATA_DIR/devices/tv.yaml` enables them
-([ADR 0029](adrs/0029-samsung-tv.md)). The climate binding transport is
-Home Assistant REST or ECHONET Lite. Without a climate or television
-binding the turn is `profile_not_executable` and is not stored. The Xcode app is
+([ADR 0029](adrs/0029-samsung-tv.md)), and the closed vacuum tools when
+`$TWO_DATA_DIR/devices/vacuum.yaml` enables them
+([ADR 0037](adrs/0037-ecovacs-vacuum.md)). The climate binding transport is
+Home Assistant REST or ECHONET Lite. The vacuum transport is the Ecovacs
+Open API on the two official hosts. Without a climate, television, or
+vacuum binding the turn is `profile_not_executable` and is not stored. The Xcode app is
 not in this repository. The catalog keeps `watch` at `contract`.
 
 ## Messengers (none selected)
