@@ -18,7 +18,7 @@ close §21 item 20.
 B23 routes a transcript that omits the harness profile and repeats one
 closed action for `all` (ADR 0030). Device slots stay off. B23 does not
 close §21 item 20.
-B25 executes the closed vacuum tools on the same profile (ADR 0037).
+B25 executes the closed vacuum tools on the same profile (ADR 0038).
 The vacuum slot stays off until an install binds it. B25 does not
 close §21 item 20.
 

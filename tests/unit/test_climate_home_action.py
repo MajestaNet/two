@@ -410,6 +410,65 @@ def test_non_climate_tool_fails_closed(
     assert _count(store, "actions") == 0
 
 
+def test_removed_provider_home_session_starts_fresh(
+    store: Store,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    script = bin_dir / "dsh"
+    script.write_text(
+        "\n".join(
+            [
+                f"#!{sys.executable}",
+                "import json, sys",
+                "def send(payload):",
+                "    sys.stdout.write(json.dumps(payload) + '\\n')",
+                "    sys.stdout.flush()",
+                "for raw in sys.stdin:",
+                "    msg = json.loads(raw)",
+                "    method = msg.get('method')",
+                "    mid = msg.get('id')",
+                "    if method == 'initialize':",
+                "        send({'jsonrpc': '2.0', 'id': mid, 'result': {'protocolVersion': 1}})",
+                "    elif method == 'session/resume':",
+                "        send({'jsonrpc': '2.0', 'id': mid, 'error': {",
+                "            'message': 'Internal error',",
+                "            'data': {'details':"
+                " 'no adapter registered for provider \"mac-qwen\"'},",
+                "        }})",
+                "    elif method == 'session/new':",
+                "        send({'jsonrpc': '2.0', 'id': mid,"
+                " 'result': {'sessionId': 'sess-openrouter'}})",
+                "    elif method == 'session/prompt':",
+                "        chunk = {'sessionUpdate': 'agent_message_chunk',",
+                "                 'content': {'type': 'text', 'text': 'pong'}}",
+                "        send({'jsonrpc': '2.0', 'method': 'session/update',",
+                "              'params': {'update': chunk}})",
+                "        send({'jsonrpc': '2.0', 'id': mid,",
+                "              'result': {'stopReason': 'end_turn'}})",
+                "        break",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    store.set_home_action_session_id("old-local", now=T0)
+    store.insert_home_action_turn("hello", "local", turn_id="h1", now=T0)
+    assert Scheduler(store).dispatch(now=T0) is None
+    finished = AcpWorker(store, data_dir=tmp_path, child_config=FAST_CHILD).run_home_action(
+        "h1", now=T0
+    )
+    assert finished.status is HomeActionTurnStatus.COMPLETE
+    assert finished.reply_text == "pong"
+    session = store.get_harness_session("home-action")
+    assert session is not None
+    assert session.session_id == "sess-openrouter"
+
+
 def test_chat_is_admitted_before_home_action_and_home_blocks_coding(store: Store) -> None:
     store.insert_chat_turn("hello", "local", turn_id="c1", now=T0)
     store.insert_home_action_turn("set 20", "local", turn_id="h1", now=T0)

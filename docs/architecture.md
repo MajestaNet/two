@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); Ecovacs vacuum tools on `home-action` (ADR 0037); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); Ecovacs vacuum tools on `home-action` (ADR 0038); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037); adoption, speech, and profile preload follow |
 | Version | 0.14 |
 | Date | 27 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -175,8 +175,8 @@ Rules:
 - Completion of a self-build task produces a candidate commit. It does not install that commit.
 - Adoption is a controller operation. It runs only after required validation, a fresh review with no blocking finding, and an approval whose digest is the candidate commit. It takes effect when the installation's processes restart onto that commit.
 - A candidate that changes gates, bind addresses, credential policy, or adapter permissions names those changes in the adoption approval. They stay inactive in the running process that produced the candidate.
-- Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. The Ecovacs vacuum transport is the exception: it may call only `open.ecovacs.com` or `open.ecovacs.cn`, the key stays in the environment, and the harness never sees it (ADR 0037). Merging adapter code into the tree does not enable it. The install menu is `config/adapters/catalog.yaml` (`two adapters`, ADR 0021). A slot is on only when that catalog says so. Today that is the CLI alone.
-- The first device protocol is climate (ADR 0022). The package is `src/two/devices/climate/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/climate.yaml`. The binding may select Home Assistant REST or a direct ECHONET Lite air conditioner (ADR 0027). Television is the second device protocol (ADR 0029). The package is `src/two/devices/tv/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/tv.yaml`. The first transport is the Samsung local API on the private LAN. Vacuum is the third device protocol (ADR 0037). The package is `src/two/devices/vacuum/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/vacuum.yaml`. The transport is the Ecovacs Open API on `open.ecovacs.com` or `open.ecovacs.cn`. The kind-level device slot stays reserved. `src/two/export/` remains the ADR 0012 reservation.
+- Device adapters live in this repository, default off on each installation, and use the control API or a narrow local contract defined beside it. They do not embed a model/tool loop, and they do not receive shell, git, model credentials, or other secrets. Device traffic stays on the private network. The Ecovacs vacuum transport is the exception: it may call only `open.ecovacs.com` or `open.ecovacs.cn`, the key stays in the environment, and the harness never sees it (ADR 0038). Merging adapter code into the tree does not enable it. The install menu is `config/adapters/catalog.yaml` (`two adapters`, ADR 0021). A slot is on only when that catalog says so. Today that is the CLI alone.
+- The first device protocol is climate (ADR 0022). The package is `src/two/devices/climate/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/climate.yaml`. The binding may select Home Assistant REST or a direct ECHONET Lite air conditioner (ADR 0027). Television is the second device protocol (ADR 0029). The package is `src/two/devices/tv/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/tv.yaml`. The first transport is the Samsung local API on the private LAN. Vacuum is the third device protocol (ADR 0038). The package is `src/two/devices/vacuum/`. It is shipped and default off. An install enables it with `$TWO_DATA_DIR/devices/vacuum.yaml`. The transport is the Ecovacs Open API on `open.ecovacs.com` or `open.ecovacs.cn`. The kind-level device slot stays reserved. `src/two/export/` remains the ADR 0012 reservation.
 
 ### 5.3 Mac mini installation
 
@@ -198,7 +198,7 @@ DeepSeek Harness remains the only model/tool loop (ADR 0019). One pinned binary 
 
 Profiles are persisted sessions under the local data directory. The controller may keep a profile warm so the next request resumes it without rebuilding a workspace. Warm profiles are not extra model weights and not extra harness releases. One inference stays in flight. A non-coding turn runs at a model-turn boundary and does not hold the coding lease.
 
-A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The climate tool list is the same. ADR 0029 adds the closed television tools (`tv.read`, `tv.set_power`, `tv.open`, `tv.set_volume`) on the same profile. ADR 0037 adds the closed vacuum tools (`vacuum.read`, `vacuum.clean`, `vacuum.dock`) on the same profile. A known robot is pre-authorized. The control plane calls only `open.ecovacs.com` or `open.ecovacs.cn`, and the read-back is the result. The session advertises the closed tools of each binding that is enabled. The advertisement does not perform a call, and this process does not send `execute`. Production home-action uses the pinned ACP client (ADR 0028). A client may omit the harness profile on `POST /v1/voice/turns`. The control plane then routes the transcript to `chat` or to the enabled device slots the words name, and it may repeat one closed action across every bound target of those slots (ADR 0030). An obvious single-target climate, television, or vacuum command compiles that closed tool without starting the harness (ADR 0036). Speech capture and playback stay on the client. The speech stack and the preload mechanism are a later slice.
+A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The climate tool list is the same. ADR 0029 adds the closed television tools (`tv.read`, `tv.set_power`, `tv.open`, `tv.set_volume`) on the same profile. ADR 0038 adds the closed vacuum tools (`vacuum.read`, `vacuum.clean`, `vacuum.dock`) on the same profile. A known robot is pre-authorized. The control plane calls only `open.ecovacs.com` or `open.ecovacs.cn`, and the read-back is the result. The session advertises the closed tools of each binding that is enabled. The advertisement does not perform a call, and this process does not send `execute`. Production home-action uses the pinned ACP client (ADR 0028). A client may omit the harness profile on `POST /v1/voice/turns`. The control plane then routes the transcript to `chat` or to the enabled device slots the words name, and it may repeat one closed action across every bound target of those slots (ADR 0030). An obvious single-target climate, television, or vacuum command compiles that closed tool without starting the harness (ADR 0036). Speech capture and playback stay on the client. The speech stack and the preload mechanism are a later slice.
 
 ## 6. Component architecture
 
@@ -1070,7 +1070,7 @@ Default policy:
 | Shared inference | One resident model; persisted harness profiles share the slot | Chat and device actions resume a profile; they do not open Ollama |
 | Adapter install menu | Committed catalog; only the CLI is enabled (ADR 0021) | Kinds stay separate; landing a package does not turn a slot on |
 | Climate tools | Closed `home-action` tools, control plane performs them (ADR 0022). ECHONET Lite is a second transport (ADR 0027). Production uses the pinned ACP client (ADR 0028) | Default off; read-back is the result; no per-brand firmware package |
-| Vacuum tools | Closed `home-action` tools, control plane calls the Ecovacs Open API (ADR 0037) | Default off; a known robot is pre-authorized; read-back is the result; only the two official hosts |
+| Vacuum tools | Closed `home-action` tools, control plane calls the Ecovacs Open API (ADR 0038) | Default off; a known robot is pre-authorized; read-back is the result; only the two official hosts |
 | Utterance routing | Lexical route cards, then the harness on the resident model (ADR 0030). `all` repeats one closed action. An obvious named-target command compiles without the harness (ADR 0036) | No second model. A slot stays off until the install binds it |
 
 ## 17. Risks and mitigations
@@ -1093,7 +1093,7 @@ Default policy:
 | Repository or secrets leak through client/push | Privacy or credential exposure | On-demand source scope, redaction, minimal opaque notifications, no raw trajectories or environment values |
 | Unauthorized or stale client action controls a task | Unsafe pause, cancellation, config, or approval | Server-derived scopes, idempotency, ETags, recent-auth policy, immutable action digests, complete audit events |
 | Self-build writes the live tree or widens its own privileges | The system can disable the gates that constrain it | Worktree-only writes, adoption at restart, approval digest over the candidate commit, policy changes named in that approval |
-| A device adapter becomes a second agent or a public endpoint | Lost privacy boundary or a tool loop outside the controller | In-repo adapters, default off, private network except the two official Ecovacs hosts (ADR 0037), no shell, git, or secrets; model access only as a controller chat turn |
+| A device adapter becomes a second agent or a public endpoint | Lost privacy boundary or a tool loop outside the controller | In-repo adapters, default off, private network except the two official Ecovacs hosts (ADR 0038), no shell, git, or secrets; model access only as a controller chat turn |
 | A voice client calls Ollama directly or a device turn uses the coding profile | The wearable becomes a second agent with repository access | `chat` and `home-action` profiles; no shell or worktree; one in-flight inference; speech stays on the device |
 
 ## 18. Evaluation and promotion gates
@@ -1297,7 +1297,7 @@ invent a second architecture.
   television tools on the same profile when a Samsung binding is enabled
   (ADR 0029). That slot stays off until the binding enables it. Execute
   the closed vacuum tools on the same profile when an Ecovacs binding is
-  enabled (ADR 0037). That slot stays off until the binding enables it.
+  enabled (ADR 0038). That slot stays off until the binding enables it.
   The transport may call only the two official Open API hosts. This
   slice is not a GUI and does not add a second agent loop.
 - Pass private-overlay disconnect, revocation, duplicate-mutation,
@@ -1326,7 +1326,7 @@ native-client slices are implemented and promoted. Items 18–19 remain open
 until the ADR 0017 slice is implemented and promoted. Item 20 remains open
 until the ADR 0018 slice is implemented and promoted. B20 is the
 `chat` profile resume. B21 executes climate on `home-action` and does
-not close item 20. B25 executes the closed vacuum tools (ADR 0037) and
+not close item 20. B25 executes the closed vacuum tools (ADR 0038) and
 does not close item 20: slot priority past chat-before-home-action, speech,
 and the seamless install remain open.
 
@@ -1378,7 +1378,7 @@ and the seamless install remain open.
 - [Majesta Two direct air-conditioner transport (ADR 0027)](adrs/0027-echonet-air-conditioner.md)
 - [Majesta Two home-action ACP client (ADR 0028)](adrs/0028-home-action-acp-client.md)
 - [Majesta Two Samsung television tools (ADR 0029)](adrs/0029-samsung-tv.md)
-- [Majesta Two Ecovacs vacuum tools (ADR 0037)](adrs/0037-ecovacs-vacuum.md)
+- [Majesta Two Ecovacs vacuum tools (ADR 0038)](adrs/0038-ecovacs-vacuum.md)
 - [Majesta Two utterance routing and device fan-out (ADR 0030)](adrs/0030-utterance-routing-and-fanout.md)
 - [Majesta Two compile an obvious device utterance (ADR 0036)](adrs/0036-closed-utterance-compile.md)
 - [Majesta Two local operator console (ADR 0031)](adrs/0031-local-operator-console.md)
@@ -1386,6 +1386,7 @@ and the seamless install remain open.
 - [Majesta Two console voice profile (ADR 0033)](adrs/0033-console-voice-profile.md)
 - [Majesta Two installable console (ADR 0034)](adrs/0034-installable-console.md)
 - [Majesta Two console harness install (ADR 0035)](adrs/0035-console-harness-install.md)
+- [Majesta Two OpenRouter inference backend (ADR 0037)](adrs/0037-openrouter-inference-backend.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

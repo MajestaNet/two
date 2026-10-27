@@ -74,7 +74,7 @@ stored and can run the closed climate tools when
 tools when `$TWO_DATA_DIR/devices/tv.yaml` enables them
 ([ADR 0029](adrs/0029-samsung-tv.md)), and the closed vacuum tools when
 `$TWO_DATA_DIR/devices/vacuum.yaml` enables them
-([ADR 0037](adrs/0037-ecovacs-vacuum.md)). The climate binding transport is
+([ADR 0038](adrs/0038-ecovacs-vacuum.md)). The climate binding transport is
 Home Assistant REST or ECHONET Lite. The vacuum transport is the Ecovacs
 Open API on the two official hosts. Without a climate, television, or
 vacuum binding the turn is `profile_not_executable` and is not stored. The Xcode app is

@@ -113,7 +113,7 @@ slots:
     harness_profiles:
       - home-action
     notes: >
-      Closed vacuum tools (ADR 0037). Default off. An install enables it
+      Closed vacuum tools (ADR 0038). Default off. An install enables it
       with $TWO_DATA_DIR/devices/vacuum.yaml. The transport is the Ecovacs
       Open API. The model does not call that API. The control plane
       performs the read-back. The key stays in the environment.

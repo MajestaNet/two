@@ -492,7 +492,7 @@ _V10_STATEMENTS = (
     "ALTER TABLE home_action_turns ADD COLUMN fanout_json TEXT",
 )
 
-# Version 11: vacuum tools on home-action (ADR 0037).
+# Version 11: vacuum tools on home-action (ADR 0038).
 # SQLite cannot widen a CHECK in place. home_action_turns is rebuilt so
 # the tool list can name the three vacuum tools. A known robot is
 # pre-authorized, so this version adds no approvals table.

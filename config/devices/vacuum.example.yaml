@@ -1,7 +1,7 @@
 # Copyright 2026 MajestaNet
 # SPDX-License-Identifier: Apache-2.0
 #
-# Example Ecovacs vacuum binding (ADR 0037). Copy to
+# Example Ecovacs vacuum binding (ADR 0038). Copy to
 # $TWO_DATA_DIR/devices/vacuum.yaml and set enabled: true.
 # Nicknames are the exact names on the Ecovacs account.
 # `two vacuum robots` prints those names and writes nothing.

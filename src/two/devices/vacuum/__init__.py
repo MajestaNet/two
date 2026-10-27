@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Vacuum device package (ADR 0037). Importing it does not enable the slot."""
+"""Vacuum device package (ADR 0038). Importing it does not enable the slot."""
 
 from two.devices.vacuum.broker import open_vacuum_broker
 from two.devices.vacuum.config import load_vacuum_config, vacuum_config_path

@@ -16,7 +16,7 @@ Python package for the Majesta Two control plane.
   `console` is the in-repo window and stays off. `devices/climate/` is the climate package
   (ADR 0022) and stays default off.   `devices/tv/` is the television
   package (ADR 0029) and stays default off. `devices/vacuum/` is the
-  vacuum package (ADR 0037) and stays default off. Do not add `export/` until the ADR
+  vacuum package (ADR 0038) and stays default off. Do not add `export/` until the ADR
   for that slot.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
@@ -40,7 +40,10 @@ Python package for the Majesta Two control plane.
   import time. The API may call the menu. It does not call Ollama.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
-  path. Do not reimplement the DSH agent loop.
+  path. Do not reimplement the DSH agent loop. An OpenRouter backend
+  file under `$TWO_DATA_DIR` (ADR 0037) selects a second provider for
+  chat and home-action. Coding stays on Mac Qwen. The key is a
+  mode-0600 file, never inline in settings.yaml.
 - `store/` is the SQLite WAL store (`open_store`). Schema v5 persists
   `work_nodes` / `work_edges`. Schema v6 persists projects and immutable
   config candidates (B14 slice 3). Schema v7 persists one `chat`
@@ -49,7 +52,7 @@ Python package for the Majesta Two control plane.
   adds television tool names and `tv_approvals` (ADR 0029). Schema v10
   stores `route_slots`, `fanout_scope`, and `fanout_json` on
   `home_action_turns` (ADR 0030). Schema v11 adds the three vacuum
-  tool names (ADR 0037). There is no vacuum approval table. Do not open databases from
+  tool names (ADR 0038). There is no vacuum approval table. Do not open databases from
   `cli.py` at import time. The `two api` subcommand lazy-imports
   `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
@@ -75,6 +78,8 @@ Python package for the Majesta Two control plane.
 - `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
   budgets clock, and Mac health mapping. It admits a queued chat turn,
   then a queued home-action turn, only when no coding lease is held.
+  OpenRouter chat and home-action do not wait for Mac health. Coding
+  still does. The backend file is read locally. No network.
   Inject a health probe and worker
   callback; do not call the network or ACP from this package.
 - `channels/*` adapters must not import `workspace` or run git. Messaging
@@ -84,7 +89,7 @@ Python package for the Majesta Two control plane.
   is ADR 0022 and stays default off. The binding transport is Home
   Assistant REST or ECHONET Lite (ADR 0027). `devices/tv/` is ADR 0029
   and stays default off. The transport is the Samsung local API.
-  `devices/vacuum/` is ADR 0037 and stays default off. The transport is
+  `devices/vacuum/` is ADR 0038 and stays default off. The transport is
   the Ecovacs Open API on the two official hosts.
 - `routing/` classifies a transcript onto `chat` or an enabled device
   slot and plans a fan-out (ADR 0030). An obvious named-target command
@@ -123,7 +128,7 @@ Python package for the Majesta Two control plane.
   may request the closed climate tools and, when those bindings are
   enabled, the closed television and vacuum tools. The control plane
   performs them and does not send `execute` to the child (ADR 0022,
-  ADR 0029, ADR 0037).
+  ADR 0029, ADR 0038).
   The climate transport is Home Assistant REST or ECHONET Lite (ADR 0027).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. The scheduler

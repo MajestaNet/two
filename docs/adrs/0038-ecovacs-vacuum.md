@@ -1,4 +1,4 @@
-# ADR 0037 — Ecovacs vacuum tools on `home-action`
+# ADR 0038 — Ecovacs vacuum tools on `home-action`
 
 ## Status
 

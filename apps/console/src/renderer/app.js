@@ -15,6 +15,8 @@ const state = {
   model: null,
   selected: null,
   ownModel: "",
+  openrouter: null,
+  openrouterModel: "",
   doc: "setup",
   poll: null,
 };
@@ -124,8 +126,10 @@ function renderOllama() {
   const stop = $("ollama-stop");
   if (!info) return;
   const installable = Boolean(info.installable);
+  const openrouter = state.selected === "openrouter";
   $("ollama-install").classList.toggle("hidden", Boolean(info.bin) || !installable);
-  $("ollama-install-model").classList.toggle("hidden", Boolean(info.bin) || !installable);
+  $("ollama-install-model").classList.toggle("hidden", Boolean(info.bin) || !installable || openrouter);
+  $("ollama-choose-model").classList.toggle("hidden", openrouter);
   if (!info.bin) {
     $("ollama-path").textContent = installable
       ? "Ollama was not found. Install it, or choose a binary you already have."
@@ -232,9 +236,16 @@ async function refreshModel() {
   try {
     state.recommendation = await globalThis.two.modelRecommend();
     state.model = await globalThis.two.modelStatus();
+    state.openrouter = await globalThis.two.openrouterStatus();
   } catch (error) {
     reason.textContent = error.message;
     return;
+  }
+  if (state.openrouter && state.openrouter.backend === "openrouter") {
+    state.selected = "openrouter";
+    state.openrouterModel = state.openrouter.model || policy.OPENROUTER_DEFAULT_MODEL;
+  } else if (state.selected === "openrouter") {
+    state.selected = state.recommendation.recommended_id;
   }
   if (!state.selected) {
     state.selected = state.recommendation.recommended_id;
@@ -252,9 +263,8 @@ async function refreshModel() {
     input.addEventListener("change", () => {
       state.selected = profile.id;
       $("own-radio").checked = false;
-      rememberChoice();
-      syncDownload();
-      refreshChatGate();
+      $("openrouter-radio").checked = false;
+      persistBackend();
     });
     const body = document.createElement("div");
     const title = document.createElement("strong");
@@ -278,8 +288,11 @@ async function refreshModel() {
   }
   $("own-radio").checked = state.selected === "own";
   $("own-model").value = state.ownModel;
+  $("openrouter-radio").checked = state.selected === "openrouter";
+  $("openrouter-model").value = state.openrouterModel || policy.OPENROUTER_DEFAULT_MODEL;
+  renderOpenRouter();
   await refreshOllama();
-  if (!state.model.ollama_up) {
+  if (!state.model.ollama_up && state.selected !== "openrouter") {
     const installed = state.ollama && state.ollama.models && state.ollama.models.length;
     reason.textContent += installed
       ? " This install already has models. Start Ollama to serve them. Download stays off until it answers."
@@ -289,9 +302,30 @@ async function refreshModel() {
   refreshChatGate();
 }
 
+function renderOpenRouter() {
+  const info = state.openrouter;
+  const note = $("openrouter-note");
+  const login = $("openrouter-login");
+  const logout = $("openrouter-logout");
+  if (!info) {
+    note.textContent = "";
+    return;
+  }
+  note.textContent = info.signedIn
+    ? "Signed in. Chat uses OpenRouter and does not load a local model."
+    : "Sign in with OpenRouter. This window never shows the key.";
+  login.disabled = false;
+  logout.disabled = !info.signedIn;
+}
+
 function syncDownload() {
   const download = $("download");
   if (!state.model) return;
+  if (state.selected === "openrouter") {
+    download.disabled = true;
+    download.textContent = "Download";
+    return;
+  }
   const ownReady = state.selected !== "own" || Boolean(ownTag());
   download.disabled = !state.model.ollama_up || !ownReady;
   download.textContent = "Download";
@@ -301,6 +335,7 @@ function rememberChoice() {
   try {
     localStorage.setItem("two.selected", state.selected || "");
     localStorage.setItem("two.ownModel", state.ownModel || "");
+    localStorage.setItem("two.openrouterModel", state.openrouterModel || "");
   } catch (_error) {
     // The choice still applies for this window.
   }
@@ -310,11 +345,41 @@ function restoreChoice() {
   try {
     const selected = localStorage.getItem("two.selected");
     const ownModel = localStorage.getItem("two.ownModel");
+    const openrouterModel = localStorage.getItem("two.openrouterModel");
     if (selected) state.selected = selected;
     if (typeof ownModel === "string") state.ownModel = ownModel;
+    if (typeof openrouterModel === "string" && openrouterModel !== "") {
+      state.openrouterModel = openrouterModel;
+    } else {
+      state.openrouterModel = policy.OPENROUTER_DEFAULT_MODEL;
+    }
   } catch (_error) {
-    // A fresh window uses the recommendation.
+    state.openrouterModel = policy.OPENROUTER_DEFAULT_MODEL;
   }
+}
+
+function openrouterModel() {
+  try {
+    return policy.normalizeOpenRouterModel(state.openrouterModel || policy.OPENROUTER_DEFAULT_MODEL);
+  } catch (_error) {
+    return policy.OPENROUTER_DEFAULT_MODEL;
+  }
+}
+
+async function persistBackend() {
+  rememberChoice();
+  const payload =
+    state.selected === "openrouter"
+      ? { backend: "openrouter", model: openrouterModel() }
+      : { backend: "local" };
+  try {
+    state.openrouter = await globalThis.two.openrouterSave(payload);
+  } catch (_error) {
+    // The radio still applies for this window.
+  }
+  renderOpenRouter();
+  syncDownload();
+  refreshChatGate();
 }
 
 function selectedProfile() {
@@ -511,6 +576,8 @@ function refreshChatGate() {
     ollamaUp,
     modelPresent: modelPresent(),
     modelLoaded: modelLoaded(),
+    backend: state.selected === "openrouter" ? "openrouter" : "local",
+    openrouterSignedIn: Boolean(state.openrouter && state.openrouter.signedIn),
   });
   $("chat-text").disabled = !gate.enabled;
   $("chat-send").disabled = !gate.enabled;
@@ -532,6 +599,7 @@ function addLine(role, text) {
 
 async function followTurn(turnId) {
   let tries = 0;
+  let failures = 0;
   let busy = false;
   if (state.poll) clearInterval(state.poll);
   state.poll = setInterval(async () => {
@@ -540,8 +608,13 @@ async function followTurn(turnId) {
     tries += 1;
     try {
       const result = await globalThis.two.chatShow(turnId);
+      failures = 0;
       const receipt = result.body;
-      const note = policy.queuedNote(receipt.status, modelLoaded());
+      const note = policy.queuedNote(
+        receipt.status,
+        modelLoaded(),
+        state.selected === "openrouter" ? "openrouter" : "local",
+      );
       if (note) $("chat-reason").textContent = note;
       const line = policy.receiptText(receipt);
       const settled =
@@ -556,10 +629,14 @@ async function followTurn(turnId) {
         refreshChatGate();
       }
     } catch (error) {
-      clearInterval(state.poll);
-      state.poll = null;
-      addLine("two", error.message);
-      refreshChatGate();
+      failures += 1;
+      const missing = /not reachable|fetch failed/i.test(error.message || "");
+      if (!missing || failures > 8) {
+        clearInterval(state.poll);
+        state.poll = null;
+        addLine("two", error.message);
+        refreshChatGate();
+      }
     } finally {
       busy = false;
     }
@@ -690,18 +767,54 @@ $("harness-install").addEventListener("click", installHarness);
 $("own-radio").addEventListener("change", () => {
   if ($("own-radio").checked) {
     state.selected = "own";
-    rememberChoice();
-    syncDownload();
-    refreshChatGate();
+    persistBackend();
   }
 });
 $("own-model").addEventListener("input", () => {
   state.ownModel = $("own-model").value;
   state.selected = "own";
   $("own-radio").checked = true;
-  rememberChoice();
-  syncDownload();
-  refreshChatGate();
+  persistBackend();
+});
+$("openrouter-radio").addEventListener("change", () => {
+  if ($("openrouter-radio").checked) {
+    state.selected = "openrouter";
+    if (!state.openrouterModel) state.openrouterModel = policy.OPENROUTER_DEFAULT_MODEL;
+    persistBackend();
+  }
+});
+$("openrouter-model").addEventListener("input", () => {
+  state.openrouterModel = $("openrouter-model").value;
+  state.selected = "openrouter";
+  $("openrouter-radio").checked = true;
+  persistBackend();
+});
+$("openrouter-login").addEventListener("click", async () => {
+  const login = $("openrouter-login");
+  login.disabled = true;
+  $("openrouter-note").textContent = "Opening OpenRouter in the browser…";
+  state.selected = "openrouter";
+  $("openrouter-radio").checked = true;
+  try {
+    await persistBackend();
+    await globalThis.two.openrouterLogin();
+    state.openrouter = await globalThis.two.openrouterStatus();
+    renderOpenRouter();
+    syncDownload();
+    refreshChatGate();
+  } catch (error) {
+    $("openrouter-note").textContent = error.message;
+    login.disabled = false;
+  }
+});
+$("openrouter-logout").addEventListener("click", async () => {
+  try {
+    state.openrouter = await globalThis.two.openrouterLogout();
+    renderOpenRouter();
+    refreshChatGate();
+  } catch (error) {
+    $("openrouter-note").textContent = error.message;
+  }
 });
 $("chat-form").addEventListener("submit", sendChat);
 

@@ -41,6 +41,10 @@
     Object.freeze(["adapters", "adapters:list"]),
     Object.freeze(["chatSend", "chat:send"]),
     Object.freeze(["chatShow", "chat:show"]),
+    Object.freeze(["openrouterStatus", "openrouter:status"]),
+    Object.freeze(["openrouterSave", "openrouter:save"]),
+    Object.freeze(["openrouterLogin", "openrouter:login"]),
+    Object.freeze(["openrouterLogout", "openrouter:logout"]),
   ]);
 
   const CHAT_NEEDS_SERVER = "Start the local server before chat.";
@@ -48,6 +52,12 @@
   const CHAT_NEEDS_MODEL = "Download the selected model before chat.";
   const CHAT_NEEDS_LOADED =
     "Load the selected model before chat. It is installed, but it is not in memory.";
+  const CHAT_NEEDS_OPENROUTER = "Sign in with OpenRouter before chat.";
+  const OPENROUTER_DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
+  const OPENROUTER_AUTH_ORIGIN = "https://openrouter.ai";
+  const OPENROUTER_EXCHANGE_PATH = "/api/v1/auth/keys";
+  const OPENROUTER_MODEL_RE = /^[A-Za-z0-9._:+-]+\/[A-Za-z0-9._:+-]+$/;
+  const OPENROUTER_KEY_RE = /^sk-or-[A-Za-z0-9_-]{8,512}$/;
   const QUEUED_COLD = "The model is not loaded, so the scheduler will not open the slot.";
   const LOOPBACK_OLLAMA_HOST = "127.0.0.1:11434";
   const OWN_NUM_CTX = 8192;
@@ -63,6 +73,12 @@
     if (!state.apiUp) {
       return { enabled: false, reason: CHAT_NEEDS_SERVER };
     }
+    if (state.backend === "openrouter") {
+      if (!state.openrouterSignedIn) {
+        return { enabled: false, reason: CHAT_NEEDS_OPENROUTER };
+      }
+      return { enabled: true, reason: "" };
+    }
     if (!state.ollamaUp) {
       return { enabled: false, reason: CHAT_NEEDS_OLLAMA };
     }
@@ -75,8 +91,9 @@
     return { enabled: true, reason: "" };
   }
 
-  function queuedNote(status, modelLoaded) {
+  function queuedNote(status, modelLoaded, backend) {
     if (status !== "queued") return "";
+    if (backend === "openrouter") return QUEUED_NOTE;
     if (modelLoaded === false) return QUEUED_COLD;
     return QUEUED_NOTE;
   }
@@ -414,6 +431,104 @@
     }
   }
 
+  function normalizeOpenRouterModel(model) {
+    if (typeof model !== "string") {
+      throw new Error("choose an OpenRouter model such as deepseek/deepseek-v4-flash");
+    }
+    const trimmed = model.trim();
+    if (trimmed.length < 3 || trimmed.length > 128 || !OPENROUTER_MODEL_RE.test(trimmed)) {
+      throw new Error("choose an OpenRouter model such as deepseek/deepseek-v4-flash");
+    }
+    return trimmed;
+  }
+
+  function openRouterBackend(payload) {
+    const body = payload && typeof payload === "object" ? payload : {};
+    if (body.backend === "openrouter") {
+      const model =
+        typeof body.model === "string" && body.model.trim() !== ""
+          ? normalizeOpenRouterModel(body.model)
+          : OPENROUTER_DEFAULT_MODEL;
+      return { backend: "openrouter", model: model };
+    }
+    return { backend: "local", model: OPENROUTER_DEFAULT_MODEL };
+  }
+
+  function openRouterAuthUrl(callbackUrl, challenge) {
+    if (!openRouterCallbackAllowed(callbackUrl)) {
+      throw new Error("OpenRouter must return to loopback");
+    }
+    if (typeof challenge !== "string" || !/^[A-Za-z0-9_-]{32,128}$/.test(challenge)) {
+      throw new Error("OpenRouter sign-in challenge is not usable");
+    }
+    const url = new URL(OPENROUTER_AUTH_ORIGIN + "/auth");
+    url.searchParams.set("callback_url", callbackUrl);
+    url.searchParams.set("code_challenge", challenge);
+    url.searchParams.set("code_challenge_method", "S256");
+    url.searchParams.set("key_label", "Majesta Two");
+    return url.toString();
+  }
+
+  function openRouterCallbackAllowed(url) {
+    try {
+      const parsed = new URL(url);
+      return (
+        parsed.protocol === "http:" &&
+        parsed.hostname === "127.0.0.1" &&
+        parsed.pathname === "/callback"
+      );
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function openRouterAuthAllowed(url) {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "https:" && parsed.hostname === "openrouter.ai" && parsed.pathname === "/auth";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function openRouterExchangeUrl() {
+    return OPENROUTER_AUTH_ORIGIN + OPENROUTER_EXCHANGE_PATH;
+  }
+
+  function openRouterExchangeBody(code, verifier) {
+    if (typeof code !== "string" || !/^[A-Za-z0-9._~-]{8,256}$/.test(code)) {
+      throw new Error("OpenRouter sign-in did not return a code");
+    }
+    if (typeof verifier !== "string" || !/^[A-Za-z0-9_-]{32,128}$/.test(verifier)) {
+      throw new Error("OpenRouter sign-in verifier is not usable");
+    }
+    return {
+      code: code,
+      code_verifier: verifier,
+      code_challenge_method: "S256",
+    };
+  }
+
+  function openRouterKeyFromResponse(body) {
+    const key = body && typeof body === "object" ? body.key : "";
+    if (typeof key !== "string" || !OPENROUTER_KEY_RE.test(key)) {
+      throw new Error("OpenRouter did not return a key");
+    }
+    return key;
+  }
+
+  function parseOpenRouterCallback(requestUrl) {
+    const parsed = new URL(requestUrl, "http://127.0.0.1");
+    if (parsed.pathname !== "/callback") {
+      throw new Error("OpenRouter callback path is not allowed");
+    }
+    const code = parsed.searchParams.get("code");
+    if (typeof code !== "string" || !/^[A-Za-z0-9._~-]{8,256}$/.test(code)) {
+      throw new Error("OpenRouter sign-in did not return a code");
+    }
+    return code;
+  }
+
   function resolveDoc(repoRoot, id) {
     if (!nodePath) {
       throw new Error("document paths are resolved in the main process");
@@ -442,6 +557,8 @@
     CHAT_NEEDS_OLLAMA,
     CHAT_NEEDS_MODEL,
     CHAT_NEEDS_LOADED,
+    CHAT_NEEDS_OPENROUTER,
+    OPENROUTER_DEFAULT_MODEL,
     QUEUED_COLD,
     LOOPBACK_OLLAMA_HOST,
     OWN_NUM_CTX,
@@ -476,6 +593,15 @@
     preloadBody,
     modelResident,
     externalUrlAllowed,
+    normalizeOpenRouterModel,
+    openRouterBackend,
+    openRouterAuthUrl,
+    openRouterCallbackAllowed,
+    openRouterAuthAllowed,
+    openRouterExchangeUrl,
+    openRouterExchangeBody,
+    openRouterKeyFromResponse,
+    parseOpenRouterCallback,
     resolveDoc,
   };
 });

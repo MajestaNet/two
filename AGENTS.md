@@ -15,7 +15,7 @@ today; ADR 0015/B14 plans a secure first-party mobile client over the same
 API. The climate device package is in-repo and default off (ADR 0022).
 A binding may use Home Assistant REST or ECHONET Lite (ADR 0027).
 The television package is in-repo and default off (ADR 0029).
-The vacuum package is in-repo and default off (ADR 0037). Its transport
+The vacuum package is in-repo and default off (ADR 0038). Its transport
 is the Ecovacs Open API on the two official hosts.
 Speech remains specified and not implemented.
 The SQLite WAL store (`two.store`)
@@ -112,7 +112,7 @@ the local operator window and is not part of that gate.
 
 ## Layout
 
-- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035). Electron,
+- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037). Electron,
   loopback only, default off. It calls `two up`, `two down`,
   `two profiles --recommend`, `two model`, `two harness`, and `POST /v1/voice/turns`.
   The voice profile defaults to unset. `chat` and `home-action` are the
@@ -130,7 +130,9 @@ the local operator window and is not part of that gate.
   is found, or locate an existing `ollama` and run `--version`, `list`,
   `serve`, and `pull` on `127.0.0.1:11434`. The model list includes the
   16 GB catalog rows. One typed Ollama tag can be pulled and loaded.
-  Model text in the window does not cite an ADR. The renderer does not spawn
+  The Model page can select OpenRouter, defaulting to DeepSeek V4 Flash,
+  and sign in with PKCE. The key stays in the data directory. Model text
+  in the window does not cite an ADR. The renderer does not spawn
   a process. The API process does not call Ollama. `npm test` there is not
   part of `make ci`.
 - `src/two/` — Python only. Package implementations live here.
@@ -149,7 +151,7 @@ the local operator window and is not part of that gate.
  Schema v8 adds `home_action_turns` and `climate_approvals` (B21).
  Schema v9 adds television tool names and `tv_approvals`. Schema v10
  stores the utterance route and fan-out plan. Schema v11 adds the three
- vacuum tool names (ADR 0037). There is no vacuum approval table.
+ vacuum tool names (ADR 0038). There is no vacuum approval table.
  A chat turn is not a task and never takes a coding lease. A home-action
  turn is not a task either.
  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
@@ -166,12 +168,12 @@ the local operator window and is not part of that gate.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. `two adapters --json`
  adds bound device ids and omits secrets. Only the `cli` slot is
-  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035),
+  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035, ADR 0037),
  shipped and off, and it resumes `chat` only. `watch` and `mobile`
  are clients at `contract`. `climate`
  is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).
  `tv` is shipped and off (`src/two/devices/tv/`, ADR 0029).
- `vacuum` is shipped and off (`src/two/devices/vacuum/`, ADR 0037).
+ `vacuum` is shipped and off (`src/two/devices/vacuum/`, ADR 0038).
  The kind-level `device` slot and `github` (`src/two/export/`) stay
  reserved. Do not enable a slot by adding a directory.
  `src/two/routing/` chooses `chat` or a device slot for a transcript

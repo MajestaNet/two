@@ -7,8 +7,8 @@
 | Status | done |
 | Depends on | B22, B23 |
 | Blocks | Nothing. Landing this item does not close architecture §21 item 20. |
-| Architecture | §5.2, §5.4, ADR 0037 |
-| Design | [ADR 0037](../adrs/0037-ecovacs-vacuum.md). Do not treat this file as a second contract. |
+| Architecture | §5.2, §5.4, ADR 0038 |
+| Design | [ADR 0038](../adrs/0038-ecovacs-vacuum.md). Do not treat this file as a second contract. |
 
 ## Goal
 
@@ -43,6 +43,6 @@ approvable. A host outside the two official names does not load.
 
 ## Agentic prompt
 
-Implement ADR 0037. Keep the vacuum slot default off. Do not add a
+Implement ADR 0038. Keep the vacuum slot default off. Do not add a
 runtime dependency. Do not run the Ecovacs MCP server. Do not put a
 second agent on the robot. Room cleaning and maps stay out of this slice.

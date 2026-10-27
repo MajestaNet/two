@@ -27,7 +27,7 @@ Configuration is data. Do not put Python here.
   `devices/tv.example.yaml` is the Samsung television binding (ADR 0029).
   Copy it under `$TWO_DATA_DIR` before enabling it. Tokens stay in the
   environment. `devices/vacuum.example.yaml` is the Ecovacs vacuum
-  binding (ADR 0037). Nicknames in that file are placeholders. The API
+  binding (ADR 0038). Nicknames in that file are placeholders. The API
   key stays in the environment.
 - GitHub App credentials, when they exist, are env-only. Do not add a
   local git forge under `config/` by default (ADR 0012).

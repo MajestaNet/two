@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from two.providers.backend import load_inference_backend
 from two.runtime.health import HealthState
 from two.scheduler.config import (
     EVENT_BUDGET_EXCEEDED,
@@ -141,7 +142,11 @@ class Scheduler:
         promoted = self._promote_retry_wait(instant)
         self._heartbeat(instant)
         dispatched: TaskRecord | None = None
-        if health is HealthState.HEALTHY and not self._slot_busy():
+        # OpenRouter chat does not use the local model, so a Cold Mac still
+        # admits voice turns. Coding dispatch stays inside ``dispatch``.
+        if not self._slot_busy() and (
+            health is HealthState.HEALTHY or self._voice_without_local_model()
+        ):
             dispatched = self.dispatch(now=instant)
         running = self._running_task()
         return TickResult(
@@ -158,9 +163,10 @@ class Scheduler:
     def dispatch(self, *, now: datetime | None = None) -> TaskRecord | None:
         """Pick the oldest eligible ``queued`` task, obtain a lease, set ``running``.
 
-        Does nothing when the slot is occupied, Mac health is not Healthy, or
-        no queued task exists. Human-paused and awaiting-input tasks are never
-        selected. Does not implement git worktree logic.
+        Does nothing when the slot is occupied or no queued task exists.
+        Coding dispatch waits until Mac health is Healthy. OpenRouter chat
+        and home-action do not. Human-paused and awaiting-input tasks are
+        never selected. Does not implement git worktree logic.
 
         A chat turn is admitted on this same call when no unexpired coding
         lease is held and no chat or home-action turn is already running.
@@ -169,7 +175,9 @@ class Scheduler:
         blocks coding dispatch. An in-flight coding turn is not cancelled.
         """
         instant = _utc(now)
-        if self._health_probe() is not HealthState.HEALTHY:
+        mac_ready = self._health_probe() is HealthState.HEALTHY
+        voice = self._voice_without_local_model()
+        if not mac_ready and not voice:
             return None
         if self._store.running_chat_turn() is not None:
             return None
@@ -183,7 +191,7 @@ class Scheduler:
             admitted_home = self._store.admit_home_action_turn(now=instant)
             if admitted_home is not None:
                 return None
-        if self._slot_busy():
+        if not mac_ready or self._slot_busy():
             return None
         queued = self._store.list_tasks(lifecycle=LifecycleState.QUEUED)
         if not queued:
@@ -395,6 +403,10 @@ class Scheduler:
             ttl_seconds=self._config.lease_ttl_seconds,
             now=now,
         )
+
+    def _voice_without_local_model(self) -> bool:
+        """True when chat and home-action use OpenRouter. No network."""
+        return load_inference_backend(self._store.path.parent).kind == "openrouter"
 
     def _slot_busy(self) -> bool:
         running = self._store.list_tasks(lifecycle=LifecycleState.RUNNING)

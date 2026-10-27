@@ -565,6 +565,71 @@ def test_stale_session_resume_starts_fresh(
     assert session.session_id == "sess-fresh"
 
 
+def test_removed_provider_session_starts_fresh_after_route_registers(
+    store: Store,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A local session cannot resume once OpenRouter is the only route."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    script = bin_dir / "dsh"
+    script.write_text(
+        "\n".join(
+            [
+                f"#!{sys.executable}",
+                "import json, sys",
+                "state = {'new': 0}",
+                "def send(payload):",
+                "    sys.stdout.write(json.dumps(payload) + '\\n')",
+                "    sys.stdout.flush()",
+                "def missing(mid, provider):",
+                "    send({'jsonrpc': '2.0', 'id': mid, 'error': {",
+                "        'message': 'Internal error',",
+                "        'data': {'details':"
+                " 'no adapter registered for provider \"' + provider + '\"'},",
+                "    }})",
+                "for raw in sys.stdin:",
+                "    msg = json.loads(raw)",
+                "    method = msg.get('method')",
+                "    mid = msg.get('id')",
+                "    if method == 'initialize':",
+                "        send({'jsonrpc': '2.0', 'id': mid, 'result': {'protocolVersion': 1}})",
+                "    elif method == 'session/resume':",
+                "        missing(mid, 'mac-qwen')",
+                "    elif method == 'session/new':",
+                "        state['new'] += 1",
+                "        if state['new'] == 1:",
+                "            missing(mid, 'openrouter')",
+                "        else:",
+                "            send({'jsonrpc': '2.0', 'id': mid,"
+                " 'result': {'sessionId': 'sess-openrouter'}})",
+                "    elif method == 'session/prompt':",
+                "        chunk = {'sessionUpdate': 'agent_message_chunk',",
+                "                 'content': {'type': 'text', 'text': 'pong'}}",
+                "        send({'jsonrpc': '2.0', 'method': 'session/update',",
+                "              'params': {'update': chunk}})",
+                "        send({'jsonrpc': '2.0', 'id': mid,",
+                "              'result': {'stopReason': 'end_turn'}})",
+                "        break",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    store.set_chat_session_id("old-local", now=T0)
+    store.insert_chat_turn("hello", "local", turn_id="c1", now=T0)
+    assert Scheduler(store).dispatch(now=T0) is None
+    finished = AcpWorker(store, data_dir=tmp_path, child_config=FAST_CHILD).run_chat("c1", now=T0)
+    assert finished.status is ChatTurnStatus.COMPLETE
+    assert finished.reply_text == "pong"
+    session = store.get_harness_session()
+    assert session is not None
+    assert session.session_id == "sess-openrouter"
+
+
 def test_tool_request_fails_closed(store: Store, tmp_path: Path) -> None:
     invoke = tmp_path / "invoke.txt"
     worker = AcpWorker(

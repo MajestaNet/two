@@ -38,7 +38,7 @@
 - `adrs/0036-closed-utterance-compile.md` compiles an obvious named
   climate, television, or vacuum command without the harness. Do not paste that
   ADR here.
-- `adrs/0037-ecovacs-vacuum.md` is the closed vacuum tool contract.
+- `adrs/0038-ecovacs-vacuum.md` is the closed vacuum tool contract.
   The slot stays off. The transport is the Ecovacs Open API on the two
   official hosts. Do not paste that ADR here.
 - `adrs/0031-local-operator-console.md` is the in-repo loopback window
@@ -56,6 +56,9 @@
 - `adrs/0035-console-harness-install.md` lets that window install the
   pinned DeepSeek Harness checkout. It does not install a newer release
   and it does not reimplement the agent loop. Do not paste that ADR here.
+- `adrs/0037-openrouter-inference-backend.md` lets that window send chat
+  and home-action through OpenRouter after PKCE sign-in. Local Qwen
+  stays the default. Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.
@@ -64,7 +67,7 @@
 - `backlog/` holds dedicated implementation items (B01–B25). B20
   resumes harness profile `chat`. B21 executes climate on `home-action`
   and leaves that slot default off. B25 executes the closed vacuum
-  tools on the same profile (ADR 0037) and leaves that slot default off.
+  tools on the same profile (ADR 0038) and leaves that slot default off.
   Status tables there are the tracker. Each item file ends with an
   agentic prompt. Do not copy the spec into those files; point at
   sections.

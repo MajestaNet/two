@@ -19,7 +19,7 @@ Dedicated, agent-executable implementation items. One file per item.
   [B24](B24-local-operator-console.md) is the loopback operator window
   (ADR 0031, ADR 0032). It stays default off and does not replace B14.
   [B25](B25-vacuum-home-action.md) executes the closed vacuum tools
-  on the same profile (ADR 0037) and leaves that slot default off.
+  on the same profile (ADR 0038) and leaves that slot default off.
   Landing any of these items does not close architecture §21 item 20.
   Do not merge two items in one PR unless the item file says they may
   land together.
