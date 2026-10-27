@@ -818,6 +818,7 @@ function createWindow() {
     width: 1100,
     height: 740,
     title: "Majesta Two",
+    backgroundColor: "#1b2e46",
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

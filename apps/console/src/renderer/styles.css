@@ -1,14 +1,53 @@
+@font-face {
+  font-family: Inter;
+  src: url("fonts/inter-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Inter;
+  src: url("fonts/inter-latin-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Josefin Sans";
+  src: url("fonts/josefin-sans-latin-300.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Josefin Sans";
+  src: url("fonts/josefin-sans-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  --bg: #141210;
-  --panel: #1d1a17;
-  --line: #3a342c;
-  --text: #f3efe6;
-  --muted: #b7ab9a;
-  --accent: #d7a15a;
+  --navy: #1b2e46;
+  --gold: #f6cf55;
+  --ivory: #f5f1e8;
+  --slate: #697685;
+  --white: #fff;
+  --hairline: color-mix(in srgb, var(--ivory) 16%, transparent);
+  --panel: color-mix(in srgb, var(--ivory) 8%, var(--navy));
   --ok: #9dbe8a;
-  --bad: #d98978;
-  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --bad: #e08a7a;
+  --font-text: Inter, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Josefin Sans", "Gill Sans", sans-serif;
+  --bg: var(--navy);
+  --text: var(--ivory);
+  --muted: color-mix(in srgb, var(--ivory) 72%, transparent);
+  --accent: var(--gold);
+  --line: var(--hairline);
 }
 
 * { box-sizing: border-box; }
@@ -21,13 +60,23 @@ body {
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--navy);
+  color: var(--ivory);
+  font-family: var(--font-text);
+  font-weight: 400;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-button, input {
+button, input, select {
   font: inherit;
   color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
 }
 
 .app {
@@ -39,20 +88,34 @@ button, input {
 
 .nav {
   padding: 28px 18px;
-  border-right: 1px solid var(--line);
-  background: #100e0c;
+  background: var(--navy);
+  color: var(--ivory);
   overflow: visible;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 32px;
+}
+
+.brand-symbol {
+  width: 2.1rem;
+  height: 2.1rem;
+  color: var(--gold);
 }
 
 .mark {
   margin: 0;
-  font-size: 1.15rem;
-}
-
-.mark-note {
-  margin: 4px 0 28px;
-  color: var(--muted);
-  font-size: 0.85rem;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .nav button {
@@ -63,64 +126,85 @@ button, input {
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: 6px;
+  border-radius: 0;
   cursor: pointer;
-  color: var(--text);
+  color: color-mix(in srgb, var(--ivory) 78%, transparent);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
 }
 
 .nav button.active,
 .nav button:hover {
-  background: var(--panel);
-  color: var(--text);
+  background: transparent;
+  color: var(--gold);
 }
 
 main {
   min-height: 0;
   overflow: auto;
   padding: 32px 40px 48px;
+  background: var(--navy);
 }
 
 h1 {
   margin: 0 0 8px;
-  font-weight: 500;
-  font-size: 1.8rem;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 2rem;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
 }
 
 main h2 {
   margin: 28px 0 8px;
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 1.15rem;
+  letter-spacing: 0.04em;
 }
 
 .lede, .note { color: var(--muted); max-width: 62ch; }
 
 .hidden { display: none; }
 
-.row { display: flex; gap: 10px; margin: 18px 0; }
+.row { display: flex; gap: 10px; margin: 18px 0; flex-wrap: wrap; }
 
 button {
-  background: var(--accent);
-  color: #1a140c;
+  background: var(--gold);
+  color: var(--navy);
   border: 0;
-  border-radius: 6px;
+  border-radius: 0;
   padding: 8px 14px;
   cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 button.quiet,
 button:disabled {
   background: transparent;
-  color: var(--text);
-  border: 1px solid var(--line);
+  color: var(--ivory);
+  border: 1px solid var(--hairline);
 }
 
-button:disabled { color: var(--muted); cursor: not-allowed; }
+button.quiet:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+button:disabled { color: var(--slate); cursor: not-allowed; }
 
 .facts, .menu { list-style: none; padding: 0; margin: 0; }
 
 .facts li, .card, .slot {
   padding: 12px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .ok { color: var(--ok); }
@@ -135,7 +219,11 @@ button:disabled { color: var(--muted); cursor: not-allowed; }
   cursor: pointer;
 }
 
-.card strong { font-weight: 500; }
+.card strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
 
 .meta { color: var(--muted); font-size: 0.92rem; }
 
@@ -146,10 +234,10 @@ button:disabled { color: var(--muted); cursor: not-allowed; }
   width: 100%;
   margin-top: 8px;
   padding: 8px 10px;
-  background: #0c0b0a;
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ivory);
+  border: 1px solid var(--hairline);
+  border-radius: 0;
 }
 
 .log, .transcript {
@@ -158,10 +246,10 @@ button:disabled { color: var(--muted); cursor: not-allowed; }
   max-height: 360px;
   overflow: auto;
   padding: 14px;
-  background: #0c0b0a;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-family: "IBM Plex Mono", "ui-monospace", monospace;
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 0.92rem;
   white-space: pre-wrap;
 }
@@ -173,7 +261,11 @@ button:disabled { color: var(--muted); cursor: not-allowed; }
 .who {
   display: inline-block;
   width: 3.2rem;
-  color: var(--accent);
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .split {
@@ -192,29 +284,48 @@ button:disabled { color: var(--muted); cursor: not-allowed; }
   width: 100%;
   text-align: left;
   background: transparent;
-  color: var(--text);
+  color: var(--ivory);
   border: 0;
   padding: 8px 0;
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
 }
 
-article h2, article h3 { font-weight: 500; }
-article a { color: var(--accent); }
+.menu button:hover,
+.menu button.active {
+  color: var(--gold);
+}
+
+article h2, article h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+article a {
+  color: var(--ivory);
+  text-decoration-color: var(--gold);
+  text-underline-offset: 0.18em;
+}
 article pre {
   overflow: auto;
   padding: 12px;
-  background: #0c0b0a;
-  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 0;
 }
 article table { border-collapse: collapse; width: 100%; }
 article td, article th {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hairline);
   text-align: left;
   padding: 6px 8px;
   vertical-align: top;
 }
 
 .composer {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr) auto;
   gap: 10px;
   margin-top: 12px;
 }
@@ -222,18 +333,17 @@ article td, article th {
 .composer select,
 .composer input {
   padding: 10px 12px;
-  background: #0c0b0a;
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ivory);
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  min-width: 0;
 }
-
-.composer input { flex: 1; }
 
 .slot h2 {
   margin: 0;
   font-size: 1.05rem;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .devices { color: var(--muted); }
