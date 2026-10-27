@@ -39,7 +39,10 @@ Python package for the Majesta Two control plane.
   import time. The API may call the menu. It does not call Ollama.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
-  path. Do not reimplement the DSH agent loop.
+  path. Do not reimplement the DSH agent loop. An OpenRouter backend
+  file under `$TWO_DATA_DIR` (ADR 0037) selects a second provider for
+  chat and home-action. Coding stays on Mac Qwen. The key is a
+  mode-0600 file, never inline in settings.yaml.
 - `store/` is the SQLite WAL store (`open_store`). Schema v5 persists
   `work_nodes` / `work_edges`. Schema v6 persists projects and immutable
   config candidates (B14 slice 3). Schema v7 persists one `chat`

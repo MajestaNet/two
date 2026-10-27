@@ -12,6 +12,7 @@ const path = require("path");
 const { Readable } = require("stream");
 const { pipeline } = require("stream/promises");
 const policy = require("./renderer/policy.js");
+const openrouter = require("./openrouter.cjs");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 let mainWindow = null;
@@ -748,6 +749,58 @@ async function chatShow(turnId) {
   return { statusCode: response.status, body: await response.json() };
 }
 
+function operatorDataDir() {
+  return controlPlaneEnv().TWO_DATA_DIR;
+}
+
+function openrouterStatus() {
+  return openrouter.statusPayload(operatorDataDir());
+}
+
+function openrouterSave(payload) {
+  openrouter.writeBackend(operatorDataDir(), payload);
+  return openrouterStatus();
+}
+
+async function openrouterLogin() {
+  const dir = operatorDataDir();
+  const pkce = openrouter.createPkce();
+  const session = await openrouter.startCallback();
+  try {
+    const url = policy.openRouterAuthUrl(session.callbackUrl, pkce.challenge);
+    if (!policy.openRouterAuthAllowed(url)) {
+      throw new Error("OpenRouter sign-in URL is not allowed");
+    }
+    await shell.openExternal(url);
+    let timer = null;
+    try {
+      const timedOut = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("OpenRouter sign-in timed out")), 300000);
+      });
+      const code = await Promise.race([session.code, timedOut]);
+      const key = await openrouter.exchangeCode(code, pkce.verifier);
+      openrouter.writeKey(dir, key);
+      const current = openrouter.readBackend(dir);
+      if (current.backend !== "openrouter") {
+        openrouter.writeBackend(dir, {
+          backend: "openrouter",
+          model: current.model || policy.OPENROUTER_DEFAULT_MODEL,
+        });
+      }
+      return { signedIn: true };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  } finally {
+    await session.close();
+  }
+}
+
+function openrouterLogout() {
+  openrouter.deleteKey(operatorDataDir());
+  return openrouterStatus();
+}
+
 const handlers = {
   "server:status": serverStatus,
   "server:start": serverStart,
@@ -769,6 +822,10 @@ const handlers = {
   "adapters:list": adapters,
   "chat:send": chatSend,
   "chat:show": chatShow,
+  "openrouter:status": openrouterStatus,
+  "openrouter:save": openrouterSave,
+  "openrouter:login": openrouterLogin,
+  "openrouter:logout": openrouterLogout,
 };
 
 function registerHandlers() {
