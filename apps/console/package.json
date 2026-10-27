@@ -33,6 +33,7 @@
       }
     ],
     "mac": {
+      "icon": "assets/icon.icns",
       "identity": null,
       "category": "public.app-category.developer-tools",
       "target": [
@@ -40,6 +41,7 @@
       ]
     },
     "linux": {
+      "icon": "assets/icon.png",
       "target": [
         "dir"
       ]
