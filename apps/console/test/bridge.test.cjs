@@ -191,6 +191,11 @@ test("the packaged window launches the bundled control plane and stays in the me
   assert.throws(() => policy.twoLauncher("/opt/two/python 3"));
   assert.equal(policy.OWN_NUM_CTX, 8192);
   assert.equal(mainSource.includes("new Tray"), true);
+  assert.equal(mainSource.includes("setTemplateImage(true)"), true);
+  assert.equal(mainSource.includes("dock.setIcon"), true);
+  assert.equal(fs.existsSync(path.join(__dirname, "../assets/icon.png")), true);
+  assert.equal(fs.existsSync(path.join(__dirname, "../assets/icon.icns")), true);
+  assert.equal(fs.existsSync(path.join(__dirname, "../assets/tray@2x.png")), true);
   assert.equal(mainSource.includes("win.hide()"), true);
   assert.equal(mainSource.includes("event.preventDefault()"), true);
   assert.equal(mainSource.includes("requestSingleInstanceLock"), true);

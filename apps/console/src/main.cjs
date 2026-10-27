@@ -788,12 +788,20 @@ function showWindow() {
   mainWindow.focus();
 }
 
+function assetImage(name) {
+  return nativeImage.createFromPath(path.join(__dirname, "..", "assets", name));
+}
+
+function appIcon() {
+  const icns = assetImage("icon.icns");
+  if (!icns.isEmpty()) return icns;
+  return assetImage("icon.png");
+}
+
 function createTray() {
-  const iconPath = path.join(__dirname, "..", "assets", "tray.png");
-  let image = nativeImage.createFromPath(iconPath);
+  let image = assetImage("tray.png");
   if (image.isEmpty()) return false;
-  if (process.platform === "darwin") image = image.resize({ width: 18, height: 18 });
-  image.setTemplateImage(process.platform === "darwin");
+  if (process.platform === "darwin") image.setTemplateImage(true);
   tray = new Tray(image);
   tray.setToolTip("Majesta Two is running in the background");
   tray.setContextMenu(
@@ -814,10 +822,12 @@ function createTray() {
 }
 
 function createWindow() {
+  const icon = appIcon();
   const win = new BrowserWindow({
     width: 1100,
     height: 740,
     title: "Majesta Two",
+    icon: icon.isEmpty() ? undefined : icon,
     backgroundColor: "#1b2e46",
     autoHideMenuBar: true,
     webPreferences: {
@@ -849,6 +859,10 @@ if (!singleInstance) {
   });
   app.whenReady().then(() => {
     registerHandlers();
+    const icon = appIcon();
+    if (process.platform === "darwin" && app.dock && !icon.isEmpty()) {
+      app.dock.setIcon(icon);
+    }
     createTray();
     createWindow();
     serverStart().catch(() => {
