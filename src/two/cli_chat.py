@@ -87,6 +87,12 @@ def format_receipt(receipt: VoiceTurnReceipt) -> str:
             lines.append(f"pending_mute: {pending_tv.mute}")
         if pending_tv.step is not None:
             lines.append(f"pending_step: {pending_tv.step}")
+    if receipt.pending_install is not None:
+        pending_install = receipt.pending_install
+        lines.append(f"pending_tool: {pending_install.tool}")
+        if pending_install.slot is not None:
+            lines.append(f"pending_slot: {pending_install.slot}")
+        lines.append(f"pending_summary: {pending_install.summary}")
     if receipt.tv is not None:
         television = receipt.tv
         lines.append(f"tv_set: {television.set}")
@@ -95,6 +101,13 @@ def format_receipt(receipt: VoiceTurnReceipt) -> str:
         lines.append(f"tv_volume: {television.volume}")
         lines.append(f"tv_mute: {television.mute}")
         lines.append(f"tv_reachable: {television.reachable}")
+    if receipt.vacuum is not None:
+        vacuum = receipt.vacuum
+        lines.append(f"vacuum_robot: {vacuum.robot}")
+        lines.append(f"vacuum_activity: {vacuum.activity}")
+        lines.append(f"vacuum_charging: {vacuum.charging}")
+        lines.append(f"vacuum_station: {vacuum.station}")
+        lines.append(f"vacuum_reachable: {vacuum.reachable}")
     for item in receipt.fanout:
         lines.append(f"fanout: {item.target} {item.tool} {item.status}")
     if receipt.route_slots:

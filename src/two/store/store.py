@@ -89,6 +89,9 @@ from two.store.models import (
     HomeActionTurnStatus,
     IdempotencyRecord,
     LeaseRecord,
+    OperatorApprovalRecord,
+    OperatorTurnRecord,
+    OperatorTurnStatus,
     ProjectRecord,
     QuestionRecord,
     RepositoryConfigState,
@@ -1666,9 +1669,10 @@ class Store:
     def get_harness_session(self, profile: str = "chat") -> HarnessSessionRecord | None:
         """Return one installation harness session, or ``None`` before the first turn.
 
-        ``profile`` is ``chat`` or ``home-action``. The default keeps chat callers.
+        ``profile`` is ``chat``, ``home-action``, or ``operator``. The default
+        keeps chat callers.
         """
-        if profile not in {"chat", "home-action"}:
+        if profile not in {"chat", "home-action", "operator"}:
             raise StoreError(f"unknown harness profile: {profile}")
         row = self._connection.execute(
             "SELECT * FROM harness_sessions WHERE profile = ?",
@@ -1869,6 +1873,365 @@ class Store:
         if record is None:
             raise StoreError(f"chat turn missing after finish: {turn_id}")
         return record
+
+    def ensure_operator_session(self, *, now: datetime | None = None) -> HarnessSessionRecord:
+        """Insert the installation ``operator`` session row if it is missing."""
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            self._connection.execute(
+                """
+                INSERT INTO harness_sessions (
+                    profile, session_id, data_relpath, created_at, updated_at
+                ) VALUES ('operator', NULL, 'profiles/operator', ?, ?)
+                ON CONFLICT(profile) DO NOTHING
+                """,
+                (stamp, stamp),
+            )
+        record = self.get_harness_session("operator")
+        if record is None:
+            raise StoreError("operator harness session missing after insert")
+        return record
+
+    def set_operator_session_id(
+        self,
+        session_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> HarnessSessionRecord:
+        """Store the DeepSeek Harness session id for profile ``operator``."""
+        cleaned = session_id.strip()
+        if cleaned == "":
+            raise StoreError("operator session_id must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            self._connection.execute(
+                """
+                INSERT INTO harness_sessions (
+                    profile, session_id, data_relpath, created_at, updated_at
+                ) VALUES ('operator', ?, 'profiles/operator', ?, ?)
+                ON CONFLICT(profile) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    updated_at = excluded.updated_at
+                """,
+                (cleaned, stamp, stamp),
+            )
+        record = self.get_harness_session("operator")
+        if record is None or record.session_id != cleaned:
+            raise StoreError("operator harness session missing after update")
+        return record
+
+    def insert_operator_turn(
+        self,
+        request_text: str,
+        principal: str,
+        *,
+        turn_id: str,
+        now: datetime | None = None,
+    ) -> OperatorTurnRecord:
+        """Insert one queued ``operator`` turn. Does not insert a task or a lease."""
+        if turn_id.strip() == "":
+            raise StoreError("operator turn id must be non-empty")
+        if principal.strip() == "":
+            raise StoreError("operator turn principal must be non-empty")
+        if len(request_text) < 1 or len(request_text) > 4000:
+            raise StoreError("operator request_text must be 1 to 4000 characters")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            seq_row = self._connection.execute(
+                "SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM operator_turns"
+            ).fetchone()
+            if seq_row is None:
+                raise StoreError("operator turn seq missing")
+            seq = _as_int(seq_row["seq"], "seq")
+            self._connection.execute(
+                """
+                INSERT INTO operator_turns (
+                    id, profile, seq, status, request_text, reply_text, error_code,
+                    principal, tool_name, arguments_json, action_digest, revision,
+                    created_at, updated_at
+                ) VALUES (
+                    ?, 'operator', ?, 'queued', ?, NULL, NULL, ?, NULL, NULL, NULL, 1, ?, ?
+                )
+                """,
+                (turn_id, seq, request_text, principal, stamp, stamp),
+            )
+        record = self.get_operator_turn(turn_id)
+        if record is None:
+            raise StoreError(f"operator turn missing after insert: {turn_id}")
+        return record
+
+    def get_operator_turn(self, turn_id: str) -> OperatorTurnRecord | None:
+        """Return one operator turn, or ``None`` when the id is absent."""
+        row = self._operator_turn_row(turn_id)
+        if row is None:
+            return None
+        return _operator_turn_from_row(row)
+
+    def running_operator_turn(self) -> OperatorTurnRecord | None:
+        """Return the single running operator turn, if the slot holds one."""
+        row = self._connection.execute(
+            """
+            SELECT * FROM operator_turns
+            WHERE status = 'running'
+            ORDER BY seq ASC
+            LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("operator turn query did not return a sqlite3.Row")
+        return _operator_turn_from_row(row)
+
+    def admit_operator_turn(self, *, now: datetime | None = None) -> OperatorTurnRecord | None:
+        """Set the oldest queued operator turn to ``running`` when none is running.
+
+        Does not insert a coding lease.
+        """
+        instant = _utc(now)
+        stamp = _iso(instant)
+        turn_id: str | None = None
+        try:
+            with self._txn():
+                running = self._connection.execute(
+                    "SELECT id FROM operator_turns WHERE status = 'running' LIMIT 1"
+                ).fetchone()
+                if running is not None:
+                    return None
+                queued = self._connection.execute(
+                    """
+                    SELECT id FROM operator_turns
+                    WHERE status = 'queued'
+                    ORDER BY seq ASC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if queued is None:
+                    return None
+                turn_id = _as_str(queued["id"], "id")
+                cursor = self._connection.execute(
+                    """
+                    UPDATE operator_turns
+                    SET status = 'running', revision = revision + 1, updated_at = ?
+                    WHERE id = ? AND status = 'queued'
+                    """,
+                    (stamp, turn_id),
+                )
+                if cursor.rowcount != 1:
+                    turn_id = None
+        except sqlite3.IntegrityError:
+            return None
+        if turn_id is None:
+            return None
+        return self.get_operator_turn(turn_id)
+
+    def complete_operator_turn(
+        self,
+        turn_id: str,
+        reply_text: str,
+        *,
+        now: datetime | None = None,
+    ) -> OperatorTurnRecord:
+        """Mark a running operator turn complete. Stores at most 4000 characters."""
+        if len(reply_text) > 4000:
+            reply_text = reply_text[:4000]
+        if len(reply_text) < 1:
+            raise StoreError("operator reply_text must be non-empty")
+        return self._finish_operator_turn(
+            turn_id,
+            status=OperatorTurnStatus.COMPLETE,
+            reply_text=reply_text,
+            error_code=None,
+            now=now,
+        )
+
+    def fail_operator_turn(
+        self,
+        turn_id: str,
+        error_code: str,
+        *,
+        now: datetime | None = None,
+    ) -> OperatorTurnRecord:
+        """Mark a running operator turn failed. ``reply_text`` stays null."""
+        if error_code.strip() == "":
+            raise StoreError("operator error_code must be non-empty")
+        return self._finish_operator_turn(
+            turn_id,
+            status=OperatorTurnStatus.FAILED,
+            reply_text=None,
+            error_code=error_code,
+            now=now,
+        )
+
+    def hold_operator_for_approval(
+        self,
+        turn_id: str,
+        tool_name: str,
+        arguments_json: str,
+        action_digest: str,
+        *,
+        approval_id: str,
+        now: datetime | None = None,
+    ) -> OperatorTurnRecord:
+        """Park a running turn until an approval digest matches. Frees the slot."""
+        if approval_id.strip() == "":
+            raise StoreError("operator approval id must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            existing = self._operator_turn_row(turn_id)
+            if existing is None:
+                raise StoreError(f"unknown operator turn: {turn_id}")
+            if str(existing["status"]) != OperatorTurnStatus.RUNNING.value:
+                raise StoreError(f"operator turn {turn_id} is not running")
+            self._connection.execute(
+                """
+                INSERT INTO operator_approvals (
+                    id, turn_id, action_digest, status, created_at, resolved_at, resolver
+                ) VALUES (?, ?, ?, 'open', ?, NULL, NULL)
+                """,
+                (approval_id, turn_id, action_digest, stamp),
+            )
+            self._connection.execute(
+                """
+                UPDATE operator_turns
+                SET status = 'awaiting_approval', tool_name = ?, arguments_json = ?,
+                    action_digest = ?, revision = revision + 1, updated_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (tool_name, arguments_json, action_digest, stamp, turn_id),
+            )
+        record = self.get_operator_turn(turn_id)
+        if record is None:
+            raise StoreError(f"operator turn missing after hold: {turn_id}")
+        return record
+
+    def get_operator_approval(self, turn_id: str) -> OperatorApprovalRecord | None:
+        """Return the operator approval for one turn, or ``None``."""
+        row = self._connection.execute(
+            "SELECT * FROM operator_approvals WHERE turn_id = ?",
+            (turn_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("operator approval query did not return a sqlite3.Row")
+        return _operator_approval_from_row(row)
+
+    def decide_operator_approval(
+        self,
+        turn_id: str,
+        action_digest: str,
+        *,
+        approve: bool,
+        resolver: str,
+        now: datetime | None = None,
+    ) -> OperatorTurnRecord:
+        """First writer wins. A matching repeat returns the turn unchanged.
+
+        Approval queues the turn again. Rejection fails it. Neither writes a file.
+        """
+        if resolver.strip() == "":
+            raise StoreError("operator approval resolver must be non-empty")
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            approval_row = self._connection.execute(
+                "SELECT * FROM operator_approvals WHERE turn_id = ?",
+                (turn_id,),
+            ).fetchone()
+            if approval_row is None:
+                raise StoreError(f"unknown operator turn: {turn_id}")
+            if not isinstance(approval_row, sqlite3.Row):
+                raise StoreError("operator approval query did not return a sqlite3.Row")
+            stored_digest = _as_str(approval_row["action_digest"], "action_digest")
+            if stored_digest != action_digest:
+                raise StoreError("stale action digest")
+            status = _as_str(approval_row["status"], "status")
+            if status == "approved" and approve:
+                pass
+            elif status == "rejected" and not approve:
+                pass
+            elif status != "open":
+                raise StoreError("operator approval is not open")
+            else:
+                next_status = "approved" if approve else "rejected"
+                self._connection.execute(
+                    """
+                    UPDATE operator_approvals
+                    SET status = ?, resolved_at = ?, resolver = ?
+                    WHERE turn_id = ? AND status = 'open'
+                    """,
+                    (next_status, stamp, resolver, turn_id),
+                )
+                if approve:
+                    self._connection.execute(
+                        """
+                        UPDATE operator_turns
+                        SET status = 'queued', revision = revision + 1, updated_at = ?
+                        WHERE id = ? AND status = 'awaiting_approval'
+                        """,
+                        (stamp, turn_id),
+                    )
+                else:
+                    self._connection.execute(
+                        """
+                        UPDATE operator_turns
+                        SET status = 'failed', error_code = 'install_rejected',
+                            revision = revision + 1, updated_at = ?
+                        WHERE id = ? AND status = 'awaiting_approval'
+                        """,
+                        (stamp, turn_id),
+                    )
+        record = self.get_operator_turn(turn_id)
+        if record is None:
+            raise StoreError(f"unknown operator turn: {turn_id}")
+        return record
+
+    def _finish_operator_turn(
+        self,
+        turn_id: str,
+        *,
+        status: OperatorTurnStatus,
+        reply_text: str | None,
+        error_code: str | None,
+        now: datetime | None,
+    ) -> OperatorTurnRecord:
+        instant = _utc(now)
+        stamp = _iso(instant)
+        with self._txn():
+            existing = self._operator_turn_row(turn_id)
+            if existing is None:
+                raise StoreError(f"unknown operator turn: {turn_id}")
+            if str(existing["status"]) != OperatorTurnStatus.RUNNING.value:
+                raise StoreError(f"operator turn {turn_id} is not running")
+            self._connection.execute(
+                """
+                UPDATE operator_turns
+                SET status = ?, reply_text = ?, error_code = ?,
+                    revision = revision + 1, updated_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (status.value, reply_text, error_code, stamp, turn_id),
+            )
+        record = self.get_operator_turn(turn_id)
+        if record is None:
+            raise StoreError(f"operator turn missing after finish: {turn_id}")
+        return record
+
+    def _operator_turn_row(self, turn_id: str) -> sqlite3.Row | None:
+        row = self._connection.execute(
+            "SELECT * FROM operator_turns WHERE id = ?",
+            (turn_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("operator turn query did not return a sqlite3.Row")
+        return row
 
     def ensure_home_action_session(self, *, now: datetime | None = None) -> HarnessSessionRecord:
         """Insert the installation ``home-action`` session row if it is missing."""
@@ -2788,6 +3151,40 @@ def _climate_approval_from_row(row: sqlite3.Row) -> ClimateApprovalRecord:
             _parse_time(_as_str(resolved_raw, "resolved_at")) if resolved_raw is not None else None
         ),
         resolver=_optional_str(row["resolver"], "resolver"),
+    )
+
+
+def _operator_approval_from_row(row: sqlite3.Row) -> OperatorApprovalRecord:
+    resolved_raw = row["resolved_at"]
+    return OperatorApprovalRecord(
+        id=_as_str(row["id"], "id"),
+        turn_id=_as_str(row["turn_id"], "turn_id"),
+        action_digest=_as_str(row["action_digest"], "action_digest"),
+        status=_as_str(row["status"], "status"),
+        created_at=_parse_time(_as_str(row["created_at"], "created_at")),
+        resolved_at=(
+            _parse_time(_as_str(resolved_raw, "resolved_at")) if resolved_raw is not None else None
+        ),
+        resolver=_optional_str(row["resolver"], "resolver"),
+    )
+
+
+def _operator_turn_from_row(row: sqlite3.Row) -> OperatorTurnRecord:
+    return OperatorTurnRecord(
+        id=_as_str(row["id"], "id"),
+        profile=_as_str(row["profile"], "profile"),
+        seq=_as_int(row["seq"], "seq"),
+        status=OperatorTurnStatus(_as_str(row["status"], "status")),
+        request_text=_as_str(row["request_text"], "request_text"),
+        reply_text=_optional_str(row["reply_text"], "reply_text"),
+        error_code=_optional_str(row["error_code"], "error_code"),
+        principal=_as_str(row["principal"], "principal"),
+        tool_name=_optional_str(row["tool_name"], "tool_name"),
+        arguments_json=_optional_str(row["arguments_json"], "arguments_json"),
+        action_digest=_optional_str(row["action_digest"], "action_digest"),
+        revision=_as_int(row["revision"], "revision"),
+        created_at=_parse_time(_as_str(row["created_at"], "created_at")),
+        updated_at=_parse_time(_as_str(row["updated_at"], "updated_at")),
     )
 
 

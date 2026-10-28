@@ -15,8 +15,9 @@ Python package for the Majesta Two control plane.
   `two adapters --json` adds bound device
   ids from the operator menu and omits secrets. It does not enable a slot.
   `console` is the in-repo window and stays off. `devices/climate/` is the climate package
-  (ADR 0022) and stays default off. `devices/tv/` is the television
-  package (ADR 0029) and stays default off. Do not add `export/` until the ADR
+  (ADR 0022) and stays default off.   `devices/tv/` is the television
+  package (ADR 0029) and stays default off. `devices/vacuum/` is the
+  vacuum package (ADR 0038) and stays default off. Do not add `export/` until the ADR
   for that slot.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
@@ -37,14 +38,17 @@ Python package for the Majesta Two control plane.
   `operator/recommend.py` joins the host probe to the catalog.
   `operator/menu.py` projects adapter slots and device ids.
   `operator/harness.py` installs the pinned DeepSeek Harness checkout
-  for `two harness`. It does not run the agent loop. No store at
+  for `two harness`. It does not run the agent loop. `operator/assist.py`
+  is the closed install-tool policy for harness profile `operator`
+  (ADR 0039): redacted status, a guide allowlist, and shipped-slot
+  binding checks. No model client and no network. No store at
   import time. The API may call the menu. It does not call Ollama.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop. An OpenRouter backend
   file under `$TWO_DATA_DIR` (ADR 0037) selects a second provider for
-  chat and home-action. A local `localModel` tag, when set, is the
-  served Ollama id. Coding stays on Mac Qwen. The key is a
+  chat, operator, and home-action. A local `localModel` tag, when set,
+  is the served Ollama id. Coding stays on Mac Qwen. The key is a
   mode-0600 file, never inline in settings.yaml.
 - `store/` is the SQLite WAL store (`open_store`). Schema v5 persists
   `work_nodes` / `work_edges`. Schema v6 persists projects and immutable
@@ -53,7 +57,10 @@ Python package for the Majesta Two control plane.
   `home_action_turns` and `climate_approvals` (ADR 0022). Schema v9
   adds television tool names and `tv_approvals` (ADR 0029). Schema v10
   stores `route_slots`, `fanout_scope`, and `fanout_json` on
-  `home_action_turns` (ADR 0030). Do not open databases from
+  `home_action_turns` (ADR 0030). Schema v11 adds the three vacuum
+  tool names (ADR 0038). There is no vacuum approval table.
+  Schema v12 adds `operator` on `harness_sessions`, plus `operator_turns`
+  and `operator_approvals` (ADR 0039). Do not open databases from
   `cli.py` at import time. The `two api` subcommand lazy-imports
   `two.api.server`.
 - `client.py` is the stdlib HTTP/Unix client for `/v1` (urllib / http.client,
@@ -62,7 +69,8 @@ Python package for the Majesta Two control plane.
   TestClient tests. Do not import the store, git, or Ollama.
 - `cli_task.py` formats projections and dispatches `two task …`. No workflow
   policy. `cli_chat.py` dispatches `two chat send` / `two chat show`.
-  It talks only to the control API.
+  `cli_operator.py` dispatches `two operator send`, `show`, `approve`,
+  and `reject`. They talk only to the control API.
 - `two.api/` maps HTTP to `two.store` and `two.approvals`. It must not import
   `two.workspace` git operations or an Ollama client. Bind loopback or
   a Unix socket by default (ADR 0010). Request
@@ -78,8 +86,9 @@ Python package for the Majesta Two control plane.
   It does not import git or the model.
 - `scheduler/` owns the single local-model slot, lease reclaim, retry_wait,
   budgets clock, and Mac health mapping. It admits a queued chat turn,
-  then a queued home-action turn, only when no coding lease is held.
-  OpenRouter chat and home-action do not wait for Mac health. Coding
+  then a queued operator turn, then a queued home-action turn, only when
+  no coding lease is held.
+  OpenRouter chat, operator, and home-action do not wait for Mac health. Coding
   still does. The backend file is read locally. No network.
   Inject a health probe and worker
   callback; do not call the network or ACP from this package.
@@ -90,9 +99,12 @@ Python package for the Majesta Two control plane.
   is ADR 0022 and stays default off. The binding transport is Home
   Assistant REST or ECHONET Lite (ADR 0027). `devices/tv/` is ADR 0029
   and stays default off. The transport is the Samsung local API.
+  `devices/vacuum/` is ADR 0038 and stays default off. The transport is
+  the Ecovacs Open API on the two official hosts.
 - `routing/` classifies a transcript onto `chat` or an enabled device
   slot and plans a fan-out (ADR 0030). An obvious named-target command
-  compiles the closed tool without the harness (ADR 0036). No store,
+  compiles the closed climate, television, or vacuum tool without the
+  harness (ADR 0036). No store,
   no socket, no model client. Device packages add a route card;
   `routing/catalog.py` lists the shipped cards.
 - Future `export/` (ADR 0012, B17) is the GitHub App handoff adapter.
@@ -123,9 +135,14 @@ Python package for the Majesta Two control plane.
   lifecycle `complete`. Local Qwen worker count is one. Profile `chat`
   resumes `harness_sessions` with no worktree and no tools. A tool
   request fails the chat turn and is not executed. Profile `home-action`
-  may request the closed climate tools and, when the television binding
-  is enabled, the closed television tools. The control plane performs
-  them and does not send `execute` to the child (ADR 0022, ADR 0029).
+  may request the closed climate tools and, when those bindings are
+  enabled, the closed television and vacuum tools. The control plane
+  performs them and does not send `execute` to the child (ADR 0022,
+  ADR 0029, ADR 0038). Profile `operator` may request
+  `install.status`, `install.read_guide`, `install.propose_binding`, and
+  `install.propose_change`. This process performs them and does not send
+  `execute` (ADR 0039). A binding write and a self-build task wait for
+  an approval digest.
   The climate transport is Home Assistant REST or ECHONET Lite (ADR 0027).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. The scheduler

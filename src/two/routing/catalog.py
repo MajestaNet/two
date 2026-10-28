@@ -22,6 +22,8 @@ from two.devices.climate.contract import ClimateInstall
 from two.devices.climate.route import climate_route_card
 from two.devices.tv.contract import TvInstall
 from two.devices.tv.route import television_route_card
+from two.devices.vacuum.contract import VacuumInstall
+from two.devices.vacuum.route import vacuum_route_card
 from two.routing.cards import DeviceRouteCard
 
 
@@ -29,9 +31,11 @@ def cards_for(
     *,
     climate: ClimateInstall | None,
     television: TvInstall | None,
+    vacuum: VacuumInstall | None = None,
 ) -> tuple[DeviceRouteCard, ...]:
     """Cards for the slots that exist today, enabled only when the binding loaded."""
     return (
         climate_route_card(climate),
         television_route_card(television),
+        vacuum_route_card(vacuum),
     )

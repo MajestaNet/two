@@ -165,9 +165,16 @@ class ErrorCode(StrEnum):
     TV_SET_DENIED = "tv_set_denied"
     TV_UPSTREAM = "tv_upstream"
     TV_REJECTED = "tv_rejected"
+    VACUUM_NOT_CONFIGURED = "vacuum_not_configured"
+    VACUUM_ROBOT_DENIED = "vacuum_robot_denied"
+    VACUUM_UPSTREAM = "vacuum_upstream"
     FANOUT_NEEDS_APPROVAL = "fanout_needs_approval"
     FANOUT_UNSUPPORTED = "fanout_unsupported"
     OPENROUTER_NOT_SIGNED_IN = "openrouter_not_signed_in"
+    INSTALL_GUIDE_DENIED = "install_guide_denied"
+    INSTALL_BINDING_DENIED = "install_binding_denied"
+    INSTALL_CHANGE_REFUSED = "install_change_refused"
+    INSTALL_REJECTED = "install_rejected"
     INTERNAL = "internal"
 
 
@@ -175,12 +182,14 @@ class HarnessProfile(StrEnum):
     """Persisted DeepSeek Harness profile a request may resume (ADR 0019).
 
     ``self-build`` is the coding loop. A watch client is limited to
-    ``chat`` and ``home-action`` (ADR 0020).
+    ``chat`` and ``home-action`` (ADR 0020). ``operator`` is the local
+    install profile (ADR 0039). A watch client cannot resume it.
     """
 
     SELF_BUILD = "self-build"
     HOME_ACTION = "home-action"
     CHAT = "chat"
+    OPERATOR = "operator"
 
 
 class Scope(StrEnum):

@@ -287,6 +287,49 @@ class TvApprovalRecord:
     resolver: str | None
 
 
+class OperatorTurnStatus(StrEnum):
+    """Durable status of one operator turn. Not a task lifecycle."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    AWAITING_APPROVAL = "awaiting_approval"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorTurnRecord:
+    """One persisted operator turn. The reply is redacted install text."""
+
+    id: str
+    profile: str
+    seq: int
+    status: OperatorTurnStatus
+    request_text: str
+    reply_text: str | None
+    error_code: str | None
+    principal: str
+    tool_name: str | None
+    arguments_json: str | None
+    action_digest: str | None
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorApprovalRecord:
+    """Digest-scoped operator approval. Not a task approval. Silence changes nothing."""
+
+    id: str
+    turn_id: str
+    action_digest: str
+    status: str
+    created_at: datetime
+    resolved_at: datetime | None
+    resolver: str | None
+
+
 @dataclass(frozen=True, slots=True)
 class ChatTurnRecord:
     """One persisted chat turn. Reply text is plain and bounded."""
