@@ -45,6 +45,10 @@ profile is routed to `chat` or to those slots, and `all` can repeat
 one closed action across the bound targets
 ([ADR 0030](adrs/0030-utterance-routing-and-fanout.md)). That does not enable
 the watch slot, and it does not turn a device slot on by itself.
+Harness profile `operator` can propose a binding for a shipped slot, or
+a self-build task that extends one, after an approval digest
+([ADR 0039](adrs/0039-operator-install-profile.md)). An omitted profile
+does not route there. The catalog slots stay unchanged.
 
 Channel behavior for messengers stays in [channels.md](channels.md).
 The watch client spec stays in [watch-client.md](watch-client.md).

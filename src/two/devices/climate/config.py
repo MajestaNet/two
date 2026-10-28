@@ -23,6 +23,7 @@ the file and does not read the token value.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
@@ -86,6 +87,25 @@ def load_climate_config(data_dir: Path | str | None = None) -> ClimateInstall | 
         return _install(document)
     except (ClimateConfigError, ValueError):
         return None
+
+
+def canonical_climate_document(raw: Mapping[str, object]) -> dict[str, object]:
+    """Return a canonical binding. Raises ``ValueError`` when it is unusable.
+
+    Does not read or write a file. A disabled document is valid.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError("climate binding must be an object")
+    body = dict(raw)
+    _untangle_yaml_off(body)
+    try:
+        document = _Document.model_validate(body)
+    except ValidationError as exc:
+        raise ValueError("climate binding is not valid") from exc
+    if document.enabled:
+        _install(document)
+    dumped: dict[str, object] = document.model_dump(mode="json")
+    return dumped
 
 
 def _untangle_yaml_off(raw: dict[object, object]) -> None:

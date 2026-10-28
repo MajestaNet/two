@@ -34,7 +34,13 @@ from two.devices.tv.contract import TvBroker, TvInstall
 from two.devices.vacuum.contract import VacuumBroker, VacuumInstall
 from two.providers import DSH_PIN
 from two.scheduler.models import WorkerOutcome, WorkerResult
-from two.store.models import ActionStatus, ChatTurnRecord, HomeActionTurnRecord, TaskRecord
+from two.store.models import (
+    ActionStatus,
+    ChatTurnRecord,
+    HomeActionTurnRecord,
+    OperatorTurnRecord,
+    TaskRecord,
+)
 from two.store.store import Store
 from two.validation.results import ValidationResult
 from two.worker.chat import ChatArgvFactory, run_chat_turn
@@ -58,6 +64,7 @@ from two.worker.models import (
     SessionMode,
     SessionPlan,
 )
+from two.worker.operator_turn import OperatorArgvFactory, run_operator_turn
 from two.worker.repair import ToolCallRepairPolicy
 from two.worker.session import SessionValidator, plan_session
 from two.worker.timeouts import LOCAL_QWEN_WORKER_COUNT
@@ -84,6 +91,8 @@ class AcpWorker:
         chat_argv_factory: ChatArgvFactory | None = None,
         home_argv: Sequence[str] | None = None,
         home_argv_factory: HomeArgvFactory | None = None,
+        operator_argv: Sequence[str] | None = None,
+        operator_argv_factory: OperatorArgvFactory | None = None,
         climate_install: ClimateInstall | None = None,
         climate_broker: ClimateBroker | None = None,
         tv_install: TvInstall | None = None,
@@ -106,6 +115,8 @@ class AcpWorker:
         self._chat_argv_factory = chat_argv_factory
         self._home_argv = list(home_argv) if home_argv is not None else None
         self._home_argv_factory = home_argv_factory
+        self._operator_argv = list(operator_argv) if operator_argv is not None else None
+        self._operator_argv_factory = operator_argv_factory
         self._climate_install = climate_install
         self._climate_broker = climate_broker
         self._tv_install = tv_install
@@ -180,6 +191,19 @@ class AcpWorker:
             tv_broker=self._tv_broker,
             vacuum_install=self._vacuum_install,
             vacuum_broker=self._vacuum_broker,
+        )
+
+    def run_operator(self, turn_id: str, *, now: datetime | None = None) -> OperatorTurnRecord:
+        """Resume operator for one admitted turn. The child does not perform I/O."""
+        return run_operator_turn(
+            self._store,
+            turn_id,
+            now=now,
+            data_dir=self._data_dir,
+            argv=self._operator_argv,
+            argv_factory=self._operator_argv_factory,
+            child_config=self._child_config,
+            session_is_valid=self._session_is_valid,
         )
 
     def _run(self, task_id: str, *, now: datetime | None) -> WorkerResult:

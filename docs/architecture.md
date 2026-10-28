@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); Ecovacs vacuum tools on `home-action` (ADR 0038); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037); adoption, speech, and profile preload follow |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); Ecovacs vacuum tools on `home-action` (ADR 0038); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037); operator install profile (ADR 0039); adoption, speech, and profile preload follow |
 | Version | 0.14 |
 | Date | 27 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
@@ -193,12 +193,13 @@ DeepSeek Harness remains the only model/tool loop (ADR 0019). One pinned binary 
 | Profile | Tools | Example |
 | --- | --- | --- |
 | `self-build` | Worktree, validation, adoption gate | Change this repository |
+| `operator` | Closed install tools only | Ask about this install, bind a shipped adapter, or start a worktree change |
 | `home-action` | Typed device tools only | Set the air-conditioning to 20 degrees |
 | `chat` | None | A conversational reply |
 
 Profiles are persisted sessions under the local data directory. The controller may keep a profile warm so the next request resumes it without rebuilding a workspace. Warm profiles are not extra model weights and not extra harness releases. One inference stays in flight. A non-coding turn runs at a model-turn boundary and does not hold the coding lease.
 
-A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The climate tool list is the same. ADR 0029 adds the closed television tools (`tv.read`, `tv.set_power`, `tv.open`, `tv.set_volume`) on the same profile. ADR 0038 adds the closed vacuum tools (`vacuum.read`, `vacuum.clean`, `vacuum.dock`) on the same profile. A known robot is pre-authorized. The control plane calls only `open.ecovacs.com` or `open.ecovacs.cn`, and the read-back is the result. The session advertises the closed tools of each binding that is enabled. The advertisement does not perform a call, and this process does not send `execute`. Production home-action uses the pinned ACP client (ADR 0028). A client may omit the harness profile on `POST /v1/voice/turns`. The control plane then routes the transcript to `chat` or to the enabled device slots the words name, and it may repeat one closed action across every bound target of those slots (ADR 0030). An obvious single-target climate, television, or vacuum command compiles that closed tool without starting the harness (ADR 0036). Speech capture and playback stay on the client. The speech stack and the preload mechanism are a later slice.
+A device action is a typed tool request from `home-action`. The controller performs it. The model does not open the device, the shell, or git. The action runs when local policy pre-authorizes that tool and argument, or when an approval digest matches. ADR 0022 defines the closed climate tools and the Home Assistant transport. ADR 0027 adds a direct ECHONET Lite transport for a Wi-Fi air conditioner on the private LAN. The climate tool list is the same. ADR 0029 adds the closed television tools (`tv.read`, `tv.set_power`, `tv.open`, `tv.set_volume`) on the same profile. ADR 0038 adds the closed vacuum tools (`vacuum.read`, `vacuum.clean`, `vacuum.dock`) on the same profile. A known robot is pre-authorized. The control plane calls only `open.ecovacs.com` or `open.ecovacs.cn`, and the read-back is the result. The session advertises the closed tools of each binding that is enabled. The advertisement does not perform a call, and this process does not send `execute`. Production home-action uses the pinned ACP client (ADR 0028). `operator` is a fourth persisted profile on that same client and the already selected backend (ADR 0039). Its closed tools are `install.status`, `install.read_guide`, `install.propose_binding`, and `install.propose_change`. The control plane performs them and does not send `execute`. A binding write and a self-build task wait for an approval digest. The binding file is `$TWO_DATA_DIR/devices/<slot>.yaml` for climate, television, or vacuum. A code change is a task on a worktree of this repository. The coding child remains the ADR 0011 placeholder until a later slice. The CLI and the console select `operator` explicitly. An omitted profile never routes there, and the watch principal stays on `chat` and `home-action`. A client may omit the harness profile on `POST /v1/voice/turns`. The control plane then routes the transcript to `chat` or to the enabled device slots the words name, and it may repeat one closed action across every bound target of those slots (ADR 0030). An obvious single-target climate, television, or vacuum command compiles that closed tool without starting the harness (ADR 0036). Speech capture and playback stay on the client. The speech stack and the preload mechanism are a later slice.
 
 ## 6. Component architecture
 
@@ -1043,6 +1044,7 @@ Default policy:
 - Adoption consumes an approval bound to the candidate commit. A changed tree, a changed adoption digest, or a policy delta that the approval does not name fails closed.
 - Home, wearable, and later device adapters are denied model credentials, shell, git, and secret environment values. They cannot enable themselves by writing local configuration from inside the agent turn that added them.
 - A device or chat request resumes the `home-action` or `chat` profile. It does not resume `self-build` and it does not receive workspace-write.
+- `operator` is resumed only when a local operator names it. It has no shell, git, or workspace-write. A wearable request cannot select it. An approved binding writes only the data-directory device file. An approved code change is a self-build task and does not write the executing tree. Silence is not approval.
 
 ## 16. Key architecture decisions
 
@@ -1282,7 +1284,7 @@ invent a second architecture.
   when `dsh` is missing. It recommends a catalog model, including a 16 GB row,
   and can pull one operator-entered Ollama tag. It shows operator docs and adapter
   bindings, and sends a voice turn. The profile defaults to unset so the
-  router runs, and may be set to `chat` or `home-action` (ADR 0033).
+  router runs, and may be set to `chat`, `home-action`, or `operator` (ADR 0033, ADR 0039).
   It is not the mobile client.
 - Add the client API resources in ADR 0015: safe conversation/SSE,
   repository and project configuration, graph/evidence monitoring, aggregate
@@ -1327,7 +1329,7 @@ until the ADR 0017 slice is implemented and promoted. Item 20 remains open
 until the ADR 0018 slice is implemented and promoted. B20 is the
 `chat` profile resume. B21 executes climate on `home-action` and does
 not close item 20. B25 executes the closed vacuum tools (ADR 0038) and
-does not close item 20: slot priority past chat-before-home-action, speech,
+does not close item 20: slot priority past chat, then operator, then home-action, speech,
 and the seamless install remain open.
 
 1. The Mac automatically starts Ollama, loads the expected Qwen model, and serves it on the private network.
@@ -1387,6 +1389,7 @@ and the seamless install remain open.
 - [Majesta Two installable console (ADR 0034)](adrs/0034-installable-console.md)
 - [Majesta Two console harness install (ADR 0035)](adrs/0035-console-harness-install.md)
 - [Majesta Two OpenRouter inference backend (ADR 0037)](adrs/0037-openrouter-inference-backend.md)
+- [Majesta Two operator install profile (ADR 0039)](adrs/0039-operator-install-profile.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

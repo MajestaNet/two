@@ -283,14 +283,14 @@ class ControlClient:
         response = self._call("GET", "/v1/voice/turns/" + quote(turn_id, safe="-._~"))
         return _parse(response, VoiceTurnReceipt)
 
-    def decide_climate_turn(
+    def decide_turn(
         self,
         turn_id: str,
         action_digest: str,
         *,
         approve: bool,
     ) -> VoiceTurnReceipt:
-        """POST approve or reject for one climate action."""
+        """POST approve or reject for one voice turn."""
         action = "approve" if approve else "reject"
         response = self._call(
             "POST",
@@ -298,6 +298,16 @@ class ControlClient:
             {"action_digest": action_digest},
         )
         return _parse(response, VoiceTurnReceipt)
+
+    def decide_climate_turn(
+        self,
+        turn_id: str,
+        action_digest: str,
+        *,
+        approve: bool,
+    ) -> VoiceTurnReceipt:
+        """POST approve or reject for one climate or television action."""
+        return self.decide_turn(turn_id, action_digest, approve=approve)
 
     def _control(
         self,

@@ -109,7 +109,12 @@ def test_client_id_without_edge_token_stays_local_trust(client: TestClient) -> N
     body = response.json()
     assert body["principal"] == "local"
     assert body["auth"]["method"] == "local_trust"
-    assert body["allowed_harness_profiles"] == ["chat", "home-action", "self-build"]
+    assert body["allowed_harness_profiles"] == [
+        "chat",
+        "home-action",
+        "operator",
+        "self-build",
+    ]
 
 
 def test_bad_edge_token_is_401(client: TestClient) -> None:

@@ -39,6 +39,7 @@ OPERATOR_HARNESS_PROFILES: frozenset[str] = frozenset(
         HarnessProfile.SELF_BUILD.value,
         HarnessProfile.CHAT.value,
         HarnessProfile.HOME_ACTION.value,
+        HarnessProfile.OPERATOR.value,
     }
 )
 WATCH_HARNESS_PROFILES: frozenset[str] = frozenset(
