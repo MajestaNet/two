@@ -173,10 +173,9 @@ def test_open_api_posts_the_key_in_the_body_and_reads_back() -> None:
 
 def test_device_list_accepts_strings_and_objects() -> None:
     def request(method: str, url: str, body: Mapping[str, str]) -> object:
-        del method
-        assert url == "https://open.ecovacs.com/robot/deviceList"
-        assert "?" not in url
-        assert body["ak"] == "secret-key"
+        assert method == "GET"
+        assert url == "https://open.ecovacs.com/robot/deviceList?ak=secret-key"
+        assert body == {}
         return {"status": "0", "data": ["Downstairs", {"nickName": "Upstairs"}, ""]}
 
     cloud = EcovacsCloud("open.ecovacs.com", "secret-key", request=request)

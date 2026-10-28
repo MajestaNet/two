@@ -54,8 +54,10 @@ every install. Addresses, tokens, and adopted commits stay local.
    - `install.propose_binding` accepts only `climate`, `tv`, and
      `vacuum`, and only a document the existing install model accepts.
      `token_env` is an environment-variable name. A secret value is
-     refused. Approval writes `$TWO_DATA_DIR/devices/<slot>.yaml` and
-     nothing else. Silence is not approval.
+     refused.      Approval writes `$TWO_DATA_DIR/devices/<slot>.yaml` and
+     nothing else. Silence is not approval. A later operator
+     transcript that is only `approved` or `rejected` may apply the
+     stored digest (ADR 0041).
    - `install.propose_change` drafts a task whose subject is this
      repository, with `cloud_allowed` false. Approval submits it
      through the existing task API. The reply states that the coding

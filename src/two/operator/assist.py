@@ -65,6 +65,8 @@ BINDING_SLOTS = frozenset({"climate", "tv", "vacuum"})
 GUIDE_LIMIT = 3500
 _SUMMARY_LIMIT = 500
 _OBJECTIVE_LIMIT = 1500
+_CHAT_APPROVE = frozenset({"approve", "approved"})
+_CHAT_REJECT = frozenset({"reject", "rejected"})
 
 CODING_NOTE = (
     "The coding child is still the ADR 0011 placeholder, so the selected model "
@@ -84,6 +86,35 @@ _GUIDES: dict[str, str] = {
     "tv": "config/devices/tv.example.yaml",
     "vacuum": "config/devices/vacuum.example.yaml",
 }
+_SETUP_RELPATH = "docs/setup.md"
+_GUIDE_HEADINGS: dict[str, str] = {
+    "climate": "## Air conditioners on the LAN",
+    "climate-echonet": "## Air conditioners on the LAN",
+    "tv": "## Samsung televisions on the LAN",
+    "vacuum": "## Ecovacs vacuums",
+}
+_TRUNCATION_NOTE = (
+    "\n[truncated] Device connect steps: read_guide climate, climate-echonet, tv, or vacuum."
+)
+DEVICE_CONNECT_HINTS = (
+    "Reply in numbered steps. Do not paste YAML. Do not invent a secret, "
+    "nickname, address, or token.\n"
+    "vacuum: sign in at open.ecovacs.com with the same ECOVACS HOME "
+    "account that already shows the robots (open.ecovacs.cn only for a "
+    "mainland app login); that site is the Open Platform console, not a "
+    "second household; create a server Access Key and put it in the env "
+    "name (default ECO_API_KEY); never the app password and never in the "
+    "binding; nicknames must match the Ecovacs account exactly; after the "
+    "key is in env, two vacuum robots prints those names; then "
+    "propose_binding with enabled true, api_host matching that portal, "
+    "token_env that name, and robots as a map of lowercase ids "
+    "(bob, lynne) to {nickname}, not a list.\n"
+    "climate: Home Assistant REST or ECHONET Lite; ask for zone ids and token_env.\n"
+    "tv: private LAN; per-set token_env; pairing prints the token into env.\n"
+    "Ask for the missing fact. You may reply without a tool. Call at most "
+    "one closed tool, and only for a guide, a status refresh, a binding, or a change. "
+    "After propose_binding, wait. The operator types approved or rejected.\n"
+)
 _PATH_PREFIXES = ("src/", "tests/", "config/", "scripts/", "docs/", "deploy/", "evals/")
 _PATH_FILES = frozenset({"AGENTS.md", "CLAUDE.md", "Makefile", "pyproject.toml"})
 _DEFAULT_PATHS = (
@@ -125,6 +156,16 @@ class AssistError(ValueError):
     def __init__(self, code: str) -> None:
         self.code = code
         super().__init__(code)
+
+
+def operator_chat_decision(text: str) -> Literal["approve", "reject"] | None:
+    """Return approve or reject when the whole transcript is a closed word."""
+    stripped = text.strip().rstrip(".!").strip().lower()
+    if stripped in _CHAT_APPROVE:
+        return "approve"
+    if stripped in _CHAT_REJECT:
+        return "reject"
+    return None
 
 
 def redact(text: str) -> str:
@@ -178,9 +219,12 @@ def read_guide(doc: str, *, repo_root: Path | None = None) -> str:
     if not path.is_file():
         raise AssistError(ErrorCode.INSTALL_GUIDE_DENIED.value)
     text = path.read_text(encoding="utf-8")
-    if len(text) <= GUIDE_LIMIT:
-        return text
-    return text[: GUIDE_LIMIT - 12].rstrip() + "\n[truncated]"
+    heading = _GUIDE_HEADINGS.get(doc)
+    if heading is not None:
+        steps = _heading_excerpt(_read_setup(root), heading)
+        if steps:
+            text = f"{steps}\n\nBinding fields (examples, not this install):\n{text}"
+    return _fit_guide(text, truncated_note=doc == "setup")
 
 
 def propose_binding(slot: str, document: Mapping[str, object]) -> tuple[str, str, str]:
@@ -193,7 +237,7 @@ def propose_binding(slot: str, document: Mapping[str, object]) -> tuple[str, str
     _reject_secrets(document)
     parser = _CANONICAL[slot]
     try:
-        canonical = parser(document)
+        canonical = parser(_normalize_binding_document(slot, document))
     except (ValueError, TypeError) as exc:
         raise AssistError(ErrorCode.INSTALL_BINDING_DENIED.value) from exc
     _reject_secrets(canonical)
@@ -368,6 +412,62 @@ def _submit_change(
     return _fit(reply)
 
 
+_ROBOT_ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+
+
+def _normalize_binding_document(slot: str, document: Mapping[str, object]) -> dict[str, object]:
+    """Accept a local-model vacuum robots list or capitalized ids."""
+    raw = dict(document)
+    if slot != "vacuum":
+        return raw
+    mapped = _vacuum_robots_map(raw.get("robots"))
+    if mapped is None:
+        return raw
+    raw["robots"] = mapped
+    return raw
+
+
+def _vacuum_robots_map(robots: object) -> dict[str, object] | None:
+    if isinstance(robots, dict):
+        mapped: dict[str, object] = {}
+        for key, value in robots.items():
+            robot_id = _robot_id_from_label(str(key))
+            if robot_id is None or robot_id in mapped:
+                return None
+            mapped[robot_id] = value
+        return mapped
+    if not isinstance(robots, list):
+        return None
+    mapped = {}
+    for item in robots:
+        if isinstance(item, str):
+            nickname = item
+            robot_id = _robot_id_from_label(item)
+            bounds: object = {"nickname": nickname}
+        elif isinstance(item, dict):
+            raw_nick = item.get("nickname")
+            if not isinstance(raw_nick, str):
+                return None
+            nickname = raw_nick
+            labeled = item.get("id") or item.get("robot") or item.get("robot_id")
+            source = labeled if isinstance(labeled, str) and labeled.strip() else nickname
+            robot_id = _robot_id_from_label(source)
+            bounds = {"nickname": nickname}
+        else:
+            return None
+        if robot_id is None or robot_id in mapped:
+            return None
+        mapped[robot_id] = bounds
+    return mapped
+
+
+def _robot_id_from_label(label: str) -> str | None:
+    slug = label.strip().lower().replace(" ", "_")
+    if _ROBOT_ID_RE.fullmatch(slug) is None:
+        return None
+    return slug
+
+
 def _slot_name(slot: object) -> Literal["climate", "tv", "vacuum"] | None:
     if slot == "climate":
         return "climate"
@@ -482,6 +582,42 @@ def _root(repo_root: Path | None) -> Path:
         return discover_repo_root()
     except FileNotFoundError as exc:
         raise AssistError(ErrorCode.INSTALL_GUIDE_DENIED.value) from exc
+
+
+def _read_setup(root: Path) -> str:
+    path = (root / _SETUP_RELPATH).resolve()
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        return ""
+    if not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def _heading_excerpt(markdown: str, heading: str) -> str:
+    start = markdown.find(heading)
+    if start < 0:
+        return ""
+    lines = markdown[start:].splitlines()
+    if not lines:
+        return ""
+    collected = [lines[0]]
+    for line in lines[1:]:
+        if line.startswith("## "):
+            break
+        collected.append(line)
+    return "\n".join(collected).strip()
+
+
+def _fit_guide(text: str, *, truncated_note: bool) -> str:
+    if len(text) <= GUIDE_LIMIT:
+        return text
+    suffix = _TRUNCATION_NOTE if truncated_note else "\n[truncated]"
+    budget = GUIDE_LIMIT - len(suffix)
+    if budget < 1:
+        return suffix.strip()
+    return text[:budget].rstrip() + suffix
 
 
 def _fit(text: str) -> str:

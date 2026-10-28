@@ -40,11 +40,13 @@ Python package for the Majesta Two control plane.
   `operator/recommend.py` joins the host probe to the catalog.
   `operator/menu.py` projects adapter slots and device ids.
   `operator/harness.py` installs the pinned DeepSeek Harness checkout
-  for `two harness`. It does not run the agent loop. `operator/assist.py`
+  for `two harness`. It does not run the agent loop.   `operator/assist.py`
   is the closed install-tool policy for harness profile `operator`
   (ADR 0039): redacted status, a guide allowlist, and shipped-slot
-  binding checks. No model client and no network. No store at
-  import time. The API may call the menu. It does not call Ollama.
+  binding checks. A device guide splices the matching `docs/setup.md`
+  heading ahead of the example file. No model client and no network. No
+  store at import time. The API may call the menu. It does not call
+  Ollama.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop. An OpenRouter backend
@@ -74,7 +76,8 @@ Python package for the Majesta Two control plane.
 - `cli_task.py` formats projections and dispatches `two task …`. No workflow
   policy. `cli_chat.py` dispatches `two chat send` / `two chat show`.
   `cli_operator.py` dispatches `two operator send`, `show`, `approve`,
-  and `reject`. They talk only to the control API.
+  and `reject`. They talk only to the control API. `two operator send`
+  of `approved` or `rejected` applies a pending install digest.
 - `two.api/` maps HTTP to `two.store` and `two.approvals`. It must not import
   `two.workspace` git operations or an Ollama client. Bind loopback or
   a Unix socket by default (ADR 0010). Request
@@ -104,7 +107,8 @@ Python package for the Majesta Two control plane.
   Assistant REST or ECHONET Lite (ADR 0027). `devices/tv/` is ADR 0029
   and stays default off. The transport is the Samsung local API.
   `devices/vacuum/` is ADR 0038 and stays default off. The transport is
-  the Ecovacs Open API on the two official hosts.
+  the Ecovacs Open API on the two official hosts. Listing is GET with
+  `ak` on the query string (ADR 0042). Control stays POST JSON.
 - `routing/` classifies a transcript onto `chat` or an enabled device
   slot and plans a fan-out (ADR 0030). An obvious named-target command
   compiles the closed climate, television, or vacuum tool without the
@@ -142,11 +146,14 @@ Python package for the Majesta Two control plane.
   may request the closed climate tools and, when those bindings are
   enabled, the closed television and vacuum tools. The control plane
   performs them and does not send `execute` to the child (ADR 0022,
-  ADR 0029, ADR 0038). Profile `operator` may request
+  ADR 0029, ADR 0038).   Profile `operator` may request
   `install.status`, `install.read_guide`, `install.propose_binding`, and
   `install.propose_change`. This process performs them and does not send
-  `execute` (ADR 0039). A binding write and a self-build task wait for
-  an approval digest.
+  `execute` (ADR 0039). The session prompt injects a redacted snapshot
+  and connect hints so the model can walk a shipped adapter without
+  dumping YAML. A binding write and a self-build task wait for
+  an approval digest. A later operator transcript that is only
+  `approved` or `rejected` applies that digest (ADR 0041).
   The climate transport is Home Assistant REST or ECHONET Lite (ADR 0027).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. The scheduler

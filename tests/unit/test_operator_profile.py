@@ -33,7 +33,15 @@ from two.cli import main
 from two.client import transport_from_testclient
 from two.devices.climate.config import load_climate_config
 from two.manifest import TaskManifest
-from two.operator.assist import AssistError, install_status, propose_binding, read_guide, redact
+from two.operator.assist import (
+    DEVICE_CONNECT_HINTS,
+    AssistError,
+    install_status,
+    operator_chat_decision,
+    propose_binding,
+    read_guide,
+    redact,
+)
 from two.operator.doctor import DoctorCheck, DoctorReport
 from two.routing import cards_for, decide_route
 from two.runtime.health import HealthState
@@ -41,7 +49,9 @@ from two.scheduler import Scheduler
 from two.store import SCHEMA_VERSION, OperatorTurnStatus, Store, open_store
 from two.types import ErrorCode, LifecycleState
 from two.worker import AcpWorker
+from two.worker.acp_operator import _operator_patch
 from two.worker.models import ChildConfig
+from two.worker.operator_turn import plan_operator_session
 
 T0 = datetime(2026, 8, 30, 12, 0, 0, tzinfo=UTC)
 FAKE_CHILD = Path(__file__).parent / "fixtures" / "acp" / "fake_acp_child.py"
@@ -173,6 +183,7 @@ def test_status_redacts_paths_addresses_and_secrets(
 def test_guide_allowlist_refuses_traversal() -> None:
     excerpt = read_guide("setup")
     assert "[truncated]" in excerpt
+    assert "read_guide climate" in excerpt
     assert ".." not in excerpt[:20]
     with pytest.raises(AssistError) as missing:
         read_guide("../etc/passwd")
@@ -180,6 +191,54 @@ def test_guide_allowlist_refuses_traversal() -> None:
     with pytest.raises(AssistError) as unknown:
         read_guide("github")
     assert unknown.value.code == ErrorCode.INSTALL_GUIDE_DENIED.value
+
+
+def test_vacuum_guide_returns_connect_steps_before_yaml() -> None:
+    excerpt = read_guide("vacuum")
+    assert excerpt.index("## Ecovacs vacuums") < excerpt.index("enabled:")
+    assert "same ECOVACS HOME account" in excerpt
+    assert "server Access Key" in excerpt
+    assert "two vacuum robots" in excerpt
+    assert "must not paste the example YAML" in excerpt
+    assert "ECO_API_KEY" in excerpt
+
+
+def test_operator_prompt_prefers_spoken_steps() -> None:
+    plan = plan_operator_session(
+        transcript="I have 2 ecovacs robots guide me what to do to connect",
+        stored_session_id=None,
+        snapshot="adapters:\n  vacuum: off (none)",
+    )
+    assert "Call one closed tool and stop." not in plan.prompt
+    assert "You may reply without a tool" in plan.prompt
+    assert "Do not paste YAML" in plan.prompt
+    assert "open.ecovacs.com" in plan.prompt
+    assert "adapters:\n  vacuum: off (none)" in plan.prompt
+    assert DEVICE_CONNECT_HINTS.split("\n", 1)[0] in plan.prompt
+    patch = _operator_patch("qwen", provider="mac-qwen")
+    assert "Walk the operator through connecting a shipped adapter" in patch
+    assert "Do not paste YAML" in patch
+    assert "calling one closed tool" not in patch
+
+
+def test_vacuum_binding_accepts_a_nickname_list() -> None:
+    encoded, digest, summary = propose_binding(
+        "vacuum",
+        {
+            "enabled": True,
+            "token_env": "ECO_API_KEY",
+            "api_host": "open.ecovacs.com",
+            "robots": [{"nickname": "Bob"}, {"nickname": "Lynne"}],
+        },
+    )
+    payload = json.loads(encoded)
+    assert payload["slot"] == "vacuum"
+    assert payload["document"]["robots"] == {
+        "bob": {"nickname": "Bob"},
+        "lynne": {"nickname": "Lynne"},
+    }
+    assert digest.startswith("sha256:")
+    assert "bob" in summary and "lynne" in summary
 
 
 def test_binding_rejects_an_unknown_slot_and_a_secret_value(tmp_path: Path) -> None:
@@ -334,6 +393,50 @@ def test_binding_approval_writes_only_a_matching_digest(
     loaded = load_climate_config(tmp_path)
     assert loaded is not None
     assert "living" in loaded.zones
+
+
+def test_operator_chat_approved_applies_the_stored_digest(
+    client: TestClient,
+    store: Store,
+    tmp_path: Path,
+) -> None:
+    accepted = client.post(
+        "/v1/voice/turns",
+        json={"text": "bind the living room", "profile": "operator"},
+    )
+    turn_id = str(accepted.json()["turn_id"])
+    assert Scheduler(store).dispatch(now=T0) is None
+    held = _worker(
+        store,
+        tmp_path,
+        "install.propose_binding",
+        {"slot": "climate", "document": CLIMATE_DOC},
+        tmp_path / "invoke.txt",
+    ).run_operator(turn_id, now=T0)
+    assert held.status is OperatorTurnStatus.AWAITING_APPROVAL
+    before = _count(store, "operator_turns")
+    spoken = client.post(
+        "/v1/voice/turns",
+        json={"text": "approved", "profile": "operator"},
+    )
+    assert spoken.status_code == 202
+    body = spoken.json()
+    assert body["turn_id"] == turn_id
+    assert body["status"] == "queued"
+    assert _count(store, "operator_turns") == before
+    other = client.post(
+        "/v1/voice/turns",
+        json={"text": "please approve", "profile": "operator"},
+    )
+    assert other.json()["turn_id"] != turn_id
+    assert other.json()["status"] == "queued"
+
+
+def test_operator_chat_decision_is_a_closed_word() -> None:
+    assert operator_chat_decision("Approved!") == "approve"
+    assert operator_chat_decision("  reject  ") == "reject"
+    assert operator_chat_decision("please approve") is None
+    assert operator_chat_decision("yes") is None
 
 
 def test_rejected_binding_writes_nothing(

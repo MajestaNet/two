@@ -1970,6 +1970,35 @@ class Store:
             return None
         return _operator_turn_from_row(row)
 
+    def latest_awaiting_operator_turn(
+        self, *, principal: str | None = None
+    ) -> OperatorTurnRecord | None:
+        """Return the newest operator turn waiting on a digest, if any."""
+        if principal is None:
+            row = self._connection.execute(
+                """
+                SELECT * FROM operator_turns
+                WHERE status = 'awaiting_approval'
+                ORDER BY created_at DESC, seq DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        else:
+            row = self._connection.execute(
+                """
+                SELECT * FROM operator_turns
+                WHERE status = 'awaiting_approval' AND principal = ?
+                ORDER BY created_at DESC, seq DESC
+                LIMIT 1
+                """,
+                (principal,),
+            ).fetchone()
+        if row is None:
+            return None
+        if not isinstance(row, sqlite3.Row):
+            raise StoreError("operator turn query did not return a sqlite3.Row")
+        return _operator_turn_from_row(row)
+
     def running_operator_turn(self) -> OperatorTurnRecord | None:
         """Return the single running operator turn, if the slot holds one."""
         row = self._connection.execute(

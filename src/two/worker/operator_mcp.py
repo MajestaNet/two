@@ -38,7 +38,9 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
     (
         "install_read_guide",
         "install.read_guide",
-        "Read one allowlisted setup document.",
+        "Read numbered connect steps for one allowlisted document. "
+        "vacuum is Ecovacs; climate is air-con; tv is Samsung. "
+        "Call this only when the snapshot is not enough.",
         {
             "type": "object",
             "properties": {
@@ -61,7 +63,10 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
     (
         "install_propose_binding",
         "install.propose_binding",
-        "Propose a climate, television, or vacuum binding. Does not write it.",
+        "Propose a climate, television, or vacuum binding after the operator "
+        "gave nicknames or zone names and the token env name. Does not write it. "
+        "Vacuum document.robots must be a map of lowercase ids to {nickname}. "
+        "Do not invent a nickname, address, or secret.",
         {
             "type": "object",
             "properties": {

@@ -73,8 +73,9 @@ protocol a third party can call.
    `open.ecovacs.com` (the default, including this Australian
    installation) or `open.ecovacs.cn`. Any other host is refused.
    Redirects are refused. The key is the value of the environment
-   variable named by `token_env`. It is sent in the JSON body, not the
-   query string, and it is not stored, not sent to the harness, and
+   variable named by `token_env`. Control posts it in the JSON body,
+   not the query string. Listing is GET with `ak` as the query
+   parameter (ADR 0042). It is not stored, not sent to the harness, and
    not returned on the API. This is the only device transport that
    leaves the private network. No other host is allowed.
 7. **The read-back is the result.** A clean or dock call is followed
