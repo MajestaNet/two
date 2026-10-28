@@ -27,8 +27,10 @@ Python package for the Majesta Two control plane.
 - `setup.py` is the Mac mini plan (ADR 0019). `two setup --current` prints the optional split list (ADR 0013). No I/O, no
   network, no store. `two setup --plan` prints it. Apply I/O lives in
   `operator/`. CLI lazy-imports `two.operator` (not `two.runtime`).
-- `runtime/` parses `models.lock`, emits the Ollama env contract, renders
-  the launchd plist, and classifies Mac health from JSON. No network on
+-   `runtime/` parses `models.lock`, emits the Ollama env contract, renders
+  the launchd plist, and classifies Mac health from JSON. The live poller
+  falls back to `GET /v1/models` when Ollama `/api/version` is absent
+  (ADR 0040). No network on
   the default unit-test path. `runtime/host.py` reads unified memory for
   `two profiles --recommend`.   `runtime/poller.py` is the optional live
   Mac HTTP probe. A loaded catalog tag is Healthy even when it is not the
@@ -48,7 +50,9 @@ Python package for the Majesta Two control plane.
   path. Do not reimplement the DSH agent loop. An OpenRouter backend
   file under `$TWO_DATA_DIR` (ADR 0037) selects a second provider for
   chat, operator, and home-action. A local `localModel` tag, when set,
-  is the served Ollama id. Coding stays on Mac Qwen. The key is a
+  is the served Ollama id or mlx-lm Hugging Face id. `runtime: mlx-lm`
+  points that provider at `http://127.0.0.1:18080/v1` (ADR 0040).
+  Coding stays on Mac Qwen. The key is a
   mode-0600 file, never inline in settings.yaml.
 - `store/` is the SQLite WAL store (`open_store`). Schema v5 persists
   `work_nodes` / `work_edges`. Schema v6 persists projects and immutable

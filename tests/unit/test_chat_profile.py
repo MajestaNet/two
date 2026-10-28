@@ -673,6 +673,32 @@ def test_child_exit_without_reply_fails_internal(store: Store, tmp_path: Path) -
     assert finished.reply_text is None
 
 
+def test_thought_chunks_fill_empty_message() -> None:
+    from two.worker.acp_chat import _on_prompt_message
+
+    class _UnusedRpc:
+        pass
+
+    chunks: list[str] = []
+    thoughts: list[str] = []
+    _on_prompt_message(
+        _UnusedRpc(),  # type: ignore[arg-type]
+        {
+            "method": "session/update",
+            "params": {
+                "update": {
+                    "sessionUpdate": "agent_thought_chunk",
+                    "content": {"type": "text", "text": "plain answer"},
+                }
+            },
+        },
+        chunks,
+        thoughts,
+    )
+    assert chunks == []
+    assert thoughts == ["plain answer"]
+
+
 def test_long_reply_is_truncated(store: Store) -> None:
     store.insert_chat_turn("hello", "local", turn_id="c1", now=T0)
     assert store.admit_chat_turn(now=T0) is not None

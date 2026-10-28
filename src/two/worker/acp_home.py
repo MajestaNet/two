@@ -37,7 +37,7 @@ from two.devices.tv.config import load_tv_config
 from two.devices.tv.contract import TvBroker, TvInstall
 from two.devices.vacuum.config import load_vacuum_config
 from two.devices.vacuum.contract import VacuumBroker, VacuumInstall
-from two.providers.backend import OpenRouterNotSignedIn, openrouter_child_env
+from two.providers.backend import OpenRouterNotSignedIn, inference_child_env
 from two.providers.render import acp_route
 from two.store.models import HomeActionTurnRecord, HomeActionTurnStatus
 from two.store.store import Store
@@ -142,7 +142,7 @@ def run_pinned_acp_home(
     profile_dir = ensure_home_action_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
     try:
-        overlay = openrouter_child_env(data_dir)
+        overlay = inference_child_env(data_dir)
     except OpenRouterNotSignedIn:
         return store.fail_home_action_turn(
             turn_id, ErrorCode.OPENROUTER_NOT_SIGNED_IN.value, now=now

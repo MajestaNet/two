@@ -31,7 +31,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
-from two.providers.backend import OpenRouterNotSignedIn, openrouter_child_env
+from two.providers.backend import OpenRouterNotSignedIn, inference_child_env
 from two.providers.render import acp_route
 from two.store.models import OperatorTurnRecord, OperatorTurnStatus
 from two.store.store import Store
@@ -99,7 +99,7 @@ def run_pinned_acp_operator(
     profile_dir = ensure_operator_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
     try:
-        overlay = openrouter_child_env(data_dir)
+        overlay = inference_child_env(data_dir)
     except OpenRouterNotSignedIn:
         return store.fail_operator_turn(turn_id, ErrorCode.OPENROUTER_NOT_SIGNED_IN.value, now=now)
     home = _ensure_operator_patch(data_dir)
@@ -108,7 +108,6 @@ def run_pinned_acp_operator(
     env["DSH_TELEMETRY_DISABLED"] = "1"
     key = os.environ.get("MAC_QWEN_API_KEY", "ollama").strip() or "ollama"
     env["MAC_QWEN_API_KEY"] = key
-    env.update(overlay)
     for name in ("HOME", "TMPDIR", "LANG", "LC_ALL", "USER", "LOGNAME"):
         value = os.environ.get(name, "").strip()
         if value:
@@ -116,6 +115,7 @@ def run_pinned_acp_operator(
     base = os.environ.get("MAC_QWEN_BASE_URL", "").strip()
     if base:
         env["MAC_QWEN_BASE_URL"] = base
+    env.update(overlay)
     config = child_config if child_config is not None else ChildConfig()
     child = SupervisedChild(
         build_operator_argv(data_dir=data_dir),

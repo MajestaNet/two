@@ -24,6 +24,7 @@
     "files": [
       "src/**/*",
       "assets/**/*",
+      "scripts/mlx_hub.py",
       "package.json"
     ],
     "extraResources": [

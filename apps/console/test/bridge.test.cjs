@@ -49,6 +49,10 @@ test("chat omits the profile unless the window sets chat, home-action, or operat
     }),
     "Waiting for approval: climate.set_mode upstairs-office heat.",
   );
+  assert.equal(
+    policy.receiptText({ status: "failed", error_code: "internal" }),
+    "The model did not return a chat reply.",
+  );
 });
 
 test("the renderer cannot spawn a process", () => {
@@ -420,4 +424,118 @@ test("OpenRouter OAuth uses a loopback callback and never stores the key in stat
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("mlx-lm is a closed argv on loopback and catalog download sits with local models", () => {
+  assert.equal(policy.LOOPBACK_MLX_HOST, "127.0.0.1:18080");
+  assert.deepEqual(
+    policy.mlxServeArgv("/opt/homebrew/bin/python3", "mlx-community/Qwen3.5-9B-OptiQ-4bit"),
+    [
+      "/opt/homebrew/bin/python3",
+      "-m",
+      "mlx_lm",
+      "server",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "18080",
+      "--model",
+      "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+      "--max-tokens",
+      "8192",
+      "--chat-template-args",
+      '{"enable_thinking":false}',
+    ],
+  );
+  assert.throws(() => policy.mlxServeArgv("/opt/homebrew/bin/python3", "qwen;rm"));
+  assert.throws(() => policy.acceptPythonPath("/tmp/python rm"));
+  assert.deepEqual(
+    policy.mlxDownloadArgv(
+      "/opt/homebrew/bin/python3",
+      "/opt/two/mlx_hub.py",
+      "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+    ),
+    [
+      "/opt/homebrew/bin/python3",
+      "/opt/two/mlx_hub.py",
+      "download",
+      "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+    ],
+  );
+  assert.equal(policy.hubCacheName("models--mlx-community--Qwen3.5-9B-OptiQ-4bit"), "mlx-community/Qwen3.5-9B-OptiQ-4bit");
+  assert.equal(policy.normalizeHfRepo("mlx-community/Qwen3.5-9B-OptiQ-4bit"), "mlx-community/Qwen3.5-9B-OptiQ-4bit");
+  assert.equal(
+    policy.chatGate({
+      apiUp: true,
+      localRuntime: "mlx-lm",
+      mlxUp: false,
+      ollamaUp: true,
+      modelPresent: true,
+      modelLoaded: true,
+    }).reason,
+    policy.CHAT_NEEDS_MLX,
+  );
+  assert.equal(
+    policy.chatGate({
+      apiUp: true,
+      localRuntime: "mlx-lm",
+      mlxUp: true,
+      modelPresent: true,
+      modelLoaded: true,
+    }).enabled,
+    true,
+  );
+  assert.equal(
+    policy.openRouterBackend({
+      backend: "local",
+      runtime: "mlx-lm",
+      localModel: "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+    }).runtime,
+    "mlx-lm",
+  );
+  const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
+  assert.equal(html.includes("Local Model Catalog"), true);
+  assert.equal(/<h2>Catalog<\/h2>/.test(html), false);
+  const catalogAt = html.indexOf("Local Model Catalog");
+  const downloadAt = html.indexOf("id=\"download\"");
+  const openrouterAt = html.indexOf("<h2>OpenRouter</h2>");
+  assert.notEqual(catalogAt, -1);
+  assert.notEqual(downloadAt, -1);
+  assert.notEqual(openrouterAt, -1);
+  assert.equal(downloadAt > catalogAt, true);
+  assert.equal(downloadAt < openrouterAt, true);
+  assert.equal(html.includes("mlx-lm"), true);
+  assert.equal(mainSource.includes("mlx:start"), true);
+  assert.equal(mainSource.includes("LOOPBACK_MLX_HOST"), true);
+  assert.equal(mainSource.includes("shell: true"), false);
+  const names = policy.rendererMethods.map((pair) => pair[0]);
+  for (const name of ["mlxStatus", "mlxStart", "mlxStop", "mlxInstall", "mlxPull"]) {
+    assert.equal(names.includes(name), true);
+  }
+  assert.deepEqual(policy.mlxInstallPlan("darwin", "arm64"), { kind: "venv", package: "mlx-lm" });
+  assert.equal(policy.mlxInstallPlan("darwin", "x64"), null);
+  assert.equal(policy.mlxInstallPlan("linux", "arm64"), null);
+  assert.deepEqual(policy.sysctlArgv("hw.memsize"), ["/usr/sbin/sysctl", "-n", "hw.memsize"]);
+  assert.throws(() => policy.sysctlArgv("kern.hostname"));
+  const apple = policy.mlxHostFacts({
+    platform: "darwin",
+    arch: "arm64",
+    memBytes: 24 * 1024 ** 3,
+    chip: "Apple M4",
+  });
+  assert.equal(apple.appleSilicon, true);
+  assert.equal(apple.memoryGb, 24);
+  assert.equal(apple.installable, true);
+  assert.match(policy.mlxHostLine(apple), /Apple M4/);
+  assert.match(policy.mlxHostLine(apple), /24 GB/);
+  const intel = policy.mlxHostFacts({ platform: "darwin", arch: "x64", memBytes: 32 * 1024 ** 3 });
+  assert.equal(intel.installable, false);
+  assert.match(policy.mlxHostLine(intel), /not Apple Silicon/);
+  assert.equal(html.includes("mlx-host"), true);
+  assert.equal(mainSource.includes("sysctlArgv"), true);
+  assert.equal(appSource.includes("mlxLoadTarget"), true);
+  assert.match(
+    appSource,
+    /function modelPresent\(\) \{\n  if \(localRuntime\(\) === "mlx-lm"\) \{\n    const names = \(state\.mlx && state\.mlx\.models\) \|\| \[\];\n    const target = mlxLoadTarget\(\);/,
+  );
 });

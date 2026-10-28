@@ -70,6 +70,8 @@ function statusPayload(dataDir) {
   return {
     backend: backend.backend,
     model: backend.model,
+    runtime: backend.runtime || "ollama",
+    localModel: backend.localModel || "",
     signedIn: hasKey(dataDir),
   };
 }

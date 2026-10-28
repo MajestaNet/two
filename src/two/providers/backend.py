@@ -27,6 +27,7 @@ from typing import Literal
 from two.validation.artifacts import resolve_data_dir
 
 BackendKind = Literal["local", "openrouter"]
+LocalRuntime = Literal["ollama", "mlx-lm"]
 
 BACKEND_FILENAME = "inference-backend.json"
 KEY_FILENAME = "openrouter.key"
@@ -37,9 +38,11 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_CONTEXT_WINDOW = 1_048_576
 OPENROUTER_MAX_TOKENS = 8192
 OPENROUTER_DISPLAY_NAME = "OpenRouter"
+MLX_LM_BASE_URL = "http://127.0.0.1:18080/v1"
 
 _MODEL_RE = re.compile(r"^[A-Za-z0-9._:+-]+/[A-Za-z0-9._:+-]+$")
-_LOCAL_MODEL_RE = re.compile(r"^[A-Za-z0-9._:+/-]+:[A-Za-z0-9._:+/-]+$")
+_LOCAL_OLLAMA_RE = re.compile(r"^[A-Za-z0-9._:+/-]+:[A-Za-z0-9._:+/-]+$")
+_LOCAL_HF_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._+-]+$")
 _KEY_RE = re.compile(r"^sk-or-[A-Za-z0-9_-]{8,512}$")
 
 
@@ -54,13 +57,28 @@ class InferenceBackend:
     kind: BackendKind
     model: str = OPENROUTER_DEFAULT_MODEL
     local_model: str = ""
+    runtime: LocalRuntime = "ollama"
 
 
 def normalize_local_model(model: str) -> str:
     trimmed = model.strip()
-    if len(trimmed) < 3 or len(trimmed) > 128 or _LOCAL_MODEL_RE.fullmatch(trimmed) is None:
+    if len(trimmed) < 3 or len(trimmed) > 128:
         raise ValueError("choose an Ollama tag such as qwen3.5:9b-mlx")
-    return trimmed
+    if _LOCAL_OLLAMA_RE.fullmatch(trimmed) is not None:
+        return trimmed
+    if _LOCAL_HF_RE.fullmatch(trimmed) is not None:
+        return trimmed
+    raise ValueError("choose an Ollama tag such as qwen3.5:9b-mlx")
+
+
+def is_huggingface_repo(model: str) -> bool:
+    return _LOCAL_HF_RE.fullmatch(model.strip()) is not None
+
+
+def normalize_local_runtime(runtime: str) -> LocalRuntime:
+    if runtime == "mlx-lm":
+        return "mlx-lm"
+    return "ollama"
 
 
 def normalize_openrouter_model(model: str) -> str:
@@ -104,7 +122,9 @@ def load_inference_backend(data_dir: Path | str | None = None) -> InferenceBacke
                 local_model = normalize_local_model(local_raw)
             except ValueError:
                 local_model = ""
-        return InferenceBackend(kind="local", local_model=local_model)
+        runtime_raw = raw.get("runtime", "ollama")
+        runtime = normalize_local_runtime(runtime_raw if isinstance(runtime_raw, str) else "ollama")
+        return InferenceBackend(kind="local", local_model=local_model, runtime=runtime)
     model_raw = raw.get("model", OPENROUTER_DEFAULT_MODEL)
     if not isinstance(model_raw, str):
         model_raw = OPENROUTER_DEFAULT_MODEL
@@ -124,8 +144,10 @@ def write_inference_backend(
     payload: dict[str, str] = {"backend": backend.kind}
     if backend.kind == "openrouter":
         payload["model"] = normalize_openrouter_model(backend.model)
-    elif backend.local_model:
-        payload["localModel"] = normalize_local_model(backend.local_model)
+    else:
+        payload["runtime"] = normalize_local_runtime(backend.runtime)
+        if backend.local_model:
+            payload["localModel"] = normalize_local_model(backend.local_model)
     path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
     path.chmod(0o600)
     return path
@@ -159,3 +181,14 @@ def openrouter_child_env(data_dir: Path | str | None = None) -> dict[str, str]:
     if key is None:
         raise OpenRouterNotSignedIn("Sign in with OpenRouter before chat.")
     return {OPENROUTER_API_KEY_ENV: key}
+
+
+def inference_child_env(data_dir: Path | str | None = None) -> dict[str, str]:
+    """Child overlay for OpenRouter or mlx-lm. Raises if OpenRouter has no key."""
+
+    backend = load_inference_backend(data_dir)
+    if backend.kind == "openrouter":
+        return openrouter_child_env(data_dir)
+    if backend.runtime == "mlx-lm":
+        return {"MAC_QWEN_BASE_URL": MLX_LM_BASE_URL}
+    return {}

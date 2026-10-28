@@ -16,10 +16,12 @@ import pytest
 import yaml
 
 from two.providers.backend import (
+    MLX_LM_BASE_URL,
     OPENROUTER_API_KEY_ENV,
     OPENROUTER_DEFAULT_MODEL,
     InferenceBackend,
     OpenRouterNotSignedIn,
+    inference_child_env,
     load_inference_backend,
     openrouter_child_env,
     write_inference_backend,
@@ -136,3 +138,55 @@ def test_harness_home_stays_local_without_backend_file(tmp_path: Path) -> None:
 def test_missing_backend_file_is_local(tmp_path: Path) -> None:
     loaded = load_inference_backend(tmp_path)
     assert loaded.kind == "local"
+
+
+def test_mlx_lm_backend_points_harness_at_loopback(tmp_path: Path) -> None:
+    write_inference_backend(
+        tmp_path,
+        InferenceBackend(
+            kind="local",
+            runtime="mlx-lm",
+            local_model="mlx-community/Qwen3.5-9B-OptiQ-4bit",
+        ),
+    )
+    loaded = load_inference_backend(tmp_path)
+    assert loaded.runtime == "mlx-lm"
+    assert loaded.local_model == "mlx-community/Qwen3.5-9B-OptiQ-4bit"
+    assert inference_child_env(tmp_path) == {"MAC_QWEN_BASE_URL": MLX_LM_BASE_URL}
+    text = render_active_harness_yaml(data_dir=tmp_path)
+    assert "http://127.0.0.1:18080/v1" in text
+    assert "mlx-community/Qwen3.5-9B-OptiQ-4bit" in text
+    _provider, model = acp_route(tmp_path)
+    assert model == "mlx-community/Qwen3.5-9B-OptiQ-4bit"
+
+
+def test_mlx_runtime_uses_two_data_dir_when_render_omits_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_inference_backend(
+        tmp_path,
+        InferenceBackend(
+            kind="local",
+            runtime="mlx-lm",
+            local_model="lukaskremla/Qwen3.8-27B-3bit-MLX-TextOnly",
+        ),
+    )
+    monkeypatch.setenv("TWO_DATA_DIR", str(tmp_path))
+    text = render_active_harness_yaml()
+    assert "http://127.0.0.1:18080/v1" in text
+    assert "lukaskremla/Qwen3.8-27B-3bit-MLX-TextOnly" in text
+    assert "127.0.0.1:11434" not in text
+    provider, model = acp_route()
+    assert provider == "mac-qwen"
+    assert model == "lukaskremla/Qwen3.8-27B-3bit-MLX-TextOnly"
+
+
+def test_mlx_runtime_does_not_send_ollama_tag_to_harness(tmp_path: Path) -> None:
+    write_inference_backend(
+        tmp_path,
+        InferenceBackend(kind="local", runtime="mlx-lm", local_model="qwen3.5:9b-mlx"),
+    )
+    text = render_active_harness_yaml(data_dir=tmp_path)
+    assert "mlx-community/Qwen3.5-9B-OptiQ-4bit" in text
+    _provider, model = acp_route(tmp_path)
+    assert model == "mlx-community/Qwen3.5-9B-OptiQ-4bit"

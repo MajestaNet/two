@@ -28,6 +28,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from two.profiles import catalog_model_names, load_catalog
+from two.providers.backend import MLX_LM_BASE_URL, load_inference_backend
 from two.runtime.env import DEFAULT_ALIAS
 from two.runtime.health import HealthState, classify_from_fixture_dir, classify_health
 
@@ -55,10 +56,24 @@ def probe_mac_health(
     if _is_public_host(origin):
         return HealthState.UNAVAILABLE
     version = _http_json(f"{origin}/api/version", timeout)
-    if version is None:
-        return HealthState.UNAVAILABLE
-    ps = _http_json(f"{origin}/api/ps", timeout)
     models = _http_json(f"{origin}/v1/models", timeout)
+    ps: dict[str, Any] | None
+    if version is None:
+        if models is None:
+            return HealthState.UNAVAILABLE
+        version = {"version": "openai-compat"}
+        raw_listed = models.get("data")
+        listed = raw_listed if isinstance(raw_listed, list) else []
+        resident: list[dict[str, str]] = []
+        for item in listed:
+            if not isinstance(item, dict):
+                continue
+            model_id = item.get("id")
+            if isinstance(model_id, str) and model_id:
+                resident.append({"name": model_id})
+        ps = {"models": resident}
+    else:
+        ps = _http_json(f"{origin}/api/ps", timeout)
     aliases = acceptable_aliases if acceptable_aliases is not None else _catalog_aliases()
     return classify_health(
         version=version,
@@ -78,19 +93,37 @@ def _catalog_aliases() -> tuple[str, ...]:
     return names if names else (DEFAULT_ALIAS,)
 
 
+def _health_base_url(environ: Mapping[str, str]) -> str:
+    data_dir = environ.get("TWO_DATA_DIR", "").strip()
+    if data_dir:
+        backend = load_inference_backend(data_dir)
+        if backend.kind == "local" and backend.runtime == "mlx-lm":
+            return MLX_LM_BASE_URL
+    return environ.get("MAC_QWEN_BASE_URL", "").strip()
+
+
 def mac_health_probe_from_env(
     env: Mapping[str, str] | None = None,
 ) -> Callable[[], HealthState]:
-    """Fixture dir, then ``MAC_QWEN_BASE_URL``, else Healthy (no network)."""
+    """Fixture dir, then mlx-lm loopback when selected, then ``MAC_QWEN_BASE_URL``.
+
+    Else Healthy (no network). The probe re-reads the backend file each
+    tick so switching mlx-lm in the window does not leave the scheduler
+    watching Ollama.
+    """
     environ = env if env is not None else os.environ
     fixture = environ.get("TWO_HEALTH_FIXTURE_DIR", "").strip()
     if fixture:
         path = Path(fixture)
         return lambda: classify_from_fixture_dir(path)
-    url = environ.get("MAC_QWEN_BASE_URL", "").strip()
-    if url:
-        return lambda: probe_mac_health(url)
-    return lambda: HealthState.HEALTHY
+
+    def probe() -> HealthState:
+        url = _health_base_url(environ)
+        if not url:
+            return HealthState.HEALTHY
+        return probe_mac_health(url)
+
+    return probe
 
 
 def _is_public_host(origin: str) -> bool:

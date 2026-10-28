@@ -66,6 +66,9 @@
 - `adrs/0038-console-model-and-context.md` lists unique catalog tags and
   a separate context window in that window, including a Q3 Mini trial.
   Do not paste that ADR here.
+- `adrs/0040-mlx-lm-openai-adapter.md` lets that window serve raw
+  `mlx-lm` on loopback through the existing OpenAI-completions provider.
+  Ollama stays the default. Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.

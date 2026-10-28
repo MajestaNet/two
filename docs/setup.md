@@ -18,7 +18,7 @@ the spec.
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)). `two harness status` reports the checkout. `two harness install` downloads that tag only, builds host libraries with Node 22 and `pnpm@11.7.0`, and writes `$TWO_DATA_DIR/harness/bin/dsh`. The local window can run the same install ([ADR 0035](adrs/0035-console-harness-install.md)) |
 | Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
-| Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md), [ADR 0034](adrs/0034-installable-console.md), [ADR 0035](adrs/0035-console-harness-install.md), [ADR 0037](adrs/0037-openrouter-inference-backend.md), [ADR 0038](adrs/0038-console-model-and-context.md)). Default off. Opening it starts `two up` when needed. Closing the window hides it and leaves the control plane running; the menu bar opens it again. `npm run package` builds a desktop directory that includes this control plane. It can install official Ollama, locate an existing binary, list models, and serve `127.0.0.1:11434`. It can install the pinned DeepSeek Harness when `dsh` is missing. The catalog lists unique tags, including 16 GB rows and a Qwen 3.8 27B Q3 trial, with a separate context window. One typed Ollama tag can be pulled. The Model page can select OpenRouter (default `deepseek/deepseek-v4-flash`) and sign in with PKCE. Chat uses the control API. `npm test` in that directory is not part of `make ci` |
+| Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md), [ADR 0034](adrs/0034-installable-console.md), [ADR 0035](adrs/0035-console-harness-install.md), [ADR 0037](adrs/0037-openrouter-inference-backend.md), [ADR 0038](adrs/0038-console-model-and-context.md), [ADR 0040](adrs/0040-mlx-lm-openai-adapter.md)). Default off. Opening it starts `two up` when needed. Closing the window hides it and leaves the control plane running; the menu bar opens it again. `npm run package` builds a desktop directory that includes this control plane. It can install official Ollama, locate an existing binary, list models, and serve `127.0.0.1:11434`. It can locate or install `mlx-lm` and serve `127.0.0.1:18080` through the OpenAI-compatible adapter. It can install the pinned DeepSeek Harness when `dsh` is missing. Local Model Catalog lists unique tags, including 16 GB rows and a Qwen 3.8 27B Q3 trial, with Download in that section and a separate context window. One typed Ollama tag or Hugging Face mlx-lm id can be pulled. The Model page can select OpenRouter (default `deepseek/deepseek-v4-flash`) and sign in with PKCE. Chat uses the control API. `npm test` in that directory is not part of `make ci` |
 | Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
 | Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate`, `tv`, and `vacuum` are shipped and off until a local binding enables them. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
@@ -41,7 +41,10 @@ the spec.
 | Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.propose_binding`, and `install.propose_change`. A binding write and a self-build task wait for a digest. The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [B26](backlog/B26-operator-install-profile.md)) |
 | Harness profile `home-action` | Works when a local climate, television, or vacuum binding is enabled (`two climate`, `two tv`, or `two vacuum`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. When `$TWO_DATA_DIR/devices/vacuum.yaml` is enabled, it performs `vacuum.read`, `vacuum.clean`, and `vacuum.dock` against the Ecovacs Open API. A known robot is pre-authorized. Without one of those bindings the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set; "turn heat on upstairs office" compiles `climate.set_mode` without the harness; "start the downstairs vacuum" compiles `vacuum.clean` the same way, and "dock all vacuums" repeats the dock ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [ADR 0036](adrs/0036-closed-utterance-compile.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
 
-Last updated: 28 October 2026 (ADR 0039: the local CLI and console can
+Last updated: 28 October 2026 (ADR 0040: the Model page can serve raw
+mlx-lm on loopback through DeepSeek Harness's OpenAI-compatible adapter.
+Ollama stays the default. Download lives in Local Model Catalog.
+ADR 0039: the local CLI and console can
 resume harness profile `operator` explicitly. It answers a redacted
 install snapshot, reads a fixed guide allowlist, and can propose a
 shipped climate, television, or vacuum binding or a self-build task.
@@ -134,7 +137,7 @@ install it stops and starts the control plane so chat sees the new
 Opening the window starts `two up` when the control plane is not already
 running. Closing the window hides it. The menu-bar icon opens it again.
 Quit of the window process does not stop the control plane. **Stop** does.
-The same is true of an Ollama serve this window started.
+The same is true of an Ollama serve or mlx-lm server this window started.
 
 The window looks for an existing `ollama` at the remembered path,
 Homebrew, `/usr/local/bin`, and `PATH`. If none run, **Install Ollama**
@@ -145,8 +148,15 @@ the local manifest library when it does not. **Start Ollama** runs
 `ollama serve` on `127.0.0.1:11434` with the selected profile's context
 length, then loads that tag with keep-alive `-1`. A typed tag uses an 8K
 window. A listening Ollama with no model loaded stays Cold, and local chat
-remains queued. **Download** pulls the selected catalog profile, or the
-one tag you typed. A typed tag does not remove other models. The Model
+remains queued. **mlx-lm** is the other local runtime. The window locates
+a Python that imports `mlx_lm`, or **Install mlx-lm** creates
+`~/.majesta-two/mlx-lm` on Apple Silicon. **Start mlx-lm** runs
+`python -m mlx_lm server` on `127.0.0.1:18080` and the harness uses that
+OpenAI-compatible `/v1` URL. The mlx-lm section reports whether this Mac
+is Apple Silicon and how much unified memory it has, then Install / Start /
+Stop work from the window the same way Ollama does. Local Model Catalog **Download** pulls the
+selected catalog profile, the Hugging Face mlx-lm id, or the one tag you
+typed. A typed tag does not remove other models. The Model
 page can select **OpenRouter** instead, defaulting to DeepSeek V4 Flash.
 **Sign in with OpenRouter** opens the system browser. The key stays in
 `$TWO_DATA_DIR` and never appears in the window. Chat then uses that
@@ -415,7 +425,7 @@ uv run two profiles
 | `m16-qwen35-4b` | 16 GB | 8K | Recommended on a 16 GB Mac. `qwen3.5:4b-mlx` |
 | `m16-qwen35-small` | 16 GB | 8K | Smaller `qwen3.5:0.8b-mlx` when the 4B model still swaps |
 | `m24-qwen38-16k` | 24 GB | 16K | Default. `qwen3.5:9b-mlx` on a 24 GB Mini |
-| `m24-qwen38-q3` | 24 GB | 8K | Listed trial. Q3 of Qwen 3.8 27B (`batiai/qwen3.8-27b:q3`). Not recommended |
+| `m24-qwen38-q3` | 24 GB | 8K | Listed trial. Q3 of Qwen 3.8 27B (`batiai/qwen3.8-27b:q3` / `lukaskremla/Qwen3.8-27B-3bit-MLX-TextOnly`). Not recommended |
 | `m24-qwen38-32k` | 24 GB | 32K | Same host, larger window; soak before production |
 | `m36-qwen38-32k` | 36 GB | 32K | Comfortable 32K on a larger Mac |
 | `m48-qwen38-64k` | 48 GB | 64K | Larger window; measure swap-outs |

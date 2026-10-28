@@ -398,3 +398,66 @@ def test_poller_refuses_public_origin_without_network() -> None:
     assert probe_mac_health("http://0.0.0.0:11434") is HealthState.UNAVAILABLE
     probe = mac_health_probe_from_env({})
     assert probe() is HealthState.HEALTHY
+
+
+def test_poller_classifies_openai_compat_without_ollama_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_http(url: str, _timeout: float) -> dict[str, object] | None:
+        if url.endswith("/api/version"):
+            return None
+        if url.endswith("/v1/models"):
+            return {
+                "object": "list",
+                "data": [{"id": "mlx-community/Qwen3.5-9B-OptiQ-4bit", "object": "model"}],
+            }
+        return None
+
+    monkeypatch.setattr("two.runtime.poller._http_json", fake_http)
+    monkeypatch.setattr(
+        "two.runtime.poller._catalog_aliases",
+        lambda: ("qwen3.5:9b-mlx", "mlx-community/Qwen3.5-9B-OptiQ-4bit"),
+    )
+    assert probe_mac_health("http://127.0.0.1:18080/v1") is HealthState.HEALTHY
+
+
+def test_poller_uses_mlx_url_when_backend_selects_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from two.providers.backend import InferenceBackend, write_inference_backend
+
+    write_inference_backend(
+        tmp_path,
+        InferenceBackend(
+            kind="local",
+            runtime="mlx-lm",
+            local_model="mlx-community/Qwen3.5-9B-OptiQ-4bit",
+        ),
+    )
+    seen: list[str] = []
+
+    def fake_http(url: str, _timeout: float) -> dict[str, object] | None:
+        seen.append(url)
+        if url.endswith("/api/version"):
+            return None
+        if "18080" in url and url.endswith("/v1/models"):
+            return {
+                "object": "list",
+                "data": [{"id": "mlx-community/Qwen3.5-9B-OptiQ-4bit", "object": "model"}],
+            }
+        return None
+
+    monkeypatch.setattr("two.runtime.poller._http_json", fake_http)
+    monkeypatch.setattr(
+        "two.runtime.poller._catalog_aliases",
+        lambda: ("qwen3.5:9b-mlx", "mlx-community/Qwen3.5-9B-OptiQ-4bit"),
+    )
+    probe = mac_health_probe_from_env(
+        {
+            "TWO_DATA_DIR": str(tmp_path),
+            "MAC_QWEN_BASE_URL": "http://127.0.0.1:11434",
+        }
+    )
+    assert probe() is HealthState.HEALTHY
+    assert any("18080" in url for url in seen)
+    assert not any("11434" in url for url in seen)

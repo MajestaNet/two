@@ -28,6 +28,7 @@ import yaml
 from two.profiles import InferenceProfile
 from two.profiles import load_catalog as load_inference_catalog
 from two.providers.backend import (
+    MLX_LM_BASE_URL,
     OPENROUTER_API_KEY_ENV,
     OPENROUTER_BASE_URL,
     OPENROUTER_CONTEXT_WINDOW,
@@ -35,12 +36,14 @@ from two.providers.backend import (
     OPENROUTER_DISPLAY_NAME,
     OPENROUTER_MAX_TOKENS,
     OPENROUTER_PROVIDER_ID,
+    is_huggingface_repo,
     load_inference_backend,
     normalize_openrouter_model,
 )
 from two.topology import DeploymentTopology
 from two.topology import load_catalog as load_topology_catalog
 from two.types import DeploymentTopologyId
+from two.validation.artifacts import resolve_data_dir
 
 # Pinned developer-preview release. Never "latest".
 DSH_PIN = "dsh-v0.1.2-alpha.1"
@@ -88,14 +91,20 @@ def normalize_openai_base_url(url: str) -> str:
 def resolve_base_url(
     topology: DeploymentTopology,
     environ: Mapping[str, str] | None = None,
+    data_dir: Path | str | None = None,
 ) -> str:
     """Resolve the OpenAI-compatible base URL.
 
-    ``MAC_QWEN_BASE_URL`` wins when set so operators can point at a private
-    name without committing it. Otherwise colocated topology binds loopback;
-    split topology keeps the documented placeholder hostname.
+    mlx-lm on loopback wins over the Ollama URL when that runtime is
+    selected (ADR 0040). Otherwise ``MAC_QWEN_BASE_URL`` wins when set so
+    operators can point at a private name without committing it. Colocated
+    topology binds loopback; split topology keeps the documented placeholder.
     """
 
+    if data_dir is not None:
+        backend = load_inference_backend(data_dir)
+        if backend.kind == "local" and backend.runtime == "mlx-lm":
+            return MLX_LM_BASE_URL
     env = environ if environ is not None else os.environ
     explicit = env.get("MAC_QWEN_BASE_URL", "").strip()
     if explicit:
@@ -116,7 +125,15 @@ def _local_model_id(
     *,
     data_dir: Path | str | None = None,
 ) -> str:
+    if data_dir is None:
+        return profile.alias
     backend = load_inference_backend(data_dir)
+    if backend.kind == "local" and backend.runtime == "mlx-lm":
+        if is_huggingface_repo(backend.local_model):
+            return backend.local_model
+        if profile.mlx_lm_model:
+            return profile.mlx_lm_model
+        return profile.alias
     if backend.kind == "local" and backend.local_model:
         return backend.local_model
     return profile.alias
@@ -142,7 +159,7 @@ def render_mac_qwen_settings(
     env = environ if environ is not None else os.environ
     selected_profile = profile or _load_selected_profile(env)
     selected_topology = topology or _load_selected_topology(env)
-    base_url = resolve_base_url(selected_topology, env)
+    base_url = resolve_base_url(selected_topology, env, data_dir=data_dir)
     max_tokens = min(DEFAULT_MAX_TOKENS, selected_profile.num_ctx)
     model_id = _local_model_id(selected_profile, data_dir=data_dir)
     provider: dict[str, object] = {
@@ -233,11 +250,12 @@ def render_active_harness_yaml(
 ) -> str:
     """Render Mac Qwen or OpenRouter settings from the install backend file."""
 
-    backend = load_inference_backend(data_dir)
+    resolved = resolve_data_dir(data_dir)
+    backend = load_inference_backend(resolved)
     if backend.kind == "openrouter":
         return render_openrouter_yaml(model=backend.model)
     return render_mac_qwen_yaml(
-        profile=profile, topology=topology, environ=environ, data_dir=data_dir
+        profile=profile, topology=topology, environ=environ, data_dir=resolved
     )
 
 
@@ -248,11 +266,12 @@ def acp_route(
 ) -> tuple[str, str]:
     """Return ``(provider_id, model_id)`` for the ACP patch."""
 
-    backend = load_inference_backend(data_dir)
+    resolved = resolve_data_dir(data_dir)
+    backend = load_inference_backend(resolved)
     if backend.kind == "openrouter":
         return OPENROUTER_PROVIDER_ID, backend.model
     env = environ if environ is not None else os.environ
-    return PROVIDER_ID, _local_model_id(_load_selected_profile(env), data_dir=data_dir)
+    return PROVIDER_ID, _local_model_id(_load_selected_profile(env), data_dir=resolved)
 
 
 def _dump_settings(payload: dict[str, object], *, extra_header: str) -> str:
