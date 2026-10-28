@@ -5,11 +5,11 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); Ecovacs vacuum tools on `home-action` (ADR 0038); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037, ADR 0038); operator install profile (ADR 0039); adoption, speech, and profile preload follow |
-| Version | 0.15 |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); Ecovacs vacuum tools on `home-action` (ADR 0038); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037, ADR 0038, ADR 0040); operator install profile (ADR 0039); adoption, speech, and profile preload follow |
+| Version | 0.16 |
 | Date | 28 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
-| Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
+| Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling; Ollama default, optional mlx-lm (ADR 0040) |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
 | Development host | The Mac mini, beside Ollama as separate processes (`topology: colocated`); `split` is optional when a second host stays on |
 
@@ -19,7 +19,7 @@ The system will separate **inference** from **software-development execution**. 
 
 - Native Ollama on a Mac mini runs the official Qwen3.8 model. That mini is the always-on installation (ADR 0019). The installer selects the inference profile that fits beside the control plane. The catalog reference remains the 16K profile.
 - Majesta Two and DeepSeek Harness own the source repository, shell, language servers, builds, tests, git worktrees, task state, and optional paid-model routes. They run on the same mini as separate processes from Ollama (`topology: colocated`). `split` remains optional when another host stays powered on. Linux Compose is that optional packaging, not the default.
-- They call Ollama through an OpenAI-compatible HTTP endpoint on `127.0.0.1`. The model process never mounts the repository and never executes commands. See ADR 0006 and `two topology`.
+- They call the local model through an OpenAI-compatible HTTP endpoint on `127.0.0.1`. The default server is Ollama. The operator may instead serve raw `mlx-lm` on loopback (ADR 0040). The model process never mounts the repository and never executes commands. See ADR 0006 and `two topology`.
 - A durable controller around DeepSeek Harness provides a repeatable automated development lifecycle: isolate a task, inspect, plan, implement, validate, repair, review, and report. It owns the queue, checkpoints, pause/resume behavior, budgets, and recovery; the lifetime of a terminal, browser, messaging adapter, or Harness process does not define the lifetime of a task.
 - A channel-neutral interaction gateway exposes the same task through the control API. The running local installation is the development client (ADR 0017). The CLI is that client's local surface and the only enabled slot in the install catalog (ADR 0021). Optional in-repo device adapters — home devices, wearables, and later private devices — are further control surfaces over the same installation. The first-party mobile GUI and the watch app are clients of this API; their native projects are not in this tree. The local operator console is the exception: it lives in this tree (ADR 0031), binds loopback, and does not replace those apps. Every client is a control surface over one durable task record, not a separate agent session.
 - Large repositories are supported through retrieval and iterative work, not by placing the entire repository in the model context.
@@ -129,7 +129,7 @@ flowchart TB
     subgraph Mini["Mac mini, always on"]
         C --> H["DeepSeek Harness profiles"]
         C --> S["Task state, events, and artifacts"]
-        H -->|"OpenAI-compatible API, loopback"| M["Ollama: Qwen3.8"]
+        H -->|"OpenAI-compatible API, loopback"| M["Ollama or mlx-lm: Qwen"]
         C -->|"same slot"| M
     end
 ```
@@ -303,11 +303,11 @@ The API endpoints used are:
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /v1/chat/completions` | Model inference, streaming, tools, reasoning control |
-| `GET /v1/models` | Provider discovery and conformance check |
+| `GET /v1/models` | Provider discovery and conformance check; mlx-lm health when `/api/version` is absent (ADR 0040) |
 | `GET /api/version` | Ollama health/version check |
-| `GET /api/ps` | Loaded-model and residency check |
+| `GET /api/ps` | Ollama loaded-model and residency check |
 
-No application authentication is added. DeepSeek Harness supplies the dummy key value `ollama` only because OpenAI-compatible clients expect a key field; Ollama ignores it.
+No application authentication is added. DeepSeek Harness supplies the dummy key value `ollama` only because OpenAI-compatible clients expect a key field; Ollama and mlx-lm ignore it.
 
 ### 6.3 Development host
 
@@ -353,7 +353,7 @@ The harness is currently a developer preview. The implementation must pin an exa
 
 #### C. Local Qwen provider adapter
 
-DeepSeek Harness uses a custom OpenAI-completions provider pointing at Ollama:
+DeepSeek Harness uses a custom OpenAI-completions provider pointing at the local OpenAI-compatible server. Ollama on `127.0.0.1:11434/v1` is the default. The operator may serve raw `mlx-lm` on `127.0.0.1:18080/v1` instead (ADR 0040). Do not install a DeepSeek Harness MLX plugin.
 
 ```yaml
 llm-pi-ai:
@@ -379,7 +379,7 @@ llm-pi-ai:
             max: max
 ```
 
-This is the default shape on the Mac mini: loopback. Optional `split` uses a private hostname instead of `127.0.0.1`. The exact field set must be contract-tested against the pinned DeepSeek Harness release. In particular, tool-call serialization, system/developer roles, reasoning fields, and replay of assistant reasoning must be validated before unattended execution.
+This is the default shape on the Mac mini: loopback Ollama. Optional `split` uses a private hostname instead of `127.0.0.1`. When the operator selects mlx-lm, `baseURL` is `http://127.0.0.1:18080/v1` and the model id is the profile `mlx_lm_model` (ADR 0040). The exact field set must be contract-tested against the pinned DeepSeek Harness release. In particular, tool-call serialization, system/developer roles, reasoning fields, and replay of assistant reasoning must be validated before unattended execution.
 
 #### D. Workspace manager
 
@@ -1052,8 +1052,8 @@ Default policy:
 | --- | --- | --- |
 | Inference location | Mac mini, native Ollama | The always-on machine; the installer selects model quality |
 | Execution location | Same mini, separate processes from Ollama (ADR 0019) | The control plane has to stay up with the only host that stays on |
-| Mac runtime | Native Ollama; MLX tag evaluated first | Mac-specific acceleration, stable API, simple operations |
-| API boundary | OpenAI Chat Completions | Supported by Ollama and DSH custom providers; tools and reasoning included |
+| Mac runtime | Native Ollama by default; optional raw mlx-lm on loopback (ADR 0040) | Mac-specific acceleration; the harness stays on the OpenAI-completions adapter |
+| API boundary | OpenAI Chat Completions | Supported by Ollama, mlx-lm, and DSH custom providers; tools and reasoning included |
 | Default context | 16K with q8 KV | Stable 24 GB baseline; large-repo support comes from retrieval |
 | Concurrency | One local inference request | Prevents multiplied KV allocation and throughput collapse |
 | Harness | DeepSeek Harness | Plugin architecture, tool loop, sessions, sandbox, workflows, ACP |
@@ -1280,9 +1280,11 @@ invent a second architecture.
   this Mac. A packaged build includes this control plane. Opening it starts `two up` when needed.
   Closing the window hides it and leaves the control plane running; the menu bar opens it again.
   It can install the official Ollama archive, locate an existing binary, list installed models,
-  and start `ollama serve` on loopback. It can install the pinned DeepSeek Harness checkout
+  and start `ollama serve` on loopback. It can locate or install `mlx-lm` and start
+  `python -m mlx_lm server` on `127.0.0.1:18080` (ADR 0040). It can install the pinned DeepSeek Harness checkout
   when `dsh` is missing. It recommends a catalog model, including a 16 GB row,
-  and can pull one operator-entered Ollama tag. It shows operator docs and adapter
+  and can pull one operator-entered Ollama tag or Hugging Face mlx-lm id. The Model page
+  groups those rows as Local Model Catalog, with Download in that section. It shows operator docs and adapter
   bindings, and sends a voice turn. The profile defaults to unset so the
   router runs, and may be set to `chat`, `home-action`, or `operator` (ADR 0033, ADR 0039).
   It is not the mobile client.
@@ -1391,6 +1393,7 @@ and the seamless install remain open.
 - [Majesta Two OpenRouter inference backend (ADR 0037)](adrs/0037-openrouter-inference-backend.md)
 - [Majesta Two console model list and independent context (ADR 0038)](adrs/0038-console-model-and-context.md)
 - [Majesta Two operator install profile (ADR 0039)](adrs/0039-operator-install-profile.md)
+- [Majesta Two mlx-lm OpenAI adapter (ADR 0040)](adrs/0040-mlx-lm-openai-adapter.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

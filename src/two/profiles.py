@@ -38,6 +38,7 @@ class InferenceProfile(BaseModel):
     recommended_unified_memory_gb: int
     upstream_model: str
     alias: str
+    mlx_lm_model: str = ""
     num_ctx: int
     display_name: str = ""
     num_ctx_options: list[int] = Field(default_factory=list)
@@ -124,6 +125,7 @@ class ProfileFit(BaseModel):
     id: str
     upstream_model: str
     alias: str
+    mlx_lm_model: str = ""
     min_unified_memory_gb: int
     num_ctx: int
     display_name: str = ""
@@ -184,6 +186,7 @@ def recommend_profile(
                 id=profile.id,
                 upstream_model=profile.upstream_model,
                 alias=profile.alias,
+                mlx_lm_model=profile.mlx_lm_model,
                 min_unified_memory_gb=profile.min_unified_memory_gb,
                 num_ctx=profile.num_ctx,
                 display_name=profile.display_name,
@@ -256,7 +259,7 @@ def catalog_model_names(catalog: InferenceCatalog) -> tuple[str, ...]:
 
     names: list[str] = []
     for profile in catalog.profiles.values():
-        for tag in (profile.upstream_model, profile.alias):
+        for tag in (profile.upstream_model, profile.alias, profile.mlx_lm_model):
             if tag and tag not in names:
                 names.append(tag)
     return tuple(names)

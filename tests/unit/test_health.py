@@ -77,3 +77,47 @@ def test_missing_version_is_unavailable() -> None:
         classify_health(version=None, ps={"models": []}, models={"data": []})
         is HealthState.UNAVAILABLE
     )
+
+
+def test_openai_compat_hub_path_is_healthy() -> None:
+    models = {
+        "object": "list",
+        "data": [
+            {
+                "id": (
+                    "/Users/x/.cache/huggingface/hub/"
+                    "models--mlx-community--Qwen3.5-9B-OptiQ-4bit/snapshots/abc"
+                ),
+                "object": "model",
+            }
+        ],
+    }
+    ps = {"models": [{"name": models["data"][0]["id"]}]}
+    assert (
+        classify_health(
+            version={"version": "openai-compat"},
+            ps=ps,
+            models=models,
+            expected_alias="qwen3.5:9b-mlx",
+            acceptable_aliases=("qwen3.5:9b-mlx", "mlx-community/Qwen3.5-9B-OptiQ-4bit"),
+        )
+        is HealthState.HEALTHY
+    )
+
+
+def test_openai_compat_payload_is_healthy_when_listed() -> None:
+    models = {
+        "object": "list",
+        "data": [{"id": "mlx-community/Qwen3.5-9B-OptiQ-4bit", "object": "model"}],
+    }
+    ps = {"models": [{"name": "mlx-community/Qwen3.5-9B-OptiQ-4bit"}]}
+    assert (
+        classify_health(
+            version={"version": "openai-compat"},
+            ps=ps,
+            models=models,
+            expected_alias="qwen3.5:9b-mlx",
+            acceptable_aliases=("qwen3.5:9b-mlx", "mlx-community/Qwen3.5-9B-OptiQ-4bit"),
+        )
+        is HealthState.HEALTHY
+    )

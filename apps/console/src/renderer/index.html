@@ -60,6 +60,16 @@
             <button type="button" id="ollama-choose" class="quiet">Choose binary…</button>
           </div>
           <p id="ollama-note" class="note"></p>
+          <h2>mlx-lm</h2>
+          <p id="mlx-host" class="note"></p>
+          <p id="mlx-path" class="note"></p>
+          <div class="row">
+            <button type="button" id="mlx-start">Start mlx-lm</button>
+            <button type="button" id="mlx-stop" class="quiet">Stop mlx-lm</button>
+            <button type="button" id="mlx-install" class="hidden">Install mlx-lm</button>
+            <button type="button" id="mlx-choose" class="quiet">Choose Python…</button>
+          </div>
+          <p id="mlx-note" class="note"></p>
           <h2>DeepSeek Harness</h2>
           <p id="harness-path" class="note"></p>
           <div class="row">
@@ -70,24 +80,45 @@
         <section id="model" class="view hidden">
           <h1>Model</h1>
           <p id="model-reason" class="lede"></p>
+          <h2>Serve locally</h2>
+          <div class="card own">
+            <input type="radio" name="runtime" value="ollama" id="runtime-ollama" />
+            <div>
+              <strong>Ollama</strong>
+              <div class="meta">Default local server on 127.0.0.1:11434.</div>
+            </div>
+          </div>
+          <div class="card own">
+            <input type="radio" name="runtime" value="mlx-lm" id="runtime-mlx" />
+            <div>
+              <strong>mlx-lm</strong>
+              <div class="meta">Raw MLX through the OpenAI-compatible local adapter on 127.0.0.1:18080.</div>
+            </div>
+          </div>
           <h2>Installed</h2>
           <p id="installed-note" class="note"></p>
           <div class="row">
             <button type="button" id="ollama-install-model" class="hidden">Install Ollama</button>
             <button type="button" id="ollama-choose-model" class="quiet">Choose binary…</button>
+            <button type="button" id="mlx-install-model" class="hidden">Install mlx-lm</button>
+            <button type="button" id="mlx-choose-model" class="quiet hidden">Choose Python…</button>
           </div>
           <ul id="installed-models" class="facts"></ul>
-          <h2>Catalog</h2>
+          <h2>Local Model Catalog</h2>
           <ul id="model-list" class="cards"></ul>
           <div class="card own">
             <input type="radio" name="profile" value="own" id="own-radio" />
             <div>
               <strong>Choose your own</strong>
-              <div class="meta">Type the Ollama tag to download and load. Other models stay installed.</div>
-              <input id="own-model" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="qwen3.5:4b" aria-label="Your Ollama model" />
+              <div class="meta" id="own-meta">Type the Ollama tag to download and load. Other models stay installed.</div>
+              <input id="own-model" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="qwen3.5:4b" aria-label="Your local model" />
               <div id="own-context" class="ctx"></div>
             </div>
           </div>
+          <div class="row">
+            <button type="button" id="download">Download</button>
+          </div>
+          <pre id="model-log" class="log"></pre>
           <h2>OpenRouter</h2>
           <div class="card own">
             <input type="radio" name="profile" value="openrouter" id="openrouter-radio" />
@@ -102,10 +133,6 @@
               </div>
             </div>
           </div>
-          <div class="row">
-            <button type="button" id="download">Download</button>
-          </div>
-          <pre id="model-log" class="log"></pre>
         </section>
         <section id="docs" class="view hidden">
           <h1>Docs</h1>

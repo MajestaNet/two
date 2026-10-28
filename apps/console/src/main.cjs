@@ -122,7 +122,8 @@ async function serverStatus() {
   } catch (_error) {
     ollama = "down";
   }
-  return { children, health: await readHealth(), ollama };
+  const mlxUp = await mlxHttpUp();
+  return { children, health: await readHealth(), ollama, mlx: mlxUp ? "up" : "down" };
 }
 
 async function serverStart() {
@@ -695,6 +696,366 @@ async function ollamaPull(payload) {
   };
 }
 
+function mlxMemoryPath(name) {
+  return path.join(app.getPath("userData"), name);
+}
+
+function rememberedMlxPython() {
+  const body = readJsonFile(mlxMemoryPath("mlx.json"));
+  return body && typeof body.python === "string" ? body.python : "";
+}
+
+function mlxInstallRoot() {
+  const root = path.join(os.homedir(), ".majesta-two", "mlx-lm");
+  if (/\s/.test(root)) {
+    throw new Error("The home directory path contains spaces, so choose a Python interpreter instead.");
+  }
+  return root;
+}
+
+function mlxHubScript() {
+  return path.join(__dirname, "..", "scripts", "mlx_hub.py");
+}
+
+function runPython(argv) {
+  return new Promise((resolve) => {
+    const child = spawn(argv[0], argv.slice(1), { shell: false, env: process.env });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, 8000);
+    child.stdout.on("data", (chunk) => {
+      stdout = (stdout + chunk.toString("utf8")).slice(-20000);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString("utf8")).slice(-20000);
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ code: 1, stdout, stderr: error.message });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code: code === null ? 1 : code, stdout, stderr });
+    });
+  });
+}
+
+function runSysctl(key) {
+  const argv = policy.sysctlArgv(key);
+  return new Promise((resolve) => {
+    execFile(argv[0], argv.slice(1), { timeout: 1500 }, (error, stdout) => {
+      if (error) {
+        resolve("");
+        return;
+      }
+      resolve(String(stdout || "").trim());
+    });
+  });
+}
+
+async function probeMlxHost() {
+  if (process.platform !== "darwin") {
+    return policy.mlxHostFacts({ platform: process.platform, arch: process.arch, memBytes: 0, chip: "" });
+  }
+  const mem = await runSysctl("hw.memsize");
+  const chip = await runSysctl("machdep.cpu.brand_string");
+  return policy.mlxHostFacts({
+    platform: "darwin",
+    arch: process.arch,
+    memBytes: Number(mem),
+    chip: chip,
+  });
+}
+
+function mlxHttpUp() {
+  return fetch("http://" + policy.LOOPBACK_MLX_HOST + "/v1/models", {
+    redirect: "error",
+    signal: AbortSignal.timeout(1500),
+  })
+    .then((response) => response.ok)
+    .catch(() => false);
+}
+
+function mlxServeRecord() {
+  const body = readJsonFile(mlxMemoryPath("mlx-serve.json"));
+  if (!body || !Number.isInteger(body.pid) || body.pid <= 1) return null;
+  return body;
+}
+
+function ourMlxRunning() {
+  const record = mlxServeRecord();
+  if (!record) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    execFile("/bin/ps", ["-ww", "-p", String(record.pid), "-o", "command="], { timeout: 1500 }, (error, stdout) => {
+      if (error) {
+        resolve(false);
+        return;
+      }
+      const command = String(stdout || "");
+      resolve(command.includes("mlx_lm") && command.includes("server"));
+    });
+  });
+}
+
+function readHubModels() {
+  const root = path.join(os.homedir(), ".cache", "huggingface", "hub");
+  let entries = [];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch (_error) {
+    return [];
+  }
+  const names = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const name = policy.hubCacheName(entry.name);
+    if (name) names.push(name);
+  }
+  return names.filter((name, index) => names.indexOf(name) === index).sort();
+}
+
+async function loadedMlxNames() {
+  try {
+    const response = await fetch("http://" + policy.LOOPBACK_MLX_HOST + "/v1/models", {
+      redirect: "error",
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!response.ok) return [];
+    const body = await response.json();
+    const rows = Array.isArray(body.data) ? body.data : [];
+    const names = [];
+    for (const row of rows) {
+      const name = row && (row.id || row.name);
+      if (typeof name === "string" && name !== "") names.push(name);
+    }
+    return names;
+  } catch (_error) {
+    return [];
+  }
+}
+
+async function pythonHasMlx(candidate) {
+  let accepted = "";
+  try {
+    accepted = policy.acceptPythonPath(candidate);
+  } catch (_error) {
+    return null;
+  }
+  if (!isExecutable(accepted)) return null;
+  const probed = await runPython(policy.mlxImportArgv(accepted));
+  if (probed.code !== 0) return null;
+  return { python: accepted, version: (probed.stdout || "").trim() };
+}
+
+async function locateMlx() {
+  const remembered = rememberedMlxPython();
+  const extra = [];
+  try {
+    extra.push(path.join(mlxInstallRoot(), "venv", "bin", "python"));
+  } catch (_error) {
+    // A home path with spaces still allows a chosen interpreter.
+  }
+  const bundled = bundledPython();
+  if (bundled) extra.unshift(bundled);
+  for (const candidate of policy.mlxPythonCandidates(process.env, remembered, extra)) {
+    const found = await pythonHasMlx(candidate);
+    if (found) return found;
+  }
+  return { python: "", version: "" };
+}
+
+async function mlxStatus() {
+  let located;
+  try {
+    located = await locateMlx();
+  } catch (error) {
+    located = { python: "", version: "" };
+  }
+  const up = located.python ? await mlxHttpUp() : false;
+  const host = await probeMlxHost();
+  return {
+    python: located.python,
+    version: located.version,
+    up: up,
+    ready: Boolean(located.python),
+    owned: await ourMlxRunning(),
+    installable: host.installable,
+    host: host,
+    models: readHubModels(),
+    loaded: up ? await loadedMlxNames() : [],
+  };
+}
+
+async function mlxChoose() {
+  const parent = BrowserWindow.getFocusedWindow();
+  const chooser = {
+    title: "Choose the Python interpreter for mlx-lm",
+    buttonLabel: "Use this Python",
+    properties: ["openFile"],
+    defaultPath: "/opt/homebrew/bin",
+  };
+  const result = parent ? await dialog.showOpenDialog(parent, chooser) : await dialog.showOpenDialog(chooser);
+  if (result.canceled || !result.filePaths || !result.filePaths[0]) {
+    return mlxStatus();
+  }
+  const chosen = policy.acceptPythonPath(result.filePaths[0]);
+  const found = await pythonHasMlx(chosen);
+  if (!found) {
+    throw new Error("That interpreter cannot import mlx_lm.");
+  }
+  writeJsonFile(mlxMemoryPath("mlx.json"), { python: found.python });
+  return mlxStatus();
+}
+
+async function waitUntilMlxAnswers() {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (await mlxHttpUp()) return;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error("mlx-lm did not answer on 127.0.0.1:18080");
+}
+
+async function mlxStart(payload) {
+  const located = await locateMlx();
+  if (!located.python) {
+    throw new Error("Install mlx-lm or choose a Python interpreter first.");
+  }
+  const already = (await mlxHttpUp()) || (await ourMlxRunning());
+  if (already) {
+    return { ok: true, already: true };
+  }
+  const model = payload && payload.model;
+  if (!model) {
+    throw new Error("Choose an mlx-lm model first.");
+  }
+  const argv = policy.mlxServeArgv(located.python, model);
+  const child = spawn(argv[0], argv.slice(1), {
+    shell: false,
+    detached: true,
+    stdio: "ignore",
+    env: process.env,
+  });
+  const failure = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 400);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      resolve(error);
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      resolve(new Error("mlx-lm server stopped (" + String(code) + ")"));
+    });
+  });
+  if (failure) {
+    throw failure;
+  }
+  child.unref();
+  writeJsonFile(mlxMemoryPath("mlx-serve.json"), { pid: child.pid, python: located.python, model: model });
+  await waitUntilMlxAnswers();
+  return { ok: true, already: false };
+}
+
+async function mlxStop() {
+  const record = mlxServeRecord();
+  if (!record || !(await ourMlxRunning())) {
+    try {
+      fs.unlinkSync(mlxMemoryPath("mlx-serve.json"));
+    } catch (_error) {
+      // No serve record to clear.
+    }
+    return { ok: true, stopped: false };
+  }
+  try {
+    process.kill(record.pid, "SIGTERM");
+  } catch (error) {
+    throw new Error(error.message);
+  }
+  try {
+    fs.unlinkSync(mlxMemoryPath("mlx-serve.json"));
+  } catch (_error) {
+    // The process was signaled.
+  }
+  return { ok: true, stopped: true };
+}
+
+async function mlxInstall() {
+  const plan = policy.mlxInstallPlan(process.platform, process.arch);
+  if (!plan) {
+    throw new Error("Install mlx-lm from this window is available on Apple Silicon.");
+  }
+  const root = mlxInstallRoot();
+  const venv = path.join(root, "venv");
+  fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+  const hostPython = ["/opt/homebrew/bin/python3", "/usr/bin/python3"].find((file) => isExecutable(file));
+  if (!hostPython) {
+    throw new Error("python3 was not found. Install Python 3.12, then try again.");
+  }
+  const created = await new Promise((resolve) => {
+    const argv = policy.mlxVenvArgv(hostPython, venv);
+    const child = spawn(argv[0], argv.slice(1), { shell: false });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString("utf8")).slice(-20000);
+    });
+    child.on("error", (error) => resolve({ code: 1, stderr: error.message }));
+    child.on("close", (code) => resolve({ code: code === null ? 1 : code, stderr }));
+  });
+  if (created.code !== 0) {
+    throw new Error((created.stderr || "Could not create the mlx-lm virtualenv").trim());
+  }
+  const python = policy.acceptPythonPath(path.join(venv, "bin", "python"));
+  const installed = await new Promise((resolve) => {
+    const argv = policy.mlxPipArgv(python);
+    const child = spawn(argv[0], argv.slice(1), { shell: false });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout = (stdout + chunk.toString("utf8")).slice(-200000);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString("utf8")).slice(-200000);
+    });
+    child.on("error", (error) => resolve({ code: 1, stdout, stderr: error.message }));
+    child.on("close", (code) => resolve({ code: code === null ? 1 : code, stdout, stderr }));
+  });
+  if (installed.code !== 0) {
+    throw new Error((installed.stderr || installed.stdout || "mlx-lm did not install").trim());
+  }
+  writeJsonFile(mlxMemoryPath("mlx.json"), { python: python });
+  return mlxStatus();
+}
+
+async function mlxPull(payload) {
+  const located = await locateMlx();
+  if (!located.python) {
+    throw new Error("Install mlx-lm or choose a Python interpreter first.");
+  }
+  const argv = policy.mlxDownloadArgv(located.python, mlxHubScript(), payload && payload.model);
+  const result = await new Promise((resolve) => {
+    const child = spawn(argv[0], argv.slice(1), { shell: false, env: process.env });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout = (stdout + chunk.toString("utf8")).slice(-200000);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString("utf8")).slice(-200000);
+    });
+    child.on("error", (error) => {
+      resolve({ code: 1, stdout, stderr: error.message });
+    });
+    child.on("close", (code) => {
+      resolve({ code: code === null ? 1 : code, stdout, stderr });
+    });
+  });
+  return {
+    ok: result.code === 0,
+    output: (result.stdout + "\n" + result.stderr).trim(),
+  };
+}
+
 function docsList() {
   return policy.DOCS.map((item) => ({ id: item.id, title: item.title }));
 }
@@ -830,6 +1191,12 @@ const handlers = {
   "ollama:stop": ollamaStop,
   "ollama:install": ollamaInstall,
   "ollama:pull": ollamaPull,
+  "mlx:status": mlxStatus,
+  "mlx:choose": mlxChoose,
+  "mlx:start": mlxStart,
+  "mlx:stop": mlxStop,
+  "mlx:install": mlxInstall,
+  "mlx:pull": mlxPull,
   "harness:status": harnessStatus,
   "harness:install": harnessInstall,
   "docs:list": docsList,

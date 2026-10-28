@@ -31,7 +31,7 @@ from collections.abc import Callable, Mapping
 from datetime import datetime
 from pathlib import Path
 
-from two.providers.backend import OpenRouterNotSignedIn, openrouter_child_env
+from two.providers.backend import OpenRouterNotSignedIn, inference_child_env
 from two.providers.render import acp_route, render_active_harness_yaml
 from two.store.models import ChatTurnRecord, ChatTurnStatus
 from two.store.store import Store
@@ -183,7 +183,7 @@ def run_pinned_acp_chat(
     profile_dir = ensure_chat_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
     try:
-        overlay = openrouter_child_env(data_dir)
+        overlay = inference_child_env(data_dir)
     except OpenRouterNotSignedIn:
         return store.fail_chat_turn(turn_id, ErrorCode.OPENROUTER_NOT_SIGNED_IN.value, now=now)
     home = ensure_chat_harness_home(data_dir)
@@ -192,7 +192,6 @@ def run_pinned_acp_chat(
     env["DSH_TELEMETRY_DISABLED"] = "1"
     key = os.environ.get("MAC_QWEN_API_KEY", "ollama").strip() or "ollama"
     env["MAC_QWEN_API_KEY"] = key
-    env.update(overlay)
     for name in ("HOME", "TMPDIR", "LANG", "LC_ALL", "USER", "LOGNAME"):
         value = os.environ.get(name, "").strip()
         if value:
@@ -200,6 +199,7 @@ def run_pinned_acp_chat(
     base = os.environ.get("MAC_QWEN_BASE_URL", "").strip()
     if base:
         env["MAC_QWEN_BASE_URL"] = base
+    env.update(overlay)
     config = child_config if child_config is not None else ChildConfig()
     child = SupervisedChild(
         _argv(data_dir),
@@ -244,16 +244,17 @@ def _drive(
             store.set_chat_session_id(session_id, now=now)
         text = plan.prompt if plan.prompt else plan.transcript
         chunks: list[str] = []
+        thoughts: list[str] = []
         rpc.request(
             "session/prompt",
             {"sessionId": session_id, "prompt": [{"type": "text", "text": text}]},
-            on_message=lambda message: _on_prompt_message(rpc, message, chunks),
+            on_message=lambda message: _on_prompt_message(rpc, message, chunks, thoughts),
         )
     except ChatToolDenied:
         return store.fail_chat_turn(turn_id, ErrorCode.PROFILE_TOOL_DENIED.value, now=now)
     except (ChildError, OSError, TimeoutError, ValueError):
         return store.fail_chat_turn(turn_id, ErrorCode.INTERNAL.value, now=now)
-    reply = "".join(chunks).strip()
+    reply = "".join(chunks).strip() or "".join(thoughts).strip()
     if reply == "":
         return store.fail_chat_turn(turn_id, ErrorCode.INTERNAL.value, now=now)
     return store.complete_chat_turn(turn_id, reply, now=now)
@@ -296,6 +297,7 @@ def _on_prompt_message(
     rpc: _Rpc,
     message: Mapping[str, object],
     chunks: list[str],
+    thoughts: list[str],
 ) -> None:
     method = message.get("method")
     if method == "session/request_permission":
@@ -317,14 +319,17 @@ def _on_prompt_message(
     kind = update.get("sessionUpdate")
     if kind in _TOOL_UPDATES:
         raise ChatToolDenied
-    if kind != "agent_message_chunk":
-        return
     content = update.get("content")
     if not isinstance(content, dict):
         return
     text = content.get("text")
-    if isinstance(text, str) and text:
+    if not isinstance(text, str) or not text:
+        return
+    if kind == "agent_message_chunk":
         chunks.append(text)
+        return
+    if kind == "agent_thought_chunk":
+        thoughts.append(text)
 
 
 class _Rpc:

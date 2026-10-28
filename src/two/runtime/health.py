@@ -95,7 +95,18 @@ def _ids_from_models(models: Mapping[str, Any] | None) -> list[str]:
 
 def _alias_loaded(alias: str, names: Sequence[str]) -> bool:
     wanted = _normalize_name(alias)
-    return any(_normalize_name(name) == wanted for name in names)
+    if not wanted:
+        return False
+    hub = wanted.replace("/", "--")
+    for name in names:
+        got = _normalize_name(name)
+        if not got:
+            continue
+        if got == wanted:
+            return True
+        if "/" in wanted and (got.endswith("/" + wanted) or hub in got.replace("/", "--")):
+            return True
+    return False
 
 
 def _loaded_digest(ps: Mapping[str, Any] | None, alias: str) -> str:
@@ -285,6 +296,7 @@ Probes (no request issued in --dry-run):
   GET /api/version
   GET /api/ps
   GET /v1/models
+  OpenAI-compatible servers without /api/version are classified from /v1/models
 
 Classification:
   Healthy     API responds, expected model loaded, memory pressure acceptable

@@ -119,7 +119,7 @@ the local operator window and is not part of that gate.
 
 ## Layout
 
-- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037, ADR 0038). Electron,
+- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037, ADR 0038, ADR 0040). Electron,
   loopback only, default off. It calls `two up`, `two down`,
   `two profiles --recommend`, `two model`, `two harness`, and `POST /v1/voice/turns`.
   The voice profile defaults to unset. `chat`, `home-action`, and
@@ -128,7 +128,7 @@ the local operator window and is not part of that gate.
   Opening the window starts the control plane when it is not already running.
   Closing the window hides it. The menu bar opens it again. Quit of the
   window process does not stop the control plane or an Ollama serve this
-  window started.
+  window started, and does not stop an mlx-lm server this window started.
   A packaged build (`npm run package`) carries this control plane in a
   relocatable virtualenv. A checkout still uses `uv run two`. DeepSeek
   Harness is not baked into the package. The Server page checks for `dsh`
@@ -136,15 +136,19 @@ the local operator window and is not part of that gate.
   When `TWO_DATA_DIR` is unset, the window uses the platform data directory.
   The main process may install the official Ollama archive when no binary
   is found, or locate an existing `ollama` and run `--version`, `list`,
-  `serve`, and `pull` on `127.0.0.1:11434`. The model list groups unique
-  tags, including the 16 GB rows and a listed Qwen 3.8 27B Q3 trial,
-  and the window is chosen separately. One typed Ollama tag can be
-  pulled and loaded.
+  `serve`, and `pull` on `127.0.0.1:11434`.   It may locate Python with
+  `mlx-lm`, or install it under `~/.majesta-two/mlx-lm` on Apple Silicon,
+  report chip and unified memory, and run
+  `python -m mlx_lm server` on `127.0.0.1:18080`. The Model page groups
+  unique tags as Local Model Catalog, including 16 GB rows and a listed
+  Qwen 3.8 27B Q3 trial, with Download in that section. The window is
+  chosen separately. One typed Ollama tag or Hugging Face mlx-lm id can
+  be pulled and loaded.
   The Model page can select OpenRouter, defaulting to DeepSeek V4 Flash,
   and sign in with PKCE. The key stays in the data directory. Model text
   in the window does not cite an ADR. The renderer does not spawn
-  a process. The API process does not call Ollama. `npm test` there is not
-  part of `make ci`.
+  a process. The API process does not call Ollama or mlx-lm. `npm test`
+  there is not part of `make ci`.
 - `src/two/` — Python only. Package implementations live here.
   `src/two/setup.py` is the Mac mini setup plan (ADR 0019). `two setup --current` still prints the optional split list (ADR 0013).
   `two setup --plan` prints it. `two setup --ollama-url` writes env via
@@ -180,7 +184,7 @@ the local operator window and is not part of that gate.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. `two adapters --json`
  adds bound device ids and omits secrets. Only the `cli` slot is
-  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035, ADR 0037, ADR 0038),
+  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035, ADR 0037, ADR 0038, ADR 0040),
  shipped and off, and it resumes `chat` only. `watch` and `mobile`
  are clients at `contract`. `climate`
  is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).

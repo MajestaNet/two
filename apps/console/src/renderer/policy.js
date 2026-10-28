@@ -33,6 +33,12 @@
     Object.freeze(["ollamaStop", "ollama:stop"]),
     Object.freeze(["ollamaInstall", "ollama:install"]),
     Object.freeze(["ollamaPull", "ollama:pull"]),
+    Object.freeze(["mlxStatus", "mlx:status"]),
+    Object.freeze(["mlxChoose", "mlx:choose"]),
+    Object.freeze(["mlxStart", "mlx:start"]),
+    Object.freeze(["mlxStop", "mlx:stop"]),
+    Object.freeze(["mlxInstall", "mlx:install"]),
+    Object.freeze(["mlxPull", "mlx:pull"]),
     Object.freeze(["harnessStatus", "harness:status"]),
     Object.freeze(["harnessInstall", "harness:install"]),
     Object.freeze(["docsList", "docs:list"]),
@@ -49,6 +55,7 @@
 
   const CHAT_NEEDS_SERVER = "Start the local server before chat.";
   const CHAT_NEEDS_OLLAMA = "Start Ollama before chat.";
+  const CHAT_NEEDS_MLX = "Start mlx-lm before chat.";
   const CHAT_NEEDS_MODEL = "Download the selected model before chat.";
   const CHAT_NEEDS_LOADED =
     "Load the selected model before chat. It is installed, but it is not in memory.";
@@ -60,6 +67,8 @@
   const OPENROUTER_KEY_RE = /^sk-or-[A-Za-z0-9_-]{8,512}$/;
   const QUEUED_COLD = "The model is not loaded, so the scheduler will not open the slot.";
   const LOOPBACK_OLLAMA_HOST = "127.0.0.1:11434";
+  const LOOPBACK_MLX_HOST = "127.0.0.1:18080";
+  const HF_MODEL_RE = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._+-]+$/;
   const OWN_NUM_CTX = 8192;
   const OWN_CONTEXT_OPTIONS = Object.freeze([8192, 16384, 32768, 65536, 131072, 262144]);
   const CTX_KILO = Object.freeze({
@@ -88,7 +97,11 @@
       }
       return { enabled: true, reason: "" };
     }
-    if (!state.ollamaUp) {
+    if (state.localRuntime === "mlx-lm") {
+      if (!state.mlxUp) {
+        return { enabled: false, reason: CHAT_NEEDS_MLX };
+      }
+    } else if (!state.ollamaUp) {
       return { enabled: false, reason: CHAT_NEEDS_OLLAMA };
     }
     if (!state.modelPresent) {
@@ -138,10 +151,23 @@
     };
   }
 
+  function receiptErrorLine(code) {
+    if (code === "internal") {
+      return "The model did not return a chat reply.";
+    }
+    if (code === "profile_tool_denied") {
+      return "Chat cannot run tools.";
+    }
+    if (code === "openrouter_not_signed_in") {
+      return "Sign in with OpenRouter before chat.";
+    }
+    return code;
+  }
+
   function receiptText(receipt) {
     if (!receipt || typeof receipt !== "object") return "";
     if (typeof receipt.reply === "string" && receipt.reply !== "") return receipt.reply;
-    if (receipt.error_code) return String(receipt.error_code);
+    if (receipt.error_code) return receiptErrorLine(String(receipt.error_code));
     if (receipt.status !== "awaiting_approval") return "";
     const climate = receipt.pending_action;
     if (climate && typeof climate.tool === "string" && typeof climate.zone === "string") {
@@ -190,6 +216,181 @@
 
   function normalizeModelTag(model) {
     return preloadBody(model).model;
+  }
+
+  function normalizeHfRepo(model) {
+    if (typeof model !== "string") {
+      throw new Error("choose an mlx-lm model such as mlx-community/Qwen3.5-9B-OptiQ-4bit");
+    }
+    const trimmed = model.trim();
+    if (trimmed.length < 3 || trimmed.length > 128 || !HF_MODEL_RE.test(trimmed)) {
+      throw new Error("choose an mlx-lm model such as mlx-community/Qwen3.5-9B-OptiQ-4bit");
+    }
+    return trimmed;
+  }
+
+  function normalizeLocalModel(model, runtime) {
+    if (runtime === "mlx-lm") {
+      try {
+        return normalizeHfRepo(model);
+      } catch (_error) {
+        return normalizeModelTag(model);
+      }
+    }
+    return normalizeModelTag(model);
+  }
+
+  function acceptPythonPath(filePath) {
+    if (!nodePath) {
+      throw new Error("python paths are resolved in the main process");
+    }
+    if (typeof filePath !== "string" || filePath.length < 1 || filePath.length > 1024) {
+      throw new Error("choose the Python interpreter");
+    }
+    if (filePath.includes("\0") || /\s/.test(filePath)) {
+      throw new Error("the Python path cannot contain spaces");
+    }
+    if (!nodePath.isAbsolute(filePath)) {
+      throw new Error("the Python path must be absolute");
+    }
+    const resolved = nodePath.resolve(filePath);
+    const base = nodePath.basename(resolved);
+    if (base !== "python" && !/^python3(\.\d+)?$/.test(base)) {
+      throw new Error("the file must be named python or python3");
+    }
+    return resolved;
+  }
+
+  function mlxPythonCandidates(env, remembered, extra) {
+    if (!nodePath) {
+      throw new Error("python paths are resolved in the main process");
+    }
+    const found = [];
+    if (typeof remembered === "string" && remembered !== "") {
+      try {
+        found.push(acceptPythonPath(remembered));
+      } catch (_error) {
+        // A stale remembered interpreter is skipped.
+      }
+    }
+    for (const candidate of extra || []) {
+      if (typeof candidate === "string" && candidate !== "") found.push(candidate);
+    }
+    found.push("/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3");
+    const pathEnv = env && typeof env.PATH === "string" ? env.PATH : "";
+    for (const dir of pathEnv.split(nodePath.delimiter)) {
+      if (!dir || !nodePath.isAbsolute(dir) || /\s/.test(dir)) continue;
+      found.push(nodePath.join(dir, "python3"));
+      found.push(nodePath.join(dir, "python"));
+    }
+    return found.filter((candidate, index) => found.indexOf(candidate) === index);
+  }
+
+  function mlxServeArgv(python, model) {
+    return [
+      acceptPythonPath(python),
+      "-m",
+      "mlx_lm",
+      "server",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "18080",
+      "--model",
+      normalizeHfRepo(model),
+      "--max-tokens",
+      "8192",
+      "--chat-template-args",
+      '{"enable_thinking":false}',
+    ];
+  }
+
+  function mlxImportArgv(python) {
+    return [acceptPythonPath(python), "-c", "import mlx_lm"];
+  }
+
+  function mlxVenvArgv(python, dest) {
+    if (typeof dest !== "string" || dest.length < 1 || dest.includes("\0") || /\s/.test(dest)) {
+      throw new Error("the mlx-lm install path is not allowed");
+    }
+    if (!nodePath.isAbsolute(dest)) {
+      throw new Error("the mlx-lm install path must be absolute");
+    }
+    return [acceptPythonPath(python), "-m", "venv", dest];
+  }
+
+  function mlxPipArgv(python) {
+    return [acceptPythonPath(python), "-m", "pip", "install", "mlx-lm"];
+  }
+
+  function mlxInstallPlan(platform, arch) {
+    if (platform === "darwin" && arch === "arm64") {
+      return { kind: "venv", package: "mlx-lm" };
+    }
+    return null;
+  }
+
+  function sysctlArgv(key) {
+    if (key !== "hw.memsize" && key !== "machdep.cpu.brand_string") {
+      throw new Error("that sysctl key is not available here");
+    }
+    return ["/usr/sbin/sysctl", "-n", key];
+  }
+
+  function memoryGbFromBytes(nbytes) {
+    const n = Number(nbytes);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return Math.round(n / 1024 ** 3);
+  }
+
+  function mlxHostFacts(input) {
+    const body = input && typeof input === "object" ? input : {};
+    const platform = typeof body.platform === "string" ? body.platform : "";
+    const arch = typeof body.arch === "string" ? body.arch : "";
+    const appleSilicon = platform === "darwin" && arch === "arm64";
+    const chip = typeof body.chip === "string" ? body.chip.trim() : "";
+    return {
+      platform: platform,
+      arch: arch,
+      appleSilicon: appleSilicon,
+      memoryGb: memoryGbFromBytes(body.memBytes),
+      chip: chip,
+      installable: mlxInstallPlan(platform, arch) !== null,
+    };
+  }
+
+  function mlxHostLine(facts) {
+    if (!facts || !facts.appleSilicon) {
+      return "This machine is not Apple Silicon, so mlx-lm stays off. Use Ollama or OpenRouter.";
+    }
+    const chip = facts.chip ? facts.chip + ". " : "";
+    const mem = facts.memoryGb ? facts.memoryGb + " GB unified memory. " : "";
+    return chip + mem + "mlx-lm can run on this Mac.";
+  }
+
+  function mlxDownloadArgv(python, script, repo) {
+    if (!nodePath) {
+      throw new Error("mlx-lm download is resolved in the main process");
+    }
+    if (typeof script !== "string" || nodePath.basename(script) !== "mlx_hub.py") {
+      throw new Error("that mlx-lm download script is not allowed");
+    }
+    if (!nodePath.isAbsolute(script) || /\s/.test(script)) {
+      throw new Error("that mlx-lm download script is not allowed");
+    }
+    return [acceptPythonPath(python), script, "download", normalizeHfRepo(repo)];
+  }
+
+  function hubCacheName(relative) {
+    if (typeof relative !== "string" || !relative.startsWith("models--")) return "";
+    const body = relative.slice("models--".length);
+    if (!body || body.includes("/") || body.includes("..")) return "";
+    const repo = body.replace(/--/g, "/");
+    try {
+      return normalizeHfRepo(repo);
+    } catch (_error) {
+      return "";
+    }
   }
 
   function ollamaInstallPlan(platform, arch) {
@@ -419,6 +620,7 @@
           advisory: profile.advisory || "",
           num_ctx_options: [],
           default_num_ctx: profile.num_ctx,
+          mlx_lm_model: typeof profile.mlx_lm_model === "string" ? profile.mlx_lm_model : "",
           profiles: [],
         };
         indexByTag[tag] = rows.length;
@@ -576,9 +778,10 @@
       return { backend: "openrouter", model: model };
     }
     const localRaw = typeof body.localModel === "string" ? body.localModel.trim() : "";
-    const local = { backend: "local", model: OPENROUTER_DEFAULT_MODEL };
+    const runtime = body.runtime === "mlx-lm" ? "mlx-lm" : "ollama";
+    const local = { backend: "local", model: OPENROUTER_DEFAULT_MODEL, runtime: runtime };
     if (localRaw !== "") {
-      local.localModel = normalizeModelTag(localRaw);
+      local.localModel = normalizeLocalModel(localRaw, runtime);
     }
     return local;
   }
@@ -684,12 +887,14 @@
     rendererMethods,
     CHAT_NEEDS_SERVER,
     CHAT_NEEDS_OLLAMA,
+    CHAT_NEEDS_MLX,
     CHAT_NEEDS_MODEL,
     CHAT_NEEDS_LOADED,
     CHAT_NEEDS_OPENROUTER,
     OPENROUTER_DEFAULT_MODEL,
     QUEUED_COLD,
     LOOPBACK_OLLAMA_HOST,
+    LOOPBACK_MLX_HOST,
     OWN_NUM_CTX,
     OWN_CONTEXT_OPTIONS,
     QUEUED_NOTE,
@@ -697,11 +902,27 @@
     queuedNote,
     chatRequest,
     receiptText,
+    receiptErrorLine,
     chatShowPath,
     apiOrigin,
     modelPullArgs,
     publicModelText,
     normalizeModelTag,
+    normalizeHfRepo,
+    normalizeLocalModel,
+    acceptPythonPath,
+    mlxPythonCandidates,
+    mlxServeArgv,
+    mlxImportArgv,
+    mlxVenvArgv,
+    mlxPipArgv,
+    mlxDownloadArgv,
+    mlxInstallPlan,
+    sysctlArgv,
+    memoryGbFromBytes,
+    mlxHostFacts,
+    mlxHostLine,
+    hubCacheName,
     ollamaInstallPlan,
     acceptOllamaDownloadUrl,
     ollamaPullArgv,

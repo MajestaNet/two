@@ -20,6 +20,7 @@ profiles:
     display_name: Qwen 3.5 4B
     upstream_model: qwen3.5:4b-mlx
     alias: qwen3.5:4b-mlx
+    mlx_lm_model: mlx-community/Qwen3.5-4B-MLX-4bit
     num_ctx: 8192
     num_ctx_options: *native_ctx
     kv_cache: q8_0
@@ -34,6 +35,7 @@ profiles:
     display_name: Qwen 3.5 0.8B
     upstream_model: qwen3.5:0.8b-mlx
     alias: qwen3.5:0.8b-mlx
+    mlx_lm_model: mlx-community/Qwen3.5-0.8B-4bit
     num_ctx: 8192
     num_ctx_options: *native_ctx
     kv_cache: q8_0
@@ -48,6 +50,7 @@ profiles:
     display_name: Qwen 3.5 9B
     upstream_model: qwen3.5:9b-mlx
     alias: qwen3.5:9b-mlx
+    mlx_lm_model: mlx-community/Qwen3.5-9B-OptiQ-4bit
     num_ctx: 16384
     num_ctx_options: *native_ctx
     kv_cache: q8_0
@@ -62,6 +65,7 @@ profiles:
     display_name: Qwen 3.8 27B Q3
     upstream_model: batiai/qwen3.8-27b:q3
     alias: batiai/qwen3.8-27b:q3
+    mlx_lm_model: lukaskremla/Qwen3.8-27B-3bit-MLX-TextOnly
     num_ctx: 8192
     num_ctx_options: *native_ctx
     kv_cache: q8_0
@@ -76,6 +80,7 @@ profiles:
     display_name: Qwen 3.8 27B Q4
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-32k
+    mlx_lm_model: mlx-community/Qwen3.8-27B-OptiQ-4bit
     num_ctx: 32768
     num_ctx_options: *native_ctx
     kv_cache: q8_0
@@ -88,6 +93,7 @@ profiles:
     display_name: Qwen 3.8 27B Q4
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-32k
+    mlx_lm_model: mlx-community/Qwen3.8-27B-OptiQ-4bit
     num_ctx: 32768
     num_ctx_options: *native_ctx
     kv_cache: q8_0
@@ -100,6 +106,7 @@ profiles:
     display_name: Qwen 3.8 27B Q4
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-64k
+    mlx_lm_model: mlx-community/Qwen3.8-27B-OptiQ-4bit
     num_ctx: 65536
     num_ctx_options: *native_ctx
     kv_cache: q8_0
@@ -112,6 +119,7 @@ profiles:
     display_name: Qwen 3.8 27B Q4
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-plus
+    mlx_lm_model: mlx-community/Qwen3.8-27B-OptiQ-4bit
     num_ctx: 65536
     num_ctx_options: *native_ctx
     kv_cache: q8_0
@@ -127,6 +135,7 @@ profiles:
     display_name: Custom
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-custom
+    mlx_lm_model: mlx-community/Qwen3.8-27B-OptiQ-4bit
     num_ctx: 16384
     num_ctx_options: *native_ctx
     kv_cache: q8_0

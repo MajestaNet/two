@@ -33,6 +33,8 @@ def test_q3_profile_is_listed_not_default() -> None:
     assert catalog.default != InferenceProfileId.M24_QWEN38_Q3
     assert q3.upstream_model == "batiai/qwen3.8-27b:q3"
     assert "batiai/qwen3.8-27b:q3" in catalog_model_names(catalog)
+    assert "lukaskremla/Qwen3.8-27B-3bit-MLX-TextOnly" in catalog_model_names(catalog)
+    assert q3.mlx_lm_model == "lukaskremla/Qwen3.8-27B-3bit-MLX-TextOnly"
     assert q3.display_name == "Qwen 3.8 27B Q3"
     assert q3.num_ctx == 8192
     assert 262144 in q3.num_ctx_options
@@ -46,6 +48,7 @@ def test_16gb_profiles_exist() -> None:
     small = catalog.require(InferenceProfileId.M16_QWEN35_SMALL)
     assert four.min_unified_memory_gb == 16
     assert four.upstream_model == "qwen3.5:4b-mlx"
+    assert four.mlx_lm_model == "mlx-community/Qwen3.5-4B-MLX-4bit"
     assert small.upstream_model == "qwen3.5:0.8b-mlx"
     assert "ADR" not in four.notes
     assert "ADR" not in small.notes

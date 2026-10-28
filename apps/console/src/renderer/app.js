@@ -10,7 +10,9 @@ const state = {
   view: "server",
   server: null,
   ollama: null,
+  mlx: null,
   harness: null,
+  localRuntime: "ollama",
   recommendation: null,
   model: null,
   selected: null,
@@ -68,6 +70,7 @@ async function refreshServer() {
       fact("worker", server.children.worker, server.children.worker === "running"),
       fact("health", server.health, healthUp),
       fact("ollama", server.ollama, server.ollama === "up"),
+      fact("mlx-lm", server.mlx || "down", server.mlx === "up"),
     );
     $("server-note").textContent =
       "Closing this window leaves the control plane and Ollama running in the background.";
@@ -75,6 +78,7 @@ async function refreshServer() {
     $("server-note").textContent = error.message;
   }
   await refreshOllama();
+  await refreshMlx();
   await refreshHarness();
   refreshChatGate();
 }
@@ -121,6 +125,20 @@ async function installHarness() {
   }
 }
 
+function localRuntime() {
+  return state.localRuntime === "mlx-lm" ? "mlx-lm" : "ollama";
+}
+
+function renderRuntime() {
+  const mlx = localRuntime() === "mlx-lm";
+  $("runtime-ollama").checked = !mlx;
+  $("runtime-mlx").checked = mlx;
+  $("own-meta").textContent = mlx
+    ? "Type the Hugging Face mlx-lm id to download and load. Other models stay installed."
+    : "Type the Ollama tag to download and load. Other models stay installed.";
+  $("own-model").placeholder = mlx ? "mlx-community/Qwen3.5-9B-OptiQ-4bit" : "qwen3.5:4b";
+}
+
 function renderOllama() {
   const info = state.ollama;
   const start = $("ollama-start");
@@ -128,9 +146,10 @@ function renderOllama() {
   if (!info) return;
   const installable = Boolean(info.installable);
   const openrouter = state.selected === "openrouter";
+  const mlx = localRuntime() === "mlx-lm";
   $("ollama-install").classList.toggle("hidden", Boolean(info.bin) || !installable);
-  $("ollama-install-model").classList.toggle("hidden", Boolean(info.bin) || !installable || openrouter);
-  $("ollama-choose-model").classList.toggle("hidden", openrouter);
+  $("ollama-install-model").classList.toggle("hidden", Boolean(info.bin) || !installable || openrouter || mlx);
+  $("ollama-choose-model").classList.toggle("hidden", openrouter || mlx);
   if (!info.bin) {
     $("ollama-path").textContent = installable
       ? "Ollama was not found. Install it, or choose a binary you already have."
@@ -171,14 +190,51 @@ function renderOllama() {
 
 function ownTag() {
   try {
-    return policy.normalizeModelTag(state.ownModel);
+    return policy.normalizeLocalModel(state.ownModel, localRuntime());
   } catch (_error) {
     return "";
   }
 }
 
+function catalogServeId(model) {
+  if (!model) return "";
+  if (localRuntime() === "mlx-lm") {
+    return model.mlx_lm_model || "";
+  }
+  return model.upstream_model;
+}
+
+function recommendedMlxModel() {
+  const catalog = selectedCatalogModel();
+  if (catalog && catalog.mlx_lm_model) return catalog.mlx_lm_model;
+  const rec = state.recommendation;
+  const profiles = (rec && rec.profiles) || [];
+  const chosen =
+    profiles.find((profile) => profile.id === (rec && rec.recommended_id)) ||
+    profiles.find((profile) => profile.recommended);
+  return (chosen && chosen.mlx_lm_model) || "";
+}
+
+function mlxLoadTarget() {
+  if (state.selected === "own") {
+    try {
+      return policy.normalizeHfRepo(state.ownModel);
+    } catch (_error) {
+      return recommendedMlxModel();
+    }
+  }
+  return recommendedMlxModel();
+}
+
 function loadTarget() {
   if (state.selected === "own") return ownTag();
+  const catalog = selectedCatalogModel();
+  const mlxId = catalogServeId(catalog);
+  if (localRuntime() === "mlx-lm") {
+    const names = (state.mlx && state.mlx.models) || [];
+    if (mlxId && (names.includes(mlxId) || !names.length)) return mlxId;
+    return names[0] || mlxId;
+  }
   const profile = selectedProfile();
   if (profile && (modelPresent() || !state.ollama || !(state.ollama.models || []).length)) {
     return profile.upstream_model;
@@ -190,9 +246,47 @@ function loadTarget() {
 function renderInstalled() {
   const list = $("installed-models");
   const note = $("installed-note");
-  const info = state.ollama;
-  $("ollama-choose-model").parentElement.classList.toggle("hidden", Boolean(info && info.bin));
+  const mlx = localRuntime() === "mlx-lm";
+  const openrouter = state.selected === "openrouter";
+  $("ollama-choose-model").parentElement.classList.remove("hidden");
+  $("ollama-choose-model").classList.toggle("hidden", mlx || openrouter);
+  $("mlx-choose-model").classList.toggle("hidden", !mlx || openrouter);
+  $("mlx-install-model").classList.toggle(
+    "hidden",
+    !mlx || openrouter || Boolean(state.mlx && state.mlx.ready) || !(state.mlx && state.mlx.installable),
+  );
   list.replaceChildren();
+  if (mlx) {
+    const info = state.mlx;
+    if (!info || !info.python) {
+      note.textContent = info && info.installable
+        ? "Install mlx-lm, or choose a Python that already has it."
+        : "Choose a Python interpreter that can import mlx_lm.";
+      return;
+    }
+    const models = info.models || [];
+    if (!models.length) {
+      note.textContent = "No Hugging Face mlx-lm snapshots in the cache yet.";
+      return;
+    }
+    const target = loadTarget();
+    const resident = policy.modelResident(info.loaded, target);
+    if (!info.up) {
+      note.textContent = "Already in the Hugging Face cache. Start mlx-lm to serve one.";
+    } else if (!resident) {
+      note.textContent = "Cached, but mlx-lm is serving a different model.";
+    } else {
+      note.textContent = "Loaded by mlx-lm on 127.0.0.1:18080.";
+    }
+    for (const name of models) {
+      const item = document.createElement("li");
+      item.textContent = name;
+      list.append(item);
+    }
+    return;
+  }
+  const info = state.ollama;
+  $("ollama-choose-model").classList.toggle("hidden", Boolean(info && info.bin) || openrouter);
   if (!info || !info.bin) {
     note.textContent = info && info.installable
       ? "Install Ollama, or choose the binary, to see models already on this Mac."
@@ -220,6 +314,44 @@ function renderInstalled() {
   }
 }
 
+function renderMlx() {
+  const info = state.mlx;
+  const start = $("mlx-start");
+  const stop = $("mlx-stop");
+  if (!info) return;
+  const host = info.host || policy.mlxHostFacts({ platform: "", arch: "" });
+  $("mlx-host").textContent = policy.mlxHostLine(host);
+  const installable = Boolean(info.installable);
+  $("mlx-install").classList.toggle("hidden", Boolean(info.python) || !installable);
+  if (!info.python) {
+    $("mlx-path").textContent = installable
+      ? "mlx-lm was not found. Install it, then Start mlx-lm. Or choose a Python that already has it."
+      : "mlx-lm cannot be installed from this window on this machine.";
+    $("mlx-note").textContent = installable ? "" : policy.mlxHostLine(host);
+    start.disabled = true;
+    stop.disabled = true;
+    return;
+  }
+  $("mlx-path").textContent =
+    "mlx-lm" + (info.version ? " " + info.version : "") + "  " + info.python;
+  const target = mlxLoadTarget();
+  if (!info.up) {
+    $("mlx-note").textContent = target
+      ? "Start mlx-lm to serve " + target + " on 127.0.0.1:18080. First start can download weights."
+      : "Download a catalog model, then Start mlx-lm.";
+    start.disabled = !target;
+    start.textContent = "Start mlx-lm";
+  } else {
+    const resident = policy.modelResident(info.loaded, target);
+    $("mlx-note").textContent = resident
+      ? target + " is loaded. Closing this window leaves mlx-lm running."
+      : "mlx-lm is answering on 127.0.0.1:18080.";
+    start.disabled = true;
+    start.textContent = "Start mlx-lm";
+  }
+  stop.disabled = !info.owned;
+}
+
 async function refreshOllama() {
   try {
     state.ollama = await globalThis.two.ollamaStatus();
@@ -228,6 +360,24 @@ async function refreshOllama() {
     return;
   }
   renderOllama();
+  renderInstalled();
+}
+
+async function refreshMlx() {
+  if (!state.recommendation) {
+    try {
+      state.recommendation = await globalThis.two.modelRecommend();
+    } catch (_error) {
+      // Host facts still come from mlx status.
+    }
+  }
+  try {
+    state.mlx = await globalThis.two.mlxStatus();
+  } catch (error) {
+    $("mlx-note").textContent = error.message;
+    return;
+  }
+  renderMlx();
   renderInstalled();
 }
 
@@ -241,6 +391,11 @@ async function refreshModel() {
     reason.textContent = error.message;
     return;
   }
+  if (state.openrouter && state.openrouter.runtime === "mlx-lm") {
+    state.localRuntime = "mlx-lm";
+  } else if (state.openrouter && state.openrouter.backend === "local") {
+    state.localRuntime = "ollama";
+  }
   if (state.openrouter && state.openrouter.backend === "openrouter") {
     state.selected = "openrouter";
     state.openrouterModel = state.openrouter.model || policy.OPENROUTER_DEFAULT_MODEL;
@@ -251,10 +406,12 @@ async function refreshModel() {
     state.selected = state.recommendation.recommended_id;
   }
   reason.textContent = policy.publicModelText(state.recommendation.reason);
+  renderRuntime();
   renderCatalog();
   renderOpenRouter();
   await refreshOllama();
-  if (!state.model.ollama_up && state.selected !== "openrouter") {
+  await refreshMlx();
+  if (state.selected !== "openrouter" && localRuntime() !== "mlx-lm" && !state.model.ollama_up) {
     const installed = state.ollama && state.ollama.models && state.ollama.models.length;
     reason.textContent += installed
       ? " This install already has models. Start Ollama to serve them. Download stays off until it answers."
@@ -283,7 +440,8 @@ function renderCatalog() {
     title.textContent = model.display_name + (model.recommended ? "  recommended" : "");
     const meta = document.createElement("div");
     meta.className = "meta";
-    const bits = [model.upstream_model, model.min_unified_memory_gb + " GB"];
+    const shown = localRuntime() === "mlx-lm" && model.mlx_lm_model ? model.mlx_lm_model : model.upstream_model;
+    const bits = [shown, model.min_unified_memory_gb + " GB"];
     const advisory = policy.publicModelText(model.advisory);
     if (advisory) bits.push(advisory);
     meta.textContent = bits.join("  ·  ");
@@ -332,7 +490,11 @@ function syncDownload() {
     return;
   }
   const ownReady = state.selected !== "own" || Boolean(ownTag());
-  download.disabled = !state.model.ollama_up || !ownReady;
+  if (localRuntime() === "mlx-lm") {
+    download.disabled = !Boolean(state.mlx && state.mlx.python) || !ownReady;
+  } else {
+    download.disabled = !state.model.ollama_up || !ownReady;
+  }
   download.textContent = "Download";
 }
 
@@ -342,6 +504,7 @@ function rememberChoice() {
     localStorage.setItem("two.numCtx", state.numCtx == null ? "" : String(state.numCtx));
     localStorage.setItem("two.ownModel", state.ownModel || "");
     localStorage.setItem("two.openrouterModel", state.openrouterModel || "");
+    localStorage.setItem("two.runtime", localRuntime());
   } catch (_error) {
     // The choice still applies for this window.
   }
@@ -353,6 +516,8 @@ function restoreChoice() {
     const numCtx = policy.parseNumCtx(localStorage.getItem("two.numCtx"));
     const ownModel = localStorage.getItem("two.ownModel");
     const openrouterModel = localStorage.getItem("two.openrouterModel");
+    const runtime = localStorage.getItem("two.runtime");
+    if (runtime === "mlx-lm") state.localRuntime = "mlx-lm";
     if (selected) state.selected = selected;
     if (numCtx != null) state.numCtx = numCtx;
     if (typeof ownModel === "string") state.ownModel = ownModel;
@@ -380,7 +545,7 @@ async function persistBackend() {
   if (state.selected === "openrouter") {
     payload = { backend: "openrouter", model: openrouterModel() };
   } else {
-    payload = { backend: "local" };
+    payload = { backend: "local", runtime: localRuntime() };
     const target = loadTarget();
     if (target) payload.localModel = target;
   }
@@ -466,6 +631,9 @@ function selectCatalogModel(upstream, numCtx) {
 }
 
 function modelLoaded() {
+  if (localRuntime() === "mlx-lm") {
+    return policy.modelResident((state.mlx && state.mlx.loaded) || [], loadTarget());
+  }
   const loaded = (state.ollama && state.ollama.loaded) || [];
   if (state.selected === "own") return policy.modelResident(loaded, ownTag());
   const profile = selectedProfile();
@@ -476,6 +644,11 @@ function modelLoaded() {
 }
 
 function modelPresent() {
+  if (localRuntime() === "mlx-lm") {
+    const names = (state.mlx && state.mlx.models) || [];
+    const target = mlxLoadTarget();
+    return target !== "" && names.includes(target);
+  }
   const tags = (state.model && state.model.installed_tags) || [];
   const installed = (state.ollama && state.ollama.models) || [];
   const names = tags.concat(installed);
@@ -490,6 +663,23 @@ function modelPresent() {
 
 async function downloadModel() {
   const log = $("model-log");
+  if (localRuntime() === "mlx-lm") {
+    const repo = state.selected === "own" ? ownTag() : catalogServeId(selectedCatalogModel());
+    if (!repo) {
+      log.textContent = "Type a Hugging Face id such as mlx-community/Qwen3.5-9B-OptiQ-4bit.";
+      return;
+    }
+    $("download").disabled = true;
+    log.textContent = "Downloading " + repo + "…";
+    try {
+      const result = await globalThis.two.mlxPull({ model: repo });
+      log.textContent = result.output || (result.ok ? "Download finished." : "Download failed.");
+    } catch (error) {
+      log.textContent = error.message;
+    }
+    await refreshModel();
+    return;
+  }
   if (state.selected === "own") {
     const tag = ownTag();
     if (!tag) {
@@ -649,9 +839,12 @@ async function refreshAdapters() {
 function refreshChatGate() {
   const apiUp = Boolean(state.server && state.server.health === "ok");
   const ollamaUp = Boolean(state.ollama && state.ollama.up);
+  const mlxUp = Boolean(state.mlx && state.mlx.up);
   const gate = policy.chatGate({
     apiUp,
     ollamaUp,
+    mlxUp,
+    localRuntime: localRuntime(),
     modelPresent: modelPresent(),
     modelLoaded: modelLoaded(),
     backend: state.selected === "openrouter" ? "openrouter" : "local",
@@ -845,6 +1038,87 @@ $("ollama-choose").addEventListener("click", chooseOllama);
 $("ollama-choose-model").addEventListener("click", chooseOllama);
 $("ollama-install").addEventListener("click", installOllama);
 $("ollama-install-model").addEventListener("click", installOllama);
+$("runtime-ollama").addEventListener("change", () => {
+  if ($("runtime-ollama").checked) {
+    state.localRuntime = "ollama";
+    persistBackend();
+    renderRuntime();
+    renderInstalled();
+    renderCatalog();
+    renderMlx();
+    syncDownload();
+  }
+});
+$("runtime-mlx").addEventListener("change", () => {
+  if ($("runtime-mlx").checked) {
+    state.localRuntime = "mlx-lm";
+    persistBackend();
+    renderRuntime();
+    renderInstalled();
+    renderCatalog();
+    renderMlx();
+    syncDownload();
+  }
+});
+$("mlx-start").addEventListener("click", async () => {
+  const target = mlxLoadTarget();
+  state.localRuntime = "mlx-lm";
+  renderRuntime();
+  $("mlx-note").textContent = "Starting mlx-lm" + (target ? " with " + target : "") + "…";
+  $("mlx-start").disabled = true;
+  try {
+    await persistBackend();
+    await globalThis.two.mlxStart({ model: target });
+  } catch (error) {
+    $("mlx-note").textContent = error.message;
+  }
+  await refreshServer();
+  setTimeout(refreshServer, 1200);
+});
+$("mlx-stop").addEventListener("click", async () => {
+  try {
+    await globalThis.two.mlxStop();
+  } catch (error) {
+    $("mlx-note").textContent = error.message;
+  }
+  setTimeout(refreshServer, 400);
+});
+async function chooseMlx() {
+  try {
+    state.mlx = await globalThis.two.mlxChoose();
+    renderMlx();
+    renderInstalled();
+    refreshChatGate();
+  } catch (error) {
+    $("mlx-note").textContent = error.message;
+    $("installed-note").textContent = error.message;
+  }
+}
+async function installMlx() {
+  $("mlx-note").textContent = "Installing mlx-lm into ~/.majesta-two/mlx-lm. This can take a few minutes.";
+  $("installed-note").textContent = "Installing mlx-lm…";
+  $("mlx-install").disabled = true;
+  $("mlx-install-model").disabled = true;
+  try {
+    state.mlx = await globalThis.two.mlxInstall();
+    state.localRuntime = "mlx-lm";
+    await persistBackend();
+    renderRuntime();
+    renderMlx();
+    renderInstalled();
+    refreshChatGate();
+  } catch (error) {
+    $("mlx-note").textContent = error.message;
+    $("installed-note").textContent = error.message;
+  } finally {
+    $("mlx-install").disabled = false;
+    $("mlx-install-model").disabled = false;
+  }
+}
+$("mlx-choose").addEventListener("click", chooseMlx);
+$("mlx-choose-model").addEventListener("click", chooseMlx);
+$("mlx-install").addEventListener("click", installMlx);
+$("mlx-install-model").addEventListener("click", installMlx);
 $("harness-install").addEventListener("click", installHarness);
 $("own-radio").addEventListener("change", () => {
   if ($("own-radio").checked) {
