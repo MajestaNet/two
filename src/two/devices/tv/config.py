@@ -23,6 +23,7 @@ the file and does not read token values.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -79,6 +80,23 @@ def load_tv_config(data_dir: Path | str | None = None) -> TvInstall | None:
         return _install(document)
     except (TvConfigError, ValueError):
         return None
+
+
+def canonical_tv_document(raw: Mapping[str, object]) -> dict[str, object]:
+    """Return a canonical binding. Raises ``ValueError`` when it is unusable.
+
+    Does not read or write a file. A disabled document is valid.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError("television binding must be an object")
+    try:
+        document = _Document.model_validate(dict(raw))
+    except ValidationError as exc:
+        raise ValueError("television binding is not valid") from exc
+    if document.enabled:
+        _install(document)
+    dumped: dict[str, object] = document.model_dump(mode="json")
+    return dumped
 
 
 def _install(document: _Document) -> TvInstall:

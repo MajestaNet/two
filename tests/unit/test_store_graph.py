@@ -219,7 +219,7 @@ def test_v3_and_v4_databases_migrate_to_v5(tmp_path: Path) -> None:
 
     with open_store(v3_path) as opened:
         assert opened.schema_version() == SCHEMA_VERSION
-        assert SCHEMA_VERSION == 10
+        assert SCHEMA_VERSION == 12
         loaded = opened.get_task("task-v3")
         assert loaded is not None
         assert loaded.dsh_session_id == "sess-old"

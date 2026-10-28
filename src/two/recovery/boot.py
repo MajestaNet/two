@@ -132,9 +132,13 @@ def run_worker(
             elif chat is not None:
                 acp.run_chat(chat.id, now=instant)
             else:
-                home = owned.running_home_action_turn()
-                if home is not None:
-                    acp.run_home_action(home.id, now=instant)
+                operator = owned.running_operator_turn()
+                if operator is not None:
+                    acp.run_operator(operator.id, now=instant)
+                else:
+                    home = owned.running_home_action_turn()
+                    if home is not None:
+                        acp.run_home_action(home.id, now=instant)
             nap(poll_interval)
     finally:
         if opened:

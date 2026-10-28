@@ -99,7 +99,7 @@ def test_schema_v7_round_trips_one_chat_session_and_ordered_turns(tmp_path: Path
     path = tmp_path / "two.sqlite"
     with open_store(path) as opened:
         assert opened.schema_version() == SCHEMA_VERSION
-        assert SCHEMA_VERSION == 10
+        assert SCHEMA_VERSION == 12
         opened.ensure_chat_session(now=T0)
         opened.set_chat_session_id("sess-1", now=T0)
         first = opened.insert_chat_turn("one", "local", turn_id="turn-1", now=T0)
@@ -222,6 +222,7 @@ def test_operator_local_and_bearer_can_send_chat_not_home_action(
         assert caps.json()["allowed_harness_profiles"] == [
             "chat",
             "home-action",
+            "operator",
             "self-build",
         ]
         assert "tasks:message" in caps.json()["scopes"]
@@ -247,6 +248,7 @@ def test_operator_local_and_bearer_can_send_chat_not_home_action(
         assert caps.json()["allowed_harness_profiles"] == [
             "chat",
             "home-action",
+            "operator",
             "self-build",
         ]
         assert caps.json()["principal"] == "token:operator"
@@ -586,7 +588,8 @@ def test_removed_provider_session_starts_fresh_after_route_registers(
                 "def missing(mid, provider):",
                 "    send({'jsonrpc': '2.0', 'id': mid, 'error': {",
                 "        'message': 'Internal error',",
-                "        'data': {'details': 'no adapter registered for provider \"' + provider + '\"'},",
+                "        'data': {'details':"
+                " 'no adapter registered for provider \"' + provider + '\"'},",
                 "    }})",
                 "for raw in sys.stdin:",
                 "    msg = json.loads(raw)",
@@ -601,7 +604,8 @@ def test_removed_provider_session_starts_fresh_after_route_registers(
                 "        if state['new'] == 1:",
                 "            missing(mid, 'openrouter')",
                 "        else:",
-                "            send({'jsonrpc': '2.0', 'id': mid, 'result': {'sessionId': 'sess-openrouter'}})",
+                "            send({'jsonrpc': '2.0', 'id': mid,"
+                " 'result': {'sessionId': 'sess-openrouter'}})",
                 "    elif method == 'session/prompt':",
                 "        chunk = {'sessionUpdate': 'agent_message_chunk',",
                 "                 'content': {'type': 'text', 'text': 'pong'}}",
@@ -699,9 +703,11 @@ def test_receipt_json_has_no_path_or_secret(
         "error_code",
         "climate",
         "tv",
+        "vacuum",
         "action_digest",
         "pending_action",
         "pending_tv",
+        "pending_install",
         "fanout",
         "route_slots",
         "cursor",

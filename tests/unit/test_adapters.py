@@ -46,6 +46,11 @@ def test_optional_slots_stay_off_and_separated() -> None:
     assert climate.selectable is True
     assert climate.package == "two.devices.climate"
     assert climate.harness_profiles == ["home-action"]
+    vacuum = catalog.slots["vacuum"]
+    assert vacuum.status == "shipped" and vacuum.default_enabled is False
+    assert vacuum.selectable is True
+    assert vacuum.package == "two.devices.vacuum"
+    assert vacuum.harness_profiles == ["home-action"]
     assert github.kind == "export" and github.package == ""
     assert "self-build" not in device.harness_profiles
 

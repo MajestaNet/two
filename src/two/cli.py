@@ -238,9 +238,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_task_parser(subparsers)
     _add_chat_parser(subparsers)
+    _add_operator_parser(subparsers)
     _add_route_parser(subparsers)
     _add_climate_parser(subparsers)
     _add_tv_parser(subparsers)
+    _add_vacuum_parser(subparsers)
     return parser
 
 
@@ -311,6 +313,11 @@ def main(
         from two.cli_chat import run_chat
 
         return run_chat(args, request=request)
+    if args.command == "operator":
+        _load_host_env()
+        from two.cli_operator import run_operator
+
+        return run_operator(args, request=request)
     if args.command == "route":
         _load_host_env()
         from two.cli_route import run_route
@@ -326,6 +333,11 @@ def main(
         from two.cli_tv import run_tv
 
         return run_tv(args, request=request)
+    if args.command == "vacuum":
+        _load_host_env()
+        from two.cli_vacuum import run_vacuum
+
+        return run_vacuum(args, request=request)
     if args.command is None:
         parser.print_help()
         return 0
@@ -707,6 +719,51 @@ def _add_chat_parser(subparsers: Any) -> None:
     show.add_argument("turn_id", help="Chat turn id")
 
 
+def _add_operator_parser(subparsers: Any) -> None:
+    transport = _transport_parser()
+    operator = subparsers.add_parser(
+        "operator",
+        help="Send, show, approve, or reject one operator install turn",
+        description=(
+            "Talks only to the control API. Does not open the store, git, "
+            "or Ollama. The profile is explicit. An omitted profile never "
+            "selects operator."
+        ),
+    )
+    operator_sub = operator.add_subparsers(dest="operator_command", required=True)
+    send = operator_sub.add_parser(
+        "send",
+        parents=[transport],
+        help="POST an operator turn and print the receipt",
+    )
+    send.add_argument("--text", required=True, help="User transcript")
+    send.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Optional Idempotency-Key for this POST",
+    )
+    show = operator_sub.add_parser(
+        "show",
+        parents=[transport],
+        help="Print the receipt for TURN_ID",
+    )
+    show.add_argument("turn_id", help="Operator turn id")
+    approve = operator_sub.add_parser(
+        "approve",
+        parents=[transport],
+        help="Approve one open install action (digest required)",
+    )
+    approve.add_argument("turn_id", help="Operator turn id")
+    approve.add_argument("--digest", required=True, help="Action digest")
+    reject = operator_sub.add_parser(
+        "reject",
+        parents=[transport],
+        help="Reject one open install action (digest required)",
+    )
+    reject.add_argument("turn_id", help="Operator turn id")
+    reject.add_argument("--digest", required=True, help="Action digest")
+
+
 def _add_route_parser(subparsers: Any) -> None:
     transport = _transport_parser()
     route = subparsers.add_parser(
@@ -838,6 +895,42 @@ def _add_tv_parser(subparsers: Any) -> None:
     )
     apps.add_argument("--set", required=True, help="Set id from the binding")
     apps.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
+
+
+def _add_vacuum_parser(subparsers: Any) -> None:
+    transport = _transport_parser()
+    vacuum = subparsers.add_parser(
+        "vacuum",
+        help="Send or show one home-action vacuum turn",
+        description=(
+            "send and show talk only to the control API. "
+            "robots lists account nicknames and writes nothing. "
+            "The turn runs only when the local vacuum binding is enabled."
+        ),
+    )
+    vacuum_sub = vacuum.add_subparsers(dest="vacuum_command", required=True)
+    send = vacuum_sub.add_parser(
+        "send",
+        parents=[transport],
+        help="POST a home-action turn and print the receipt",
+    )
+    send.add_argument("--text", required=True, help="User transcript")
+    send.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Optional Idempotency-Key for this POST",
+    )
+    show = vacuum_sub.add_parser(
+        "show",
+        parents=[transport],
+        help="Print the receipt for TURN_ID",
+    )
+    show.add_argument("turn_id", help="Home-action turn id")
+    robots = vacuum_sub.add_parser(
+        "robots",
+        help="Print Ecovacs account nicknames and write nothing",
+    )
+    robots.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
 
 
 if __name__ == "__main__":

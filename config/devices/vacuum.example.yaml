@@ -1,0 +1,19 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example Ecovacs vacuum binding (ADR 0038). Copy to
+# $TWO_DATA_DIR/devices/vacuum.yaml and set enabled: true.
+# Nicknames are the exact names on the Ecovacs account.
+# `two vacuum robots` prints those names and writes nothing.
+# The API key is the environment variable named by token_env.
+# api_host is open.ecovacs.com or open.ecovacs.cn. The default is
+# open.ecovacs.com. See docs/setup.md.
+
+enabled: false
+api_host: open.ecovacs.com
+token_env: ECO_API_KEY
+robots:
+  downstairs:
+    nickname: Downstairs
+  upstairs:
+    nickname: Upstairs

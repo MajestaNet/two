@@ -60,7 +60,7 @@ slots:
       First-party client, not a device adapter (ADR 0020).
       two edge issue writes a private CA. The Xcode app is not in this
       repo. chat is stored. home-action is stored only when the local
-      climate or television binding is enabled. An omitted profile is
+      climate, television, or vacuum binding is enabled. An omitted profile is
       routed (ADR 0030).
 
   device:
@@ -103,6 +103,20 @@ slots:
       it with $TWO_DATA_DIR/devices/tv.yaml. The transport is the Samsung
       local API on the private LAN. The model does not call the set.
       The control plane performs the read-back.
+
+  vacuum:
+    kind: device
+    status: shipped
+    package: two.devices.vacuum
+    default_enabled: false
+    selectable: true
+    harness_profiles:
+      - home-action
+    notes: >
+      Closed vacuum tools (ADR 0038). Default off. An install enables it
+      with $TWO_DATA_DIR/devices/vacuum.yaml. The transport is the Ecovacs
+      Open API. The model does not call that API. The control plane
+      performs the read-back. The key stays in the environment.
 
   github:
     kind: export

@@ -125,7 +125,7 @@
     }
     const body = { text: text.trim() };
     if (profile !== undefined && profile !== null && profile !== "") {
-      if (profile !== "chat" && profile !== "home-action") {
+      if (profile !== "chat" && profile !== "home-action" && profile !== "operator") {
         throw new Error("that profile is not available in this window");
       }
       body.profile = profile;
@@ -151,6 +151,10 @@
     const tv = receipt.pending_tv;
     if (tv && typeof tv.tool === "string" && typeof tv.set === "string") {
       return "Waiting for approval: " + tv.tool + " " + tv.set + ".";
+    }
+    const install = receipt.pending_install;
+    if (install && typeof install.summary === "string" && install.summary !== "") {
+      return "Waiting for approval: " + install.summary + ".";
     }
     return "Waiting for approval.";
   }
