@@ -106,7 +106,7 @@ the local operator window and is not part of that gate.
 
 ## Layout
 
-- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037). Electron,
+- `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037, ADR 0038). Electron,
   loopback only, default off. It calls `two up`, `two down`,
   `two profiles --recommend`, `two model`, `two harness`, and `POST /v1/voice/turns`.
   The voice profile defaults to unset. `chat` and `home-action` are the
@@ -122,8 +122,10 @@ the local operator window and is not part of that gate.
   When `TWO_DATA_DIR` is unset, the window uses the platform data directory.
   The main process may install the official Ollama archive when no binary
   is found, or locate an existing `ollama` and run `--version`, `list`,
-  `serve`, and `pull` on `127.0.0.1:11434`. The model list includes the
-  16 GB catalog rows. One typed Ollama tag can be pulled and loaded.
+  `serve`, and `pull` on `127.0.0.1:11434`. The model list groups unique
+  tags, including the 16 GB rows and a listed Qwen 3.8 27B Q3 trial,
+  and the window is chosen separately. One typed Ollama tag can be
+  pulled and loaded.
   The Model page can select OpenRouter, defaulting to DeepSeek V4 Flash,
   and sign in with PKCE. The key stays in the data directory. Model text
   in the window does not cite an ADR. The renderer does not spawn
@@ -159,7 +161,7 @@ the local operator window and is not part of that gate.
  `src/two/adapters.py` loads `config/adapters/catalog.yaml` (ADR 0021).
  `two adapters` prints it and writes nothing. `two adapters --json`
  adds bound device ids and omits secrets. Only the `cli` slot is
-  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035, ADR 0037),
+  enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035, ADR 0037, ADR 0038),
  shipped and off, and it resumes `chat` only. `watch` and `mobile`
  are clients at `contract`. `climate`
  is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).

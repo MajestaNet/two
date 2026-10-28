@@ -5,9 +5,9 @@
 | Field | Value |
 | --- | --- |
 | Product | Majesta Two (`MajestaNet/two`) |
-| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037); adoption, speech, and profile preload follow |
-| Version | 0.14 |
-| Date | 26 October 2026 |
+| Status | Accepted product subject (ADR 0017); Mac mini hosts the control plane (ADR 0019); adapter install menu (ADR 0021); climate tools on `home-action` (ADR 0022); direct ECHONET Lite air-conditioner transport (ADR 0027); home-action uses the pinned ACP client (ADR 0028); Samsung television tools on `home-action` (ADR 0029); utterance routing and device fan-out (ADR 0030); obvious device utterances compile without the harness (ADR 0036); local operator console (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037, ADR 0038); adoption, speech, and profile preload follow |
+| Version | 0.15 |
+| Date | 28 October 2026 |
 | Primary model | Official Qwen3.8-27B post-trained model; 4-bit default on 24 GB hosts |
 | Inference host | Apple Silicon Mac; 24 GB unified memory is the default profile, not a ceiling |
 | Agent harness | DeepSeek Harness (`dsh`), pinned developer-preview release |
@@ -273,7 +273,7 @@ The service binds only to the trusted private-network address. It does not bind 
 
 #### Hardware profiles
 
-24 GB / 16K is the **default reference profile**, not a product constraint. Named profiles live in `config/inference/profiles.yaml` and are listed by `two profiles`. Operators with 36 GB, 48 GB, or 64 GB+ unified memory may select a larger context or a larger official Qwen tag. A 16 GB host may select `m16-qwen35-4b` (`qwen3.5:4b-mlx`) or the smaller `m16-qwen35-small` (`qwen3.5:0.8b-mlx`). Changing the *repository default* is an ADR; selecting a non-default profile on one host is configuration. See ADR 0004 and ADR 0034.
+24 GB / 16K is the **default reference profile**, not a product constraint. Named profiles live in `config/inference/profiles.yaml` and are listed by `two profiles`. Operators with 36 GB, 48 GB, or 64 GB+ unified memory may select a larger context or a larger official Qwen tag. A 16 GB host may select `m16-qwen35-4b` (`qwen3.5:4b-mlx`) or the smaller `m16-qwen35-small` (`qwen3.5:0.8b-mlx`). The local window lists unique upstream tags and a separate context window (ADR 0038). `m24-qwen38-q3` is a listed Mini trial of Qwen 3.8 27B at Q3; it is not recommended and is not the default. Changing the *repository default* is an ADR; selecting a non-default profile on one host is configuration. See ADR 0004, ADR 0034, and ADR 0038.
 
 #### Capacity-expansion profile
 
@@ -1381,6 +1381,7 @@ and the seamless install remain open.
 - [Majesta Two installable console (ADR 0034)](adrs/0034-installable-console.md)
 - [Majesta Two console harness install (ADR 0035)](adrs/0035-console-harness-install.md)
 - [Majesta Two OpenRouter inference backend (ADR 0037)](adrs/0037-openrouter-inference-backend.md)
+- [Majesta Two console model list and independent context (ADR 0038)](adrs/0038-console-model-and-context.md)
 - [OIDC/JWT and TLS dependencies (ADR 0016)](adrs/0016-oidc-jwt-tls-dependencies.md)
 - [Client API threat model](client-threat-model.md)
 - [OAuth 2.0 for Native Apps (RFC 8252)](https://www.rfc-editor.org/rfc/rfc8252)

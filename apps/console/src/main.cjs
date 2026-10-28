@@ -357,15 +357,16 @@ function ourServeRunning() {
 }
 
 async function contextLength(payload) {
-  const requested = payload && payload.numCtx;
-  if (Number.isInteger(requested)) return requested;
+  const requested = policy.parseNumCtx(payload && payload.numCtx);
+  if (requested != null) return requested;
   try {
     const recommendation = await modelRecommend();
     const profiles = recommendation.profiles || [];
     const chosen =
       profiles.find((profile) => profile.recommended) ||
       profiles.find((profile) => profile.id === recommendation.recommended_id);
-    if (chosen && Number.isInteger(chosen.num_ctx)) return chosen.num_ctx;
+    const fromProfile = policy.parseNumCtx(chosen && chosen.num_ctx);
+    if (fromProfile != null) return fromProfile;
   } catch (_error) {
     // The default profile context still serves loopback.
   }

@@ -111,6 +111,17 @@ def resolve_dummy_api_key(environ: Mapping[str, str] | None = None) -> str:
     return value
 
 
+def _local_model_id(
+    profile: InferenceProfile,
+    *,
+    data_dir: Path | str | None = None,
+) -> str:
+    backend = load_inference_backend(data_dir)
+    if backend.kind == "local" and backend.local_model:
+        return backend.local_model
+    return profile.alias
+
+
 def _model_name(profile: InferenceProfile) -> str:
     if profile.upstream_model == "qwen3.5:9b-mlx":
         family = "Qwen 3.5 9B"
@@ -124,6 +135,7 @@ def render_mac_qwen_settings(
     profile: InferenceProfile | None = None,
     topology: DeploymentTopology | None = None,
     environ: Mapping[str, str] | None = None,
+    data_dir: Path | str | None = None,
 ) -> dict[str, object]:
     """Return the architecture §6.3.C provider document (plus ADR 0009)."""
 
@@ -132,6 +144,7 @@ def render_mac_qwen_settings(
     selected_topology = topology or _load_selected_topology(env)
     base_url = resolve_base_url(selected_topology, env)
     max_tokens = min(DEFAULT_MAX_TOKENS, selected_profile.num_ctx)
+    model_id = _local_model_id(selected_profile, data_dir=data_dir)
     provider: dict[str, object] = {
         "displayName": DISPLAY_NAME,
         "apiKeyEnv": API_KEY_ENV,
@@ -143,7 +156,7 @@ def render_mac_qwen_settings(
         },
         "models": [
             {
-                "id": selected_profile.alias,
+                "id": model_id,
                 "name": _model_name(selected_profile),
                 "contextWindow": selected_profile.num_ctx,
                 "maxTokens": max_tokens,
@@ -160,8 +173,11 @@ def render_mac_qwen_yaml(
     profile: InferenceProfile | None = None,
     topology: DeploymentTopology | None = None,
     environ: Mapping[str, str] | None = None,
+    data_dir: Path | str | None = None,
 ) -> str:
-    payload = render_mac_qwen_settings(profile=profile, topology=topology, environ=environ)
+    payload = render_mac_qwen_settings(
+        profile=profile, topology=topology, environ=environ, data_dir=data_dir
+    )
     return _dump_settings(
         payload,
         extra_header=(
@@ -220,7 +236,9 @@ def render_active_harness_yaml(
     backend = load_inference_backend(data_dir)
     if backend.kind == "openrouter":
         return render_openrouter_yaml(model=backend.model)
-    return render_mac_qwen_yaml(profile=profile, topology=topology, environ=environ)
+    return render_mac_qwen_yaml(
+        profile=profile, topology=topology, environ=environ, data_dir=data_dir
+    )
 
 
 def acp_route(
@@ -234,7 +252,7 @@ def acp_route(
     if backend.kind == "openrouter":
         return OPENROUTER_PROVIDER_ID, backend.model
     env = environ if environ is not None else os.environ
-    return PROVIDER_ID, _load_selected_profile(env).alias
+    return PROVIDER_ID, _local_model_id(_load_selected_profile(env), data_dir=data_dir)
 
 
 def _dump_settings(payload: dict[str, object], *, extra_header: str) -> str:

@@ -39,6 +39,7 @@ OPENROUTER_MAX_TOKENS = 8192
 OPENROUTER_DISPLAY_NAME = "OpenRouter"
 
 _MODEL_RE = re.compile(r"^[A-Za-z0-9._:+-]+/[A-Za-z0-9._:+-]+$")
+_LOCAL_MODEL_RE = re.compile(r"^[A-Za-z0-9._:+/-]+:[A-Za-z0-9._:+/-]+$")
 _KEY_RE = re.compile(r"^sk-or-[A-Za-z0-9_-]{8,512}$")
 
 
@@ -52,6 +53,14 @@ class InferenceBackend:
 
     kind: BackendKind
     model: str = OPENROUTER_DEFAULT_MODEL
+    local_model: str = ""
+
+
+def normalize_local_model(model: str) -> str:
+    trimmed = model.strip()
+    if len(trimmed) < 3 or len(trimmed) > 128 or _LOCAL_MODEL_RE.fullmatch(trimmed) is None:
+        raise ValueError("choose an Ollama tag such as qwen3.5:9b-mlx")
+    return trimmed
 
 
 def normalize_openrouter_model(model: str) -> str:
@@ -88,7 +97,14 @@ def load_inference_backend(data_dir: Path | str | None = None) -> InferenceBacke
         return InferenceBackend(kind="local")
     kind = raw.get("backend")
     if kind != "openrouter":
-        return InferenceBackend(kind="local")
+        local_raw = raw.get("localModel", raw.get("local_model", ""))
+        local_model = ""
+        if isinstance(local_raw, str) and local_raw.strip():
+            try:
+                local_model = normalize_local_model(local_raw)
+            except ValueError:
+                local_model = ""
+        return InferenceBackend(kind="local", local_model=local_model)
     model_raw = raw.get("model", OPENROUTER_DEFAULT_MODEL)
     if not isinstance(model_raw, str):
         model_raw = OPENROUTER_DEFAULT_MODEL
@@ -108,6 +124,8 @@ def write_inference_backend(
     payload: dict[str, str] = {"backend": backend.kind}
     if backend.kind == "openrouter":
         payload["model"] = normalize_openrouter_model(backend.model)
+    elif backend.local_model:
+        payload["localModel"] = normalize_local_model(backend.local_model)
     path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
     path.chmod(0o600)
     return path

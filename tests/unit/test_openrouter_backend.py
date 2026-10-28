@@ -64,6 +64,17 @@ def test_openrouter_yaml_has_env_key_not_inline() -> None:
     assert "mac-qwen" not in text
 
 
+def test_local_backend_uses_persisted_ollama_tag(tmp_path: Path) -> None:
+    write_inference_backend(
+        tmp_path,
+        InferenceBackend(kind="local", local_model="batiai/qwen3.8-27b:q3"),
+    )
+    _provider, model = acp_route(tmp_path)
+    assert model == "batiai/qwen3.8-27b:q3"
+    text = render_active_harness_yaml(data_dir=tmp_path)
+    assert "batiai/qwen3.8-27b:q3" in text
+
+
 def test_local_backend_never_builds_openrouter(tmp_path: Path) -> None:
     write_inference_backend(tmp_path, InferenceBackend(kind="local"))
     write_openrouter_key(tmp_path, FAKE_KEY)

@@ -95,6 +95,10 @@ def test_24_gb_recommends_the_9b_profile() -> None:
     assert wider.fits is True
     assert wider.recommended is False
     assert "27B" in wider.advisory
+    q3 = by_id["m24-qwen38-q3"]
+    assert q3.recommended is False
+    assert q3.upstream_model == "batiai/qwen3.8-27b:q3"
+    assert "Trial" in q3.advisory
     assert by_id["custom"].recommended is False
     assert "not recommended" in result.reason
 

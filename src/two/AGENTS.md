@@ -9,6 +9,7 @@ Python package for the Majesta Two control plane.
   `recommend_profile` scores that catalog against a memory size. It does
   not probe the host. `two profiles --recommend` does the probe. 16 GB
   recommends `m16-qwen35-4b`. The repository default stays 24 GB.
+  `m24-qwen38-q3` is listed and not selected automatically.
 - `adapters.py` may read `config/adapters/catalog.yaml` (ADR 0021). No
   network, no store, no channel import. `two adapters` prints the menu.
   `two adapters --json` adds bound device
@@ -28,8 +29,9 @@ Python package for the Majesta Two control plane.
 - `runtime/` parses `models.lock`, emits the Ollama env contract, renders
   the launchd plist, and classifies Mac health from JSON. No network on
   the default unit-test path. `runtime/host.py` reads unified memory for
-  `two profiles --recommend`. `runtime/poller.py` is the optional live
-  Mac HTTP probe. `runtime/lan_bind.py` discovers a private Darwin bind.
+  `two profiles --recommend`.   `runtime/poller.py` is the optional live
+  Mac HTTP probe. A loaded catalog tag is Healthy even when it is not the
+  default alias. `runtime/lan_bind.py` discovers a private Darwin bind.
 - `operator/` is the interactive LAN path (ADR 0013): env apply, doctor,
   and `two up` supervisor. `operator/model.py` plans one `ollama pull`.
   `operator/recommend.py` joins the host probe to the catalog.
@@ -41,7 +43,8 @@ Python package for the Majesta Two control plane.
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop. An OpenRouter backend
   file under `$TWO_DATA_DIR` (ADR 0037) selects a second provider for
-  chat and home-action. Coding stays on Mac Qwen. The key is a
+  chat and home-action. A local `localModel` tag, when set, is the
+  served Ollama id. Coding stays on Mac Qwen. The key is a
   mode-0600 file, never inline in settings.yaml.
 - `store/` is the SQLite WAL store (`open_store`). Schema v5 persists
   `work_nodes` / `work_edges`. Schema v6 persists projects and immutable

@@ -14,6 +14,7 @@ const state = {
   recommendation: null,
   model: null,
   selected: null,
+  numCtx: null,
   ownModel: "",
   openrouter: null,
   openrouterModel: "",
@@ -232,7 +233,6 @@ async function refreshOllama() {
 
 async function refreshModel() {
   const reason = $("model-reason");
-  const list = $("model-list");
   try {
     state.recommendation = await globalThis.two.modelRecommend();
     state.model = await globalThis.two.modelStatus();
@@ -251,45 +251,7 @@ async function refreshModel() {
     state.selected = state.recommendation.recommended_id;
   }
   reason.textContent = policy.publicModelText(state.recommendation.reason);
-  list.replaceChildren();
-  for (const profile of state.recommendation.profiles) {
-    const item = document.createElement("li");
-    item.className = "card";
-    const input = document.createElement("input");
-    input.type = "radio";
-    input.name = "profile";
-    input.value = profile.id;
-    input.checked = profile.id === state.selected;
-    input.addEventListener("change", () => {
-      state.selected = profile.id;
-      $("own-radio").checked = false;
-      $("openrouter-radio").checked = false;
-      persistBackend();
-    });
-    const body = document.createElement("div");
-    const title = document.createElement("strong");
-    title.textContent = profile.id + (profile.recommended ? "  recommended" : "");
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    const bits = [profile.upstream_model, profile.min_unified_memory_gb + " GB", profile.num_ctx / 1024 + "K"];
-    const advisory = policy.publicModelText(profile.advisory);
-    if (advisory) bits.push(advisory);
-    meta.textContent = bits.join("  ·  ");
-    const notes = policy.publicModelText(profile.notes);
-    body.append(title, meta);
-    if (notes) {
-      const description = document.createElement("div");
-      description.className = "meta";
-      description.textContent = notes;
-      body.append(description);
-    }
-    item.append(input, body);
-    list.append(item);
-  }
-  $("own-radio").checked = state.selected === "own";
-  $("own-model").value = state.ownModel;
-  $("openrouter-radio").checked = state.selected === "openrouter";
-  $("openrouter-model").value = state.openrouterModel || policy.OPENROUTER_DEFAULT_MODEL;
+  renderCatalog();
   renderOpenRouter();
   await refreshOllama();
   if (!state.model.ollama_up && state.selected !== "openrouter") {
@@ -300,6 +262,49 @@ async function refreshModel() {
   }
   syncDownload();
   refreshChatGate();
+}
+
+function renderCatalog() {
+  const list = $("model-list");
+  if (!state.recommendation) return;
+  syncSelectedContext();
+  list.replaceChildren();
+  for (const model of policy.catalogModels(state.recommendation.profiles)) {
+    const item = document.createElement("li");
+    item.className = "card";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "profile";
+    input.value = model.upstream_model;
+    input.checked = catalogModelSelected(model);
+    input.addEventListener("change", () => selectCatalogModel(model.upstream_model));
+    const body = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = model.display_name + (model.recommended ? "  recommended" : "");
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const bits = [model.upstream_model, model.min_unified_memory_gb + " GB"];
+    const advisory = policy.publicModelText(model.advisory);
+    if (advisory) bits.push(advisory);
+    meta.textContent = bits.join("  ·  ");
+    const notes = policy.publicModelText(model.notes);
+    body.append(title, meta);
+    if (notes) {
+      const description = document.createElement("div");
+      description.className = "meta";
+      description.textContent = notes;
+      body.append(description);
+    }
+    body.append(contextGroup(model, input.checked));
+    item.append(input, body);
+    list.append(item);
+  }
+  $("own-radio").checked = state.selected === "own";
+  $("own-model").value = state.ownModel;
+  $("own-context").replaceChildren();
+  $("own-context").append(contextGroup(policy.ownContextModel(), state.selected === "own"));
+  $("openrouter-radio").checked = state.selected === "openrouter";
+  $("openrouter-model").value = state.openrouterModel || policy.OPENROUTER_DEFAULT_MODEL;
 }
 
 function renderOpenRouter() {
@@ -334,6 +339,7 @@ function syncDownload() {
 function rememberChoice() {
   try {
     localStorage.setItem("two.selected", state.selected || "");
+    localStorage.setItem("two.numCtx", state.numCtx == null ? "" : String(state.numCtx));
     localStorage.setItem("two.ownModel", state.ownModel || "");
     localStorage.setItem("two.openrouterModel", state.openrouterModel || "");
   } catch (_error) {
@@ -344,9 +350,11 @@ function rememberChoice() {
 function restoreChoice() {
   try {
     const selected = localStorage.getItem("two.selected");
+    const numCtx = policy.parseNumCtx(localStorage.getItem("two.numCtx"));
     const ownModel = localStorage.getItem("two.ownModel");
     const openrouterModel = localStorage.getItem("two.openrouterModel");
     if (selected) state.selected = selected;
+    if (numCtx != null) state.numCtx = numCtx;
     if (typeof ownModel === "string") state.ownModel = ownModel;
     if (typeof openrouterModel === "string" && openrouterModel !== "") {
       state.openrouterModel = openrouterModel;
@@ -368,10 +376,14 @@ function openrouterModel() {
 
 async function persistBackend() {
   rememberChoice();
-  const payload =
-    state.selected === "openrouter"
-      ? { backend: "openrouter", model: openrouterModel() }
-      : { backend: "local" };
+  let payload;
+  if (state.selected === "openrouter") {
+    payload = { backend: "openrouter", model: openrouterModel() };
+  } else {
+    payload = { backend: "local" };
+    const target = loadTarget();
+    if (target) payload.localModel = target;
+  }
   try {
     state.openrouter = await globalThis.two.openrouterSave(payload);
   } catch (_error) {
@@ -384,7 +396,73 @@ async function persistBackend() {
 
 function selectedProfile() {
   const profiles = (state.recommendation && state.recommendation.profiles) || [];
-  return profiles.find((profile) => profile.id === state.selected) || null;
+  const byId = profiles.find((profile) => profile.id === state.selected);
+  if (byId) return byId;
+  const model = selectedCatalogModel();
+  if (!model) return null;
+  return policy.profileForModel(profiles, model.upstream_model, state.numCtx);
+}
+
+function selectedCatalogModel() {
+  const models = policy.catalogModels((state.recommendation && state.recommendation.profiles) || []);
+  const profile = ((state.recommendation && state.recommendation.profiles) || []).find(
+    (item) => item.id === state.selected,
+  );
+  if (profile) return models.find((model) => model.upstream_model === profile.upstream_model) || null;
+  return models.find((model) => model.upstream_model === state.selected) || null;
+}
+
+function catalogModelSelected(model) {
+  const selected = selectedCatalogModel();
+  return Boolean(selected && selected.upstream_model === model.upstream_model);
+}
+
+function syncSelectedContext() {
+  if (state.selected === "openrouter") return;
+  if (state.selected === "own") {
+    state.numCtx = policy.resolveNumCtx(policy.ownContextModel(), state.numCtx);
+    return;
+  }
+  const model = selectedCatalogModel();
+  if (model) state.numCtx = policy.resolveNumCtx(model, state.numCtx);
+}
+
+function contextGroup(model, selected) {
+  const group = document.createElement("div");
+  group.className = "ctx";
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", "Context window");
+  for (const value of model.num_ctx_options) {
+    const option = document.createElement("label");
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "num-ctx";
+    radio.value = String(value);
+    radio.checked = Boolean(selected && policy.parseNumCtx(state.numCtx) === value);
+    radio.addEventListener("change", () => selectCatalogModel(model.upstream_model, value));
+    option.append(radio, document.createTextNode(policy.contextLabel(value)));
+    group.append(option);
+  }
+  return group;
+}
+
+function selectCatalogModel(upstream, numCtx) {
+  if (upstream === "own") {
+    state.selected = "own";
+    state.numCtx = policy.resolveNumCtx(policy.ownContextModel(), numCtx !== undefined ? numCtx : state.numCtx);
+    persistBackend();
+    renderCatalog();
+    return;
+  }
+  const profiles = (state.recommendation && state.recommendation.profiles) || [];
+  const models = policy.catalogModels(profiles);
+  const model = models.find((row) => row.upstream_model === upstream);
+  if (!model) return;
+  state.numCtx = policy.resolveNumCtx(model, numCtx !== undefined ? numCtx : state.numCtx);
+  const profile = policy.profileForModel(profiles, upstream, state.numCtx);
+  state.selected = profile ? profile.id : upstream;
+  persistBackend();
+  renderCatalog();
 }
 
 function modelLoaded() {
@@ -708,10 +786,14 @@ $("ollama-start").addEventListener("click", async () => {
   try {
     const profile = selectedProfile();
     const payload = {};
-    if (state.selected === "own") payload.numCtx = policy.OWN_NUM_CTX;
-    else if (profile) payload.numCtx = profile.num_ctx;
+    syncSelectedContext();
+    const numCtx = policy.parseNumCtx(state.numCtx);
+    if (numCtx != null) payload.numCtx = numCtx;
+    else if (state.selected === "own") payload.numCtx = policy.OWN_NUM_CTX;
+    else if (profile) payload.numCtx = policy.parseNumCtx(profile.num_ctx) || profile.num_ctx;
     if (target) payload.model = target;
     await globalThis.two.ollamaStart(payload);
+    await persistBackend();
   } catch (error) {
     $("ollama-note").textContent = error.message;
   }
@@ -766,8 +848,7 @@ $("ollama-install-model").addEventListener("click", installOllama);
 $("harness-install").addEventListener("click", installHarness);
 $("own-radio").addEventListener("change", () => {
   if ($("own-radio").checked) {
-    state.selected = "own";
-    persistBackend();
+    selectCatalogModel("own");
   }
 });
 $("own-model").addEventListener("input", () => {

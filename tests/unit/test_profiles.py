@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from two.cli import main
-from two.profiles import load_catalog
+from two.profiles import catalog_model_names, load_catalog
 from two.types import InferenceProfileId
 
 
@@ -25,6 +25,19 @@ def test_catalog_default_is_24gb_16k() -> None:
     default = catalog.default_profile()
     assert default.min_unified_memory_gb == 24
     assert default.num_ctx == 16384
+
+
+def test_q3_profile_is_listed_not_default() -> None:
+    catalog = load_catalog()
+    q3 = catalog.require(InferenceProfileId.M24_QWEN38_Q3)
+    assert catalog.default != InferenceProfileId.M24_QWEN38_Q3
+    assert q3.upstream_model == "batiai/qwen3.8-27b:q3"
+    assert "batiai/qwen3.8-27b:q3" in catalog_model_names(catalog)
+    assert q3.display_name == "Qwen 3.8 27B Q3"
+    assert q3.num_ctx == 8192
+    assert 262144 in q3.num_ctx_options
+    default = catalog.default_profile()
+    assert default.num_ctx_options == [8192, 16384, 32768, 65536, 131072, 262144]
 
 
 def test_16gb_profiles_exist() -> None:

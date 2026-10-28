@@ -137,6 +137,7 @@ def classify_health(
     meta: Mapping[str, Any] | None = None,
     expected_alias: str = DEFAULT_ALIAS,
     expected_digest: str = "",
+    acceptable_aliases: Sequence[str] | None = None,
 ) -> HealthState:
     """Map Ollama probe payloads to architecture §12.3 states."""
     extra = dict(meta) if meta else {}
@@ -152,7 +153,11 @@ def classify_health(
         return HealthState.UNAVAILABLE
 
     loaded = _names_from_ps(ps)
+    acceptable = tuple(tag for tag in (acceptable_aliases or (expected_alias,)) if tag)
+    if expected_alias and expected_alias not in acceptable:
+        acceptable = (expected_alias, *acceptable)
     alias_resident = _alias_loaded(expected_alias, loaded)
+    catalog_resident = any(_alias_loaded(tag, loaded) for tag in acceptable)
 
     page_outs = extra.get("page_outs_rising")
     pressure = str(extra.get("memory_pressure", "")).strip().lower()
@@ -165,13 +170,13 @@ def classify_health(
 
     listed = _ids_from_models(models)
     models_missing = models is None
-    alias_listed = _alias_loaded(expected_alias, listed)
+    catalog_listed = any(_alias_loaded(tag, listed) for tag in acceptable)
 
-    if loaded and not alias_resident:
+    if loaded and not catalog_resident:
         return HealthState.DEGRADED
     if models_missing:
         return HealthState.DEGRADED
-    if listed and not alias_listed and alias_resident:
+    if listed and catalog_resident and not catalog_listed:
         return HealthState.DEGRADED
 
     digest = (expected_digest or str(extra.get("expected_digest", ""))).strip()
@@ -180,7 +185,7 @@ def classify_health(
         if alias_resident and got and got != digest:
             return HealthState.DEGRADED
 
-    if not alias_resident:
+    if not catalog_resident:
         return HealthState.COLD
 
     active = _int_field(extra, "active_requests", default=_int_field(ps, "active_requests"))
