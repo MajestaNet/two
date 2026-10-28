@@ -77,6 +77,7 @@ class InferenceProfileId(StrEnum):
     M16_QWEN35_4B = "m16-qwen35-4b"
     M16_QWEN35_SMALL = "m16-qwen35-small"
     M24_QWEN38_16K = "m24-qwen38-16k"
+    M24_QWEN38_Q3 = "m24-qwen38-q3"
     M24_QWEN38_32K = "m24-qwen38-32k"
     M36_QWEN38_32K = "m36-qwen38-32k"
     M48_QWEN38_64K = "m48-qwen38-64k"

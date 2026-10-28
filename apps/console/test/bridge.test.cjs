@@ -104,6 +104,68 @@ test("chat stays closed until the server, Ollama, and model are up", () => {
   assert.equal(policy.queuedNote("complete"), "");
 });
 
+test("the model list groups tags and keeps context independent", () => {
+  const profiles = [
+    {
+      id: "m24-qwen38-16k",
+      display_name: "Qwen 3.5 9B",
+      upstream_model: "qwen3.5:9b-mlx",
+      num_ctx: 16384,
+      num_ctx_options: [8192, 16384, 32768],
+      min_unified_memory_gb: 24,
+      recommended: true,
+      notes: "Default.",
+      advisory: "Recommended for this Mac.",
+    },
+    {
+      id: "m24-qwen38-q3",
+      display_name: "Qwen 3.8 27B Q3",
+      upstream_model: "batiai/qwen3.8-27b:q3",
+      num_ctx: 8192,
+      num_ctx_options: [8192, 16384, 32768],
+      min_unified_memory_gb: 24,
+      recommended: false,
+      notes: "Q3 trial.",
+      advisory: "Trial.",
+    },
+    {
+      id: "m24-qwen38-32k",
+      display_name: "Qwen 3.8 27B Q4",
+      upstream_model: "qwen3.8:27b-mlx",
+      num_ctx: 32768,
+      num_ctx_options: [8192, 16384, 32768, 65536],
+      min_unified_memory_gb: 24,
+      recommended: false,
+    },
+    {
+      id: "m48-qwen38-64k",
+      display_name: "Qwen 3.8 27B Q4",
+      upstream_model: "qwen3.8:27b-mlx",
+      num_ctx: 65536,
+      num_ctx_options: [8192, 16384, 32768, 65536],
+      min_unified_memory_gb: 48,
+      recommended: false,
+    },
+    { id: "custom", upstream_model: "qwen3.8:27b-mlx", num_ctx: 16384 },
+  ];
+  const models = policy.catalogModels(profiles);
+  assert.deepEqual(
+    models.map((model) => model.upstream_model),
+    ["qwen3.5:9b-mlx", "batiai/qwen3.8-27b:q3", "qwen3.8:27b-mlx"],
+  );
+  const q4 = models.find((model) => model.upstream_model === "qwen3.8:27b-mlx");
+  assert.deepEqual(q4.num_ctx_options, [8192, 16384, 32768, 65536]);
+  assert.equal(q4.min_unified_memory_gb, 24);
+  assert.equal(policy.contextLabel(8192), "8K");
+  assert.equal(policy.resolveNumCtx(q4, 16384), 16384);
+  assert.equal(policy.resolveNumCtx(q4, 32), 32768);
+  assert.equal(policy.resolveNumCtx(q4, "32K"), 32768);
+  assert.equal(policy.resolveNumCtx(q4, 999), 32768);
+  assert.equal(policy.profileForModel(profiles, "qwen3.8:27b-mlx", 65536).id, "m48-qwen38-64k");
+  assert.equal(policy.profileForModel(profiles, "batiai/qwen3.8-27b:q3", 16384).id, "m24-qwen38-q3");
+  assert.equal(policy.preloadBody("batiai/qwen3.8-27b:q3").model, "batiai/qwen3.8-27b:q3");
+});
+
 test("replace is only for a different catalog tag", () => {
   const profile = { upstream_model: "qwen3.5:9b-mlx", alias: "qwen3.5:9b-mlx" };
   assert.equal(policy.needsReplace(["qwen3.5:9b-mlx"], profile), false);
@@ -128,7 +190,13 @@ test("ollama is a closed argv on loopback", () => {
   assert.equal(env.OLLAMA_CONTEXT_LENGTH, "16384");
   assert.equal(env.OLLAMA_MAX_LOADED_MODELS, "1");
   assert.equal(env.OLLAMA_NO_CLOUD, "1");
+  assert.equal(policy.serveEnvironment(32).OLLAMA_CONTEXT_LENGTH, "32768");
+  assert.equal(policy.serveEnvironment("32K").OLLAMA_CONTEXT_LENGTH, "32768");
+  assert.equal(policy.serveEnvironment("32768").OLLAMA_CONTEXT_LENGTH, "32768");
+  assert.equal(policy.parseNumCtx(""), null);
+  assert.equal(policy.parseNumCtx(0), null);
   assert.throws(() => policy.serveEnvironment(1));
+  assert.throws(() => policy.serveEnvironment(0));
   assert.equal(policy.manifestName("registry.ollama.ai/library/qwen3.5/9b-mlx"), "qwen3.5:9b-mlx");
   assert.equal(policy.manifestName("registry.ollama.ai/library/qwen3.5/../x"), null);
   assert.deepEqual(policy.parseOllamaList("NAME ID SIZE\nqwen3.5:9b-mlx abc 6 GB today\n"), [
@@ -287,6 +355,10 @@ test("OpenRouter chat needs a sign-in, not a local model", () => {
     model: policy.OPENROUTER_DEFAULT_MODEL,
   });
   assert.equal(policy.openRouterBackend({ backend: "local" }).backend, "local");
+  assert.equal(
+    policy.openRouterBackend({ backend: "local", localModel: "batiai/qwen3.8-27b:q3" }).localModel,
+    "batiai/qwen3.8-27b:q3",
+  );
   const names = policy.rendererMethods.map((pair) => pair[0]);
   for (const name of ["openrouterStatus", "openrouterSave", "openrouterLogin", "openrouterLogout"]) {
     assert.equal(names.includes(name), true);

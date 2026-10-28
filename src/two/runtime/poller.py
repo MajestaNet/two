@@ -22,11 +22,12 @@ import json
 import os
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from two.profiles import catalog_model_names, load_catalog
 from two.runtime.env import DEFAULT_ALIAS
 from two.runtime.health import HealthState, classify_from_fixture_dir, classify_health
 
@@ -47,6 +48,7 @@ def probe_mac_health(
     timeout: float = CONNECT_TIMEOUT_SECONDS,
     expected_alias: str = DEFAULT_ALIAS,
     expected_digest: str = "",
+    acceptable_aliases: Sequence[str] | None = None,
 ) -> HealthState:
     """GET /api/version, /api/ps, and /v1/models. No retry. Offline tests inject."""
     origin = normalize_origin(base_url)
@@ -57,13 +59,23 @@ def probe_mac_health(
         return HealthState.UNAVAILABLE
     ps = _http_json(f"{origin}/api/ps", timeout)
     models = _http_json(f"{origin}/v1/models", timeout)
+    aliases = acceptable_aliases if acceptable_aliases is not None else _catalog_aliases()
     return classify_health(
         version=version,
         ps=ps,
         models=models,
         expected_alias=expected_alias,
         expected_digest=expected_digest,
+        acceptable_aliases=aliases,
     )
+
+
+def _catalog_aliases() -> tuple[str, ...]:
+    try:
+        names = catalog_model_names(load_catalog())
+    except (OSError, ValueError, KeyError):
+        return (DEFAULT_ALIAS,)
+    return names if names else (DEFAULT_ALIAS,)
 
 
 def mac_health_probe_from_env(

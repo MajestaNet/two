@@ -8,25 +8,34 @@
 
 default: m24-qwen38-16k
 
+# Native advertised window for these Ollama tags is 262144. Smaller values
+# are the soak defaults. The console lists the full set; load still sets
+# OLLAMA_CONTEXT_LENGTH to the selected window.
+native_ctx: &native_ctx [8192, 16384, 32768, 65536, 131072, 262144]
+
 profiles:
   m16-qwen35-4b:
     min_unified_memory_gb: 16
     recommended_unified_memory_gb: 16
+    display_name: Qwen 3.5 4B
     upstream_model: qwen3.5:4b-mlx
     alias: qwen3.5:4b-mlx
     num_ctx: 8192
+    num_ctx_options: *native_ctx
     kv_cache: q8_0
     flash_attention: true
     notes: >-
-      Fits a 16 GB Mac. Served tag is qwen3.5:4b-mlx with an 8K window.
+      Fits a 16 GB Mac. Served tag is qwen3.5:4b-mlx.
       One loaded model.
 
   m16-qwen35-small:
     min_unified_memory_gb: 16
     recommended_unified_memory_gb: 16
+    display_name: Qwen 3.5 0.8B
     upstream_model: qwen3.5:0.8b-mlx
     alias: qwen3.5:0.8b-mlx
     num_ctx: 8192
+    num_ctx_options: *native_ctx
     kv_cache: q8_0
     flash_attention: true
     notes: >-
@@ -36,31 +45,51 @@ profiles:
   m24-qwen38-16k:
     min_unified_memory_gb: 24
     recommended_unified_memory_gb: 24
+    display_name: Qwen 3.5 9B
     upstream_model: qwen3.5:9b-mlx
     alias: qwen3.5:9b-mlx
     num_ctx: 16384
+    num_ctx_options: *native_ctx
     kv_cache: q8_0
     flash_attention: true
     notes: >-
       Default profile on a 24 GB Mac. Served tag is qwen3.5:9b-mlx.
       Context comes from OLLAMA_CONTEXT_LENGTH. No second Ollama model.
 
+  m24-qwen38-q3:
+    min_unified_memory_gb: 24
+    recommended_unified_memory_gb: 24
+    display_name: Qwen 3.8 27B Q3
+    upstream_model: batiai/qwen3.8-27b:q3
+    alias: batiai/qwen3.8-27b:q3
+    num_ctx: 8192
+    num_ctx_options: *native_ctx
+    kv_cache: q8_0
+    flash_attention: true
+    notes: >-
+      Q3 of Qwen 3.8 27B. Smaller than Q4. Try it on a 24 GB Mini.
+      Not the recommended profile.
+
   m24-qwen38-32k:
     min_unified_memory_gb: 24
     recommended_unified_memory_gb: 24
+    display_name: Qwen 3.8 27B Q4
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-32k
     num_ctx: 32768
+    num_ctx_options: *native_ctx
     kv_cache: q8_0
     flash_attention: true
-    notes: Same 24 GB host, 32K window. Soak before using unattended.
+    notes: Official Q4 27B MLX tag. Soak before using unattended.
 
   m36-qwen38-32k:
     min_unified_memory_gb: 36
     recommended_unified_memory_gb: 36
+    display_name: Qwen 3.8 27B Q4
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-32k
     num_ctx: 32768
+    num_ctx_options: *native_ctx
     kv_cache: q8_0
     flash_attention: true
     notes: Comfortable 32K on a larger Mac. Still one loaded model.
@@ -68,9 +97,11 @@ profiles:
   m48-qwen38-64k:
     min_unified_memory_gb: 48
     recommended_unified_memory_gb: 48
+    display_name: Qwen 3.8 27B Q4
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-64k
     num_ctx: 65536
+    num_ctx_options: *native_ctx
     kv_cache: q8_0
     flash_attention: true
     notes: Starting point only. Measure page-outs and tool-call stability.
@@ -78,9 +109,11 @@ profiles:
   m64-qwen38-plus:
     min_unified_memory_gb: 64
     recommended_unified_memory_gb: 64
+    display_name: Qwen 3.8 27B Q4
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-plus
     num_ctx: 65536
+    num_ctx_options: *native_ctx
     kv_cache: q8_0
     flash_attention: true
     notes: >-
@@ -91,9 +124,11 @@ profiles:
   custom:
     min_unified_memory_gb: 24
     recommended_unified_memory_gb: 24
+    display_name: Custom
     upstream_model: qwen3.8:27b-mlx
     alias: qwen38-agent-custom
     num_ctx: 16384
+    num_ctx_options: *native_ctx
     kv_cache: q8_0
     flash_attention: true
     notes: Operator-defined. Keep official weights. Document the digest in models.lock.

@@ -48,6 +48,30 @@ def test_stdin_document_matches_fixture_dir() -> None:
     assert classify_from_stdin_document(payload) is HealthState.COLD
 
 
+def test_catalog_tag_is_healthy_even_if_not_the_default_alias() -> None:
+    ps = {
+        "models": [
+            {
+                "name": "batiai/qwen3.8-27b:q3",
+                "model": "batiai/qwen3.8-27b:q3",
+                "digest": "sha256:test-q3",
+            }
+        ]
+    }
+    models = {"object": "list", "data": [{"id": "batiai/qwen3.8-27b:q3", "object": "model"}]}
+    version = {"version": "0.0.0-test"}
+    assert (
+        classify_health(
+            version=version,
+            ps=ps,
+            models=models,
+            expected_alias="qwen3.5:9b-mlx",
+            acceptable_aliases=("qwen3.5:9b-mlx", "batiai/qwen3.8-27b:q3"),
+        )
+        is HealthState.HEALTHY
+    )
+
+
 def test_missing_version_is_unavailable() -> None:
     assert (
         classify_health(version=None, ps={"models": []}, models={"data": []})

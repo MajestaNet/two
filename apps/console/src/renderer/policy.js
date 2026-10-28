@@ -61,6 +61,15 @@
   const QUEUED_COLD = "The model is not loaded, so the scheduler will not open the slot.";
   const LOOPBACK_OLLAMA_HOST = "127.0.0.1:11434";
   const OWN_NUM_CTX = 8192;
+  const OWN_CONTEXT_OPTIONS = Object.freeze([8192, 16384, 32768, 65536, 131072, 262144]);
+  const CTX_KILO = Object.freeze({
+    8: 8192,
+    16: 16384,
+    32: 32768,
+    64: 65536,
+    128: 131072,
+    256: 262144,
+  });
   const OLLAMA_ASSET_HOSTS = Object.freeze([
     "release-assets.githubusercontent.com",
     "objects.githubusercontent.com",
@@ -351,13 +360,124 @@
     return [executable].concat(args);
   }
 
-  function serveEnvironment(numCtx) {
-    if (!Number.isInteger(numCtx) || numCtx < 1024 || numCtx > 262144) {
+  function parseNumCtx(value) {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed === "") return null;
+      const kilo = trimmed.match(/^([0-9]+)k$/i);
+      value = kilo ? Number(kilo[1]) * 1024 : Number(trimmed);
+    }
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    if (CTX_KILO[value]) value = CTX_KILO[value];
+    if (!Number.isInteger(value) || value < 1024 || value > 262144) return null;
+    return value;
+  }
+
+  function acceptNumCtx(value) {
+    const parsed = parseNumCtx(value);
+    if (parsed == null) {
       throw new Error("context length is not allowed");
     }
+    return parsed;
+  }
+
+  function contextLabel(numCtx) {
+    return acceptNumCtx(numCtx) / 1024 + "K";
+  }
+
+  function contextOptions(profile) {
+    const listed = profile && Array.isArray(profile.num_ctx_options) ? profile.num_ctx_options : [];
+    const values = listed.slice();
+    if (profile && profile.num_ctx != null) values.unshift(profile.num_ctx);
+    const cleaned = [];
+    for (const value of values) {
+      const parsed = parseNumCtx(value);
+      if (parsed != null && cleaned.indexOf(parsed) === -1) cleaned.push(parsed);
+    }
+    return cleaned;
+  }
+
+  function catalogModels(profiles) {
+    const rows = [];
+    const indexByTag = {};
+    for (const profile of profiles || []) {
+      if (!profile || profile.id === "custom") continue;
+      const tag = profile.upstream_model;
+      if (typeof tag !== "string" || tag === "") continue;
+      let row = indexByTag[tag] !== undefined ? rows[indexByTag[tag]] : null;
+      if (!row) {
+        row = {
+          upstream_model: tag,
+          display_name: profile.display_name || tag,
+          min_unified_memory_gb: profile.min_unified_memory_gb,
+          recommended: false,
+          notes: profile.notes || "",
+          advisory: profile.advisory || "",
+          num_ctx_options: [],
+          default_num_ctx: profile.num_ctx,
+          profiles: [],
+        };
+        indexByTag[tag] = rows.length;
+        rows.push(row);
+      }
+      row.profiles.push(profile);
+      if (profile.recommended) {
+        row.recommended = true;
+        row.default_num_ctx = profile.num_ctx;
+        if (profile.advisory) row.advisory = profile.advisory;
+        if (profile.notes) row.notes = profile.notes;
+        if (profile.display_name) row.display_name = profile.display_name;
+      }
+      if (
+        Number.isInteger(profile.min_unified_memory_gb) &&
+        profile.min_unified_memory_gb < row.min_unified_memory_gb
+      ) {
+        row.min_unified_memory_gb = profile.min_unified_memory_gb;
+      }
+      for (const value of contextOptions(profile)) {
+        if (row.num_ctx_options.indexOf(value) === -1) row.num_ctx_options.push(value);
+      }
+    }
+    for (const row of rows) {
+      row.num_ctx_options.sort((left, right) => left - right);
+    }
+    return rows;
+  }
+
+  function profileForModel(profiles, upstream, numCtx) {
+    const matches = (profiles || []).filter(
+      (profile) => profile && profile.id !== "custom" && profile.upstream_model === upstream,
+    );
+    if (!matches.length) return null;
+    const exact = matches.find((profile) => profile.num_ctx === numCtx);
+    return exact || matches.find((profile) => profile.recommended) || matches[0];
+  }
+
+  function resolveNumCtx(model, requested) {
+    const options =
+      model && Array.isArray(model.num_ctx_options) && model.num_ctx_options.length
+        ? model.num_ctx_options.map(parseNumCtx).filter((value) => value != null)
+        : OWN_CONTEXT_OPTIONS.slice();
+    const parsed = parseNumCtx(requested);
+    if (parsed != null && options.indexOf(parsed) !== -1) return parsed;
+    const fallback = parseNumCtx(model && model.default_num_ctx);
+    if (fallback != null && options.indexOf(fallback) !== -1) return fallback;
+    return options[0] || OWN_NUM_CTX;
+  }
+
+  function ownContextModel() {
+    return {
+      upstream_model: "own",
+      display_name: "Choose your own",
+      num_ctx_options: OWN_CONTEXT_OPTIONS.slice(),
+      default_num_ctx: OWN_NUM_CTX,
+    };
+  }
+
+  function serveEnvironment(numCtx) {
     return {
       OLLAMA_HOST: LOOPBACK_OLLAMA_HOST,
-      OLLAMA_CONTEXT_LENGTH: String(numCtx),
+      OLLAMA_CONTEXT_LENGTH: String(acceptNumCtx(numCtx)),
       OLLAMA_FLASH_ATTENTION: "1",
       OLLAMA_KV_CACHE_TYPE: "q8_0",
       OLLAMA_MAX_LOADED_MODELS: "1",
@@ -451,7 +571,12 @@
           : OPENROUTER_DEFAULT_MODEL;
       return { backend: "openrouter", model: model };
     }
-    return { backend: "local", model: OPENROUTER_DEFAULT_MODEL };
+    const localRaw = typeof body.localModel === "string" ? body.localModel.trim() : "";
+    const local = { backend: "local", model: OPENROUTER_DEFAULT_MODEL };
+    if (localRaw !== "") {
+      local.localModel = normalizeModelTag(localRaw);
+    }
+    return local;
   }
 
   function openRouterAuthUrl(callbackUrl, challenge) {
@@ -562,6 +687,7 @@
     QUEUED_COLD,
     LOOPBACK_OLLAMA_HOST,
     OWN_NUM_CTX,
+    OWN_CONTEXT_OPTIONS,
     QUEUED_NOTE,
     chatGate,
     queuedNote,
@@ -587,6 +713,14 @@
     pathCandidates,
     ollamaArgv,
     serveEnvironment,
+    parseNumCtx,
+    acceptNumCtx,
+    contextLabel,
+    contextOptions,
+    catalogModels,
+    profileForModel,
+    resolveNumCtx,
+    ownContextModel,
     manifestName,
     parseOllamaList,
     parseOllamaVersion,

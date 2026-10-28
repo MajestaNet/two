@@ -15,7 +15,9 @@ Configuration is data. Do not put Python here.
   72% compaction threshold (architecture §7.2).
 - `inference/profiles.yaml` is the hardware catalog. 24 GB / 16K is the
   default, not a ceiling. `m16-qwen35-4b` and `m16-qwen35-small` fit a
-  16 GB Mac and are not the default.
+  16 GB Mac and are not the default. `m24-qwen38-q3` is a listed Mini
+  trial. Each row may name `num_ctx_options` up to the tag's 256K
+  native window; the window is not the same thing as the tag.
 - `deploy/topology.yaml` is physical placement (`split` vs `colocated`).
   Do not collapse Ollama into the harness.
 - `access/remote.yaml` records API bind policy. It does not select a

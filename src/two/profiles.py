@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DEFAULT_CATALOG_RELATIVE = Path("config/inference/profiles.yaml")
 
@@ -38,9 +39,27 @@ class InferenceProfile(BaseModel):
     upstream_model: str
     alias: str
     num_ctx: int
+    display_name: str = ""
+    num_ctx_options: list[int] = Field(default_factory=list)
     kv_cache: str = "q8_0"
     flash_attention: bool = True
     notes: str = ""
+
+    @model_validator(mode="after")
+    def normalize_context_options(self) -> Self:
+        options = list(self.num_ctx_options or [self.num_ctx])
+        if self.num_ctx not in options:
+            options.append(self.num_ctx)
+        cleaned: list[int] = []
+        for value in options:
+            if value < 1024 or value > 262144:
+                raise ValueError(f"{self.id} context option {value} is not allowed")
+            if value not in cleaned:
+                cleaned.append(value)
+        self.num_ctx_options = cleaned
+        if self.display_name == "":
+            self.display_name = self.upstream_model
+        return self
 
 
 class InferenceCatalog(BaseModel):
@@ -107,6 +126,8 @@ class ProfileFit(BaseModel):
     alias: str
     min_unified_memory_gb: int
     num_ctx: int
+    display_name: str = ""
+    num_ctx_options: list[int] = Field(default_factory=list)
     fits: bool
     recommended: bool
     advisory: str = ""
@@ -165,6 +186,8 @@ def recommend_profile(
                 alias=profile.alias,
                 min_unified_memory_gb=profile.min_unified_memory_gb,
                 num_ctx=profile.num_ctx,
+                display_name=profile.display_name,
+                num_ctx_options=list(profile.num_ctx_options),
                 fits=memory_fits,
                 recommended=chosen,
                 advisory=_advisory(profile.id, recommended=chosen, fits=memory_fits),
@@ -193,6 +216,8 @@ def _advisory(profile_id: str, *, recommended: bool, fits: bool) -> str:
         return "Operator-defined. Not selected automatically."
     if profile_id == "m24-qwen38-32k":
         return "Not recommended. The 27B tag swaps on a 24 GB Mac."
+    if profile_id == "m24-qwen38-q3":
+        return "Trial. Q3 uses less memory than Q4 27B. Not recommended until soak."
     if profile_id == "m16-qwen35-small" and fits:
         return "Smaller and faster. Use it when the 4B model does not fit comfortably."
     if not fits:
@@ -224,6 +249,17 @@ def _reason(
     if not apple_silicon:
         text += " MLX tags run on Apple silicon, so this host cannot run them."
     return text
+
+
+def catalog_model_names(catalog: InferenceCatalog) -> tuple[str, ...]:
+    """Upstream tags and aliases the health probe treats as a resident model."""
+
+    names: list[str] = []
+    for profile in catalog.profiles.values():
+        for tag in (profile.upstream_model, profile.alias):
+            if tag and tag not in names:
+                names.append(tag)
+    return tuple(names)
 
 
 def format_catalog(catalog: InferenceCatalog) -> str:

@@ -56,6 +56,9 @@
 - `adrs/0037-openrouter-inference-backend.md` lets that window send chat
   and home-action through OpenRouter after PKCE sign-in. Local Qwen
   stays the default. Do not paste that ADR here.
+- `adrs/0038-console-model-and-context.md` lists unique catalog tags and
+  a separate context window in that window, including a Q3 Mini trial.
+  Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.
