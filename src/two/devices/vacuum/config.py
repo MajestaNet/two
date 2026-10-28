@@ -23,6 +23,7 @@ the file and does not read the key.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import yaml
@@ -77,6 +78,23 @@ def load_vacuum_config(data_dir: Path | str | None = None) -> VacuumInstall | No
         return _install(document)
     except (VacuumConfigError, ValueError):
         return None
+
+
+def canonical_vacuum_document(raw: Mapping[str, object]) -> dict[str, object]:
+    """Return a canonical binding. Raises ``ValueError`` when it is unusable.
+
+    Does not read or write a file. A disabled document is valid.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError("vacuum binding must be an object")
+    try:
+        document = _Document.model_validate(dict(raw))
+    except ValidationError as exc:
+        raise ValueError("vacuum binding is not valid") from exc
+    if document.enabled:
+        _install(document)
+    dumped: dict[str, object] = document.model_dump(mode="json")
+    return dumped
 
 
 def _install(document: _Document) -> VacuumInstall:

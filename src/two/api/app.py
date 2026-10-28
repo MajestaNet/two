@@ -25,7 +25,7 @@ from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -182,6 +182,7 @@ from two.devices.tv.config import load_tv_config
 from two.devices.vacuum.config import load_vacuum_config
 from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
+from two.operator.assist import pending_install_view
 from two.operator.menu import project_adapter_menu
 from two.projection import voice_turn_receipt
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
@@ -213,12 +214,14 @@ from two.store.models import (
     ConfigApprovalRecord,
     EventRecord,
     HomeActionTurnRecord,
+    OperatorTurnRecord,
     QuestionRecord,
     TaskRecord,
 )
 from two.types import EventType, HarnessProfile, LifecycleState, Scope
 from two.worker.chat import ensure_chat_profile_dir
 from two.worker.home_action import ensure_home_action_profile_dir
+from two.worker.operator_turn import ensure_operator_profile_dir
 
 _PLAN_EVENT_TYPES = frozenset({EventType.TASK_PLAN.value, "plan"})
 _TODO_EVENT_TYPES = frozenset({EventType.TASK_TODOS.value, "todos"})
@@ -646,6 +649,42 @@ def _one_fanout(item: dict[str, object], turn_status: str) -> FanoutItemView | N
         return None
 
 
+async def _queue_operator(
+    box: _StoreBox,
+    directory: Path | None,
+    text: str,
+    principal_id: str,
+) -> JSONResponse:
+    async with box.lock:
+        ensure_operator_profile_dir(directory)
+        box.store.ensure_operator_session()
+        record = box.store.insert_operator_turn(
+            text,
+            principal_id,
+            turn_id=f"turn-{uuid.uuid4().hex[:16]}",
+        )
+        latest = box.store.get_operator_turn(record.id)
+    receipt = _operator_receipt(latest if latest is not None else record)
+    return JSONResponse(status_code=202, content=receipt.model_dump(mode="json"))
+
+
+def _operator_receipt(turn: OperatorTurnRecord) -> VoiceTurnReceipt:
+    pending = None
+    if turn.status.value == "awaiting_approval":
+        pending = pending_install_view(turn.tool_name, turn.arguments_json)
+    return voice_turn_receipt(
+        turn_id=turn.id,
+        profile="operator",
+        status=turn.status.value,
+        reply=turn.reply_text,
+        error_code=turn.error_code,
+        seq=turn.seq,
+        revision=turn.revision,
+        action_digest=turn.action_digest,
+        pending_install=pending,
+    )
+
+
 async def _queue_chat(
     box: _StoreBox,
     directory: Path | None,
@@ -750,8 +789,9 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
     """Accept one transcript. An omitted profile is routed (ADR 0030).
 
     Coding tasks stay on ``POST /v1/tasks``. ``self-build`` on this route is
-    forbidden. ``home-action`` is stored only when a local climate,
-    television, or vacuum binding is enabled. Neither turn takes a coding lease.
+    forbidden. ``operator`` is stored only when the client names it.
+    ``home-action`` is stored only when a local climate, television, or
+    vacuum binding is enabled. None of these turns takes a coding lease.
     """
     principal = principal_from_request(request)
     if body.profile == HarnessProfile.SELF_BUILD.value:
@@ -771,6 +811,8 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
         body.text,
         cards_for(climate=climate, television=television, vacuum=vacuum),
     )
+    if body.profile == HarnessProfile.OPERATOR.value:
+        return await _queue_operator(box, directory, body.text, principal.id)
     if body.profile == HarnessProfile.CHAT.value or (
         body.profile is None and decision.profile == HarnessProfile.CHAT.value
     ):
@@ -807,14 +849,22 @@ async def _voice_turn(request: Request, body: VoiceTurnRequest) -> JSONResponse:
 
 
 async def _get_voice_turn(request: Request, turn_id: str) -> JSONResponse:
-    """Return a stored chat or home-action receipt the caller may read."""
+    """Return a stored chat, operator, or home-action receipt the caller may read."""
     box = _box(request)
     async with box.lock:
         chat = box.store.get_chat_turn(turn_id)
-        home = None if chat is not None else box.store.get_home_action_turn(turn_id)
+        operator = None if chat is not None else box.store.get_operator_turn(turn_id)
+        home = (
+            None
+            if chat is not None or operator is not None
+            else box.store.get_home_action_turn(turn_id)
+        )
     if chat is not None:
         _require_harness_profile(request, HarnessProfile.CHAT.value)
         receipt = _receipt_for(chat)
+    elif operator is not None:
+        _require_harness_profile(request, HarnessProfile.OPERATOR.value)
+        receipt = _operator_receipt(operator)
     elif home is not None:
         _require_harness_profile(request, HarnessProfile.HOME_ACTION.value)
         receipt = _home_receipt(home)
@@ -849,9 +899,25 @@ async def _decide_climate(
     approve: bool,
 ) -> JSONResponse:
     require_scope(request, Scope.APPROVALS_DECIDE)
-    principal_id = _require_harness_profile(request, HarnessProfile.HOME_ACTION.value)
     box = _box(request)
     async with box.lock:
+        operator = box.store.get_operator_turn(turn_id)
+        if operator is not None:
+            principal_id = _require_harness_profile(request, HarnessProfile.OPERATOR.value)
+            try:
+                decided = box.store.decide_operator_approval(
+                    turn_id,
+                    body.action_digest,
+                    approve=approve,
+                    resolver=principal_id,
+                )
+            except StoreError as exc:
+                _raise_decision_error(exc)
+            return JSONResponse(
+                status_code=200,
+                content=_operator_receipt(decided).model_dump(mode="json"),
+            )
+        principal_id = _require_harness_profile(request, HarnessProfile.HOME_ACTION.value)
         try:
             current = box.store.get_home_action_turn(turn_id)
             television = (
@@ -874,13 +940,17 @@ async def _decide_climate(
                     resolver=principal_id,
                 )
         except StoreError as exc:
-            text = str(exc)
-            if "unknown" in text:
-                raise HTTPException(status_code=404, detail="not found") from exc
-            if "stale" in text:
-                raise HTTPException(status_code=409, detail="stale action digest") from exc
-            raise HTTPException(status_code=409, detail=text) from exc
+            _raise_decision_error(exc)
     return JSONResponse(status_code=200, content=_home_receipt(record).model_dump(mode="json"))
+
+
+def _raise_decision_error(exc: StoreError) -> NoReturn:
+    text = str(exc)
+    if "unknown" in text:
+        raise HTTPException(status_code=404, detail="not found") from exc
+    if "stale" in text:
+        raise HTTPException(status_code=409, detail="stale action digest") from exc
+    raise HTTPException(status_code=409, detail=text) from exc
 
 
 async def _list_tasks(

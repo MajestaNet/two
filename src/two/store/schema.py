@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 _MIGRATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -550,6 +550,75 @@ _V11_STATEMENTS = (
     """,
 )
 
+# Version 12: operator turns (ADR 0039).
+# harness_sessions is rebuilt so its check can name operator beside
+# chat and home-action. An operator approval is not a task approval.
+_V12_STATEMENTS = (
+    """
+    CREATE TABLE harness_sessions_v12 (
+        profile TEXT PRIMARY KEY,
+        session_id TEXT,
+        data_relpath TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (profile IN ('chat', 'home-action', 'operator'))
+    )
+    """,
+    """
+    INSERT INTO harness_sessions_v12 (
+        profile, session_id, data_relpath, created_at, updated_at
+    )
+    SELECT profile, session_id, data_relpath, created_at, updated_at
+    FROM harness_sessions
+    """,
+    "DROP TABLE harness_sessions",
+    "ALTER TABLE harness_sessions_v12 RENAME TO harness_sessions",
+    """
+    CREATE TABLE operator_turns (
+        id TEXT PRIMARY KEY,
+        profile TEXT NOT NULL,
+        seq INTEGER NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        request_text TEXT NOT NULL,
+        reply_text TEXT,
+        error_code TEXT,
+        principal TEXT NOT NULL,
+        tool_name TEXT,
+        arguments_json TEXT,
+        action_digest TEXT,
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (profile = 'operator'),
+        CHECK (status IN (
+            'queued', 'running', 'awaiting_approval', 'complete', 'failed'
+        )),
+        CHECK (tool_name IS NULL OR tool_name IN (
+            'install.status', 'install.read_guide',
+            'install.propose_binding', 'install.propose_change'
+        )),
+        CHECK (length(request_text) BETWEEN 1 AND 4000),
+        CHECK (reply_text IS NULL OR length(reply_text) BETWEEN 1 AND 4000)
+    )
+    """,
+    """
+    CREATE UNIQUE INDEX idx_operator_turns_one_running
+        ON operator_turns (status) WHERE status = 'running'
+    """,
+    """
+    CREATE TABLE operator_approvals (
+        id TEXT PRIMARY KEY,
+        turn_id TEXT NOT NULL UNIQUE,
+        action_digest TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolver TEXT,
+        CHECK (status IN ('open', 'approved', 'rejected'))
+    )
+    """,
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1_STATEMENTS),
     (2, _V2_STATEMENTS),
@@ -562,6 +631,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (9, _V9_STATEMENTS),
     (10, _V10_STATEMENTS),
     (11, _V11_STATEMENTS),
+    (12, _V12_STATEMENTS),
 )
 
 

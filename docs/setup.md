@@ -28,7 +28,7 @@ the spec.
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
 | Context broker + task memory | Works (`two.context`; CLI never queries the model) ([B05](backlog/B05-context-broker.md)) |
-| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log; schema v8 adds home-action turns and climate approvals; schema v9 adds television tools and television approvals; schema v10 stores the utterance route and fan-out plan; schema v11 adds the three vacuum tool names) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
+| SQLite WAL store | Works (`two.store.open_store`; CLI does not open it) (`TWO_DATA_DIR/two.sqlite`; schema v6 adds projects and config candidates; schema v7 adds the chat session and turn log; schema v8 adds home-action turns and climate approvals; schema v9 adds television tools and television approvals; schema v10 stores the utterance route and fan-out plan; schema v11 adds the three vacuum tool names; schema v12 adds operator turns and operator approvals) ([B06](backlog/B06-sqlite-store.md), [B14](backlog/B14-secure-mobile-client.md), [B20](backlog/B20-chat-profile-resume.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
 | Control API | Works (`uv run two api`; loopback `127.0.0.1:8741` or Unix socket). Client JSON is `two.projection`. B14 slice 3 adds persisted projects and typed config candidates on top of slice 2 conversation/SSE/health/repo reads ([B07](backlog/B07-control-api.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | Durable scheduler (single slot) | Works (`two.scheduler`; `two scheduler` process) ([B08](backlog/B08-scheduler.md)) |
 | ACP worker + action ledger | Works (`two.worker`; JSONL fixture child in default pytest, ADR 0011) ([B09](backlog/B09-acp-worker.md)) |
@@ -37,10 +37,16 @@ the spec.
 | Questions, approvals, pause/resume/cancel | Works (`two.approvals`; first-writer-wins; silence is never approval) ([B11](backlog/B11-questions-approvals.md)) |
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
-| Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
+| Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued operator turn, which is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
+| Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.propose_binding`, and `install.propose_change`. A binding write and a self-build task wait for a digest. The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [B26](backlog/B26-operator-install-profile.md)) |
 | Harness profile `home-action` | Works when a local climate, television, or vacuum binding is enabled (`two climate`, `two tv`, or `two vacuum`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. When `$TWO_DATA_DIR/devices/vacuum.yaml` is enabled, it performs `vacuum.read`, `vacuum.clean`, and `vacuum.dock` against the Ecovacs Open API. A known robot is pre-authorized. Without one of those bindings the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set; "turn heat on upstairs office" compiles `climate.set_mode` without the harness; "start the downstairs vacuum" compiles `vacuum.clean` the same way, and "dock all vacuums" repeats the dock ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [ADR 0036](adrs/0036-closed-utterance-compile.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
 
-Last updated: 27 October 2026 (ADR 0038: `home-action` can perform the
+Last updated: 28 October 2026 (ADR 0039: the local CLI and console can
+resume harness profile `operator` explicitly. It answers a redacted
+install snapshot, reads a fixed guide allowlist, and can propose a
+shipped climate, television, or vacuum binding or a self-build task.
+Both writes wait for an approval digest. An omitted profile does not
+route here. Schema v12. ADR 0038: `home-action` can perform the
 closed Ecovacs vacuum tools when `$TWO_DATA_DIR/devices/vacuum.yaml`
 enables them. The control plane calls only `open.ecovacs.com` or
 `open.ecovacs.cn`. The vacuum slot stays off. Schema v11. ADR 0037: the Model page can send chat
@@ -218,7 +224,7 @@ and worktree directories at mode 0700. `two up` and `two doctor` load that
 file when the process environment does not already set the same keys.
 
 `two up` starts `two api`, `two scheduler`, and `two worker` together.
-The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v11) and
+The first start creates `$TWO_DATA_DIR/two.sqlite` (schema v12) and
 `$TWO_DATA_DIR/two.up.pid`. If any one of those three processes exits,
 the supervisor stops the other two. Stop a healthy supervisor with
 Ctrl+C or `uv run two down`. Closing `two task` detaches; it does not

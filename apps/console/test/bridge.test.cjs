@@ -16,7 +16,7 @@ const mainSource = fs.readFileSync(path.join(__dirname, "../src/main.cjs"), "utf
 const preloadSource = fs.readFileSync(path.join(__dirname, "../src/preload.cjs"), "utf8");
 const appSource = fs.readFileSync(path.join(__dirname, "../src/renderer/app.js"), "utf8");
 
-test("chat omits the profile unless the operator sets chat or home-action", () => {
+test("chat omits the profile unless the window sets chat, home-action, or operator", () => {
   const request = policy.chatRequest("  hello mini  ");
   assert.equal(request.method, "POST");
   assert.equal(request.path, "/v1/voice/turns");
@@ -27,10 +27,21 @@ test("chat omits the profile unless the operator sets chat or home-action", () =
     text: "hello",
     profile: "home-action",
   });
+  assert.deepEqual(policy.chatRequest("hello", "operator").body, {
+    text: "hello",
+    profile: "operator",
+  });
   assert.equal(policy.chatShowPath("turn-1"), "/v1/voice/turns/turn-1");
   assert.throws(() => policy.chatShowPath("../etc/passwd"));
   assert.throws(() => policy.chatRequest(""));
   assert.throws(() => policy.chatRequest("hello", "self-build"));
+  assert.equal(
+    policy.receiptText({
+      status: "awaiting_approval",
+      pending_install: { tool: "install.propose_binding", summary: "climate on zones living" },
+    }),
+    "Waiting for approval: climate on zones living.",
+  );
   assert.equal(
     policy.receiptText({
       status: "awaiting_approval",

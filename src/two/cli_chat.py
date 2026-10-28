@@ -87,6 +87,12 @@ def format_receipt(receipt: VoiceTurnReceipt) -> str:
             lines.append(f"pending_mute: {pending_tv.mute}")
         if pending_tv.step is not None:
             lines.append(f"pending_step: {pending_tv.step}")
+    if receipt.pending_install is not None:
+        pending_install = receipt.pending_install
+        lines.append(f"pending_tool: {pending_install.tool}")
+        if pending_install.slot is not None:
+            lines.append(f"pending_slot: {pending_install.slot}")
+        lines.append(f"pending_summary: {pending_install.summary}")
     if receipt.tv is not None:
         television = receipt.tv
         lines.append(f"tv_set: {television.set}")

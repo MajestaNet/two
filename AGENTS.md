@@ -8,7 +8,9 @@ development subject. DeepSeek Harness remains the pinned inner model/tool
 loop and is not reimplemented here. The Mac mini is the always-on host for Qwen 3.8, this scaffold, and
 DeepSeek Harness (ADR 0019). The installer selects the inference profile.
 A later wearable or device request resumes a persisted harness profile
-(`chat` or `home-action`), not the self-build profile. One inference
+(`chat` or `home-action`), not the self-build profile. The local CLI
+and console may also resume `operator` explicitly (ADR 0039). A wearable
+does not. One inference
 runs at a time. This repository is not a messenger product
 and it does not develop unrelated repositories. The CLI is the local surface
 today; ADR 0015/B14 plans a secure first-party mobile client over the same
@@ -23,8 +25,9 @@ persists tasks, events, leases, the work graph (schema v5),
 projects/config candidates (schema v6), and the chat harness session
 plus turn log (schema v7), and home-action climate turns
 (schema v8), television turns (schema v9), the utterance
-route plus device fan-out plan (schema v10), and the three vacuum
-tool names (schema v11).
+route plus device fan-out plan (schema v10), the three vacuum
+tool names (schema v11), and operator turns plus operator approvals
+(schema v12).
 The control API (`two.api`, ADR 0010) and approvals (`two.approvals`) are
 the client contract. The scheduler owns the single local-model slot; the
 ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
@@ -85,6 +88,10 @@ uv run two task answer ID QUESTION_ID --text ...
 uv run two task report ID
 uv run two chat send --text TEXT
 uv run two chat show TURN_ID
+uv run two operator send --text TEXT
+uv run two operator show TURN_ID
+uv run two operator approve TURN_ID --digest DIGEST
+uv run two operator reject TURN_ID --digest DIGEST
 uv run two climate send --text TEXT
 uv run two climate show TURN_ID
 uv run two climate approve TURN_ID --digest DIGEST
@@ -115,8 +122,9 @@ the local operator window and is not part of that gate.
 - `apps/console/` — local operator window (ADR 0031, ADR 0032, ADR 0033, ADR 0034, ADR 0035, ADR 0037). Electron,
   loopback only, default off. It calls `two up`, `two down`,
   `two profiles --recommend`, `two model`, `two harness`, and `POST /v1/voice/turns`.
-  The voice profile defaults to unset. `chat` and `home-action` are the
-  only explicit choices.
+  The voice profile defaults to unset. `chat`, `home-action`, and
+  `operator` are the explicit choices. An omitted profile does not send
+  `operator`.
   Opening the window starts the control plane when it is not already running.
   Closing the window hides it. The menu bar opens it again. Quit of the
   window process does not stop the control plane or an Ollama serve this
@@ -152,8 +160,10 @@ the local operator window and is not part of that gate.
  Schema v9 adds television tool names and `tv_approvals`. Schema v10
  stores the utterance route and fan-out plan. Schema v11 adds the three
  vacuum tool names (ADR 0038). There is no vacuum approval table.
+ Schema v12 widens `harness_sessions` to include `operator` and adds
+ `operator_turns` and `operator_approvals` (ADR 0039).
  A chat turn is not a task and never takes a coding lease. A home-action
- turn is not a task either.
+ turn is not a task either. An operator turn is not a task either.
  `src/two/api/` is the channel-neutral control API (FastAPI; ADR 0010).
  `two api` lazy-imports it so `two profiles` does not load the store.
  Additive B14 slice 2 routes include conversation, SSE, aggregate health,
@@ -192,19 +202,22 @@ the local operator window and is not part of that gate.
  `SystemCapabilities`, additive `TaskProjection.revision`, and slice 2
  GUI projection types. `TaskProjection.graph` may be null (B19).
   `src/two/client.py` is the stdlib HTTP/Unix control-API client (B13).
-  Task subcommands in `cli.py` / `cli_task.py` and `two chat` in
-  `cli_chat.py` lazy-import it the same way `two api` lazy-imports the
-  server. Tests inject FastAPI TestClient.
+  Task subcommands in `cli.py` / `cli_task.py`, `two chat` in
+  `cli_chat.py`, and `two operator` in `cli_operator.py` lazy-import it
+  the same way `two api` lazy-imports the server. Tests inject FastAPI
+  TestClient.
   `src/two/approvals/` is durable questions, approvals, and cooperative
   pause/resume/cancel (first-writer-wins; silence is never approval).
   `src/two/scheduler/` owns the single local-model queue slot, lease
   heartbeat/reclaim, retry_wait backoff, and Mac health mapping. It admits
-  one queued chat turn only when no coding lease is held.
+  one queued chat turn, then one queued operator turn, then one queued
+  home-action turn, only when no coding lease is held.
   `src/two/worker/` supervises a pinned ACP child, the action ledger, and
   session resume, including the no-tools `chat` profile. Production
-  `home-action` uses that same `dsh --profile acp` client (ADR 0028) and
-  performs the closed climate, television, and vacuum tools in this
-  process. Default tests use
+  `home-action` and `operator` use that same `dsh --profile acp` client
+  (ADR 0028, ADR 0039). Home-action performs the closed climate,
+  television, and vacuum tools in this process. Operator performs the
+  closed install tools in this process. Default tests use
   a fake child (`@pytest.mark.live_dsh` is opt-in).
   `src/two/controller/` drives the durable workflow, binds budgets, walks
   the persisted work graph, starts a fresh review session, and is the only

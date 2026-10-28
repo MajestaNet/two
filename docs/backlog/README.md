@@ -21,6 +21,9 @@ close §21 item 20.
 B25 executes the closed vacuum tools on the same profile (ADR 0038).
 The vacuum slot stays off until an install binds it. B25 does not
 close §21 item 20.
+B26 resumes harness profile `operator` for this install (ADR 0039).
+An omitted profile does not route there. B26 does not move the coding
+child onto pinned ACP and does not close §21 item 20.
 
 Each item is one markdown file. **Status is the tracker.** Update the
 item file and this table in the same PR that lands the work. Do not
@@ -74,6 +77,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B23](B23-utterance-routing.md) | Route a transcript and fan out `all` | 6 | B22 | done |
 | [B24](B24-local-operator-console.md) | Local operator console | 6 | B20 | done |
 | [B25](B25-vacuum-home-action.md) | Vacuum tools on `home-action` | 6 | B22, B23 | done |
+| [B26](B26-operator-install-profile.md) | Operator profile for this install | 6 | B20, B21 | done |
 
 The skipped thin web UI in B13 is superseded by the first-party client
 direction in ADR 0015/B14.
@@ -86,8 +90,9 @@ B20 is the `chat` profile resume. B21 is the climate executor for
 `home-action`. B22 is the television executor for the same profile.
 B23 routes an omitted profile and fans out `all` on that profile.
 B24 is the local operator console on this Mac. It is not the mobile
-client. B25 is the vacuum executor for `home-action`. Slot priority
-past chat-before-home-action, speech, and the mobile client stay open.
+client. B25 is the vacuum executor for `home-action`. B26 is the
+operator install profile. Slot priority past chat, then operator, then
+home-action, speech, and the mobile client stay open.
 
 ## Recommended order
 

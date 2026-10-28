@@ -478,14 +478,16 @@ class VoiceTurnRequest(BaseModel):
     ``self-build`` is accepted by the schema so a stolen or confused client
     is rejected by authorization (403) rather than by a 422. ``chat`` is
     stored and resumed. ``home-action`` is stored when a local climate or
-    television binding is enabled (ADR 0022, ADR 0029). Omitting ``profile``
-    lets the control plane route the transcript (ADR 0030).
+    television binding is enabled (ADR 0022, ADR 0029). ``operator`` is
+    stored only when the client names it (ADR 0039). Omitting ``profile``
+    lets the control plane route the transcript (ADR 0030) and never
+    selects ``operator``.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(min_length=1, max_length=4_000)
-    profile: Literal["self-build", "home-action", "chat"] | None = None
+    profile: Literal["self-build", "home-action", "chat", "operator"] | None = None
 
 
 class ClimateReadbackView(BaseModel):
@@ -594,6 +596,28 @@ class TvRequestView(BaseModel):
     step: Literal["up", "down"] | None = None
 
 
+class InstallPendingView(BaseModel):
+    """An install action waiting for an approval digest.
+
+    The summary names the slot and device ids, or the task objective.
+    Addresses, token names, and repository paths stay off this body.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool: Literal["install.propose_binding", "install.propose_change"]
+    slot: Literal["climate", "tv", "vacuum"] | None = None
+    summary: str = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def _slot_matches_tool(self) -> Self:
+        if self.tool == "install.propose_binding" and self.slot is None:
+            raise ValueError("a binding names its slot")
+        if self.tool == "install.propose_change" and self.slot is not None:
+            raise ValueError("a code change has no device slot")
+        return self
+
+
 def encode_turn_cursor(seq: int) -> str:
     """Opaque cursor for one chat turn. Encodes ``seq`` and nothing else."""
     if seq < 1:
@@ -603,11 +627,12 @@ def encode_turn_cursor(seq: int) -> str:
 
 
 class VoiceTurnReceipt(BaseModel):
-    """Client-safe result of one ``chat`` or ``home-action`` turn.
+    """Client-safe result of one ``chat``, ``home-action``, or ``operator`` turn.
 
     ``reply`` is set only when ``status`` is ``complete``. ``error_code`` is
-    set only when ``status`` is ``failed``. ``action_digest`` and
-    ``pending_action`` are set only when ``status`` is ``awaiting_approval``.
+    set only when ``status`` is ``failed``. ``action_digest`` and exactly one
+    of ``pending_action``, ``pending_tv``, or ``pending_install`` are set
+    only when ``status`` is ``awaiting_approval``.
     ``climate`` is the device read-back on a completed climate action.
     ``tv`` is the device read-back on a completed television action.
     ``vacuum`` is the device read-back on a completed vacuum action.
@@ -619,7 +644,7 @@ class VoiceTurnReceipt(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     turn_id: str = Field(min_length=1)
-    profile: Literal["chat", "home-action"]
+    profile: Literal["chat", "home-action", "operator"]
     status: Literal["queued", "running", "awaiting_approval", "complete", "failed"]
     reply: str | None = Field(default=None, min_length=1, max_length=4_000)
     error_code: ErrorCode | None = None
@@ -629,6 +654,7 @@ class VoiceTurnReceipt(BaseModel):
     action_digest: str | None = None
     pending_action: ClimateRequestView | None = None
     pending_tv: TvRequestView | None = None
+    pending_install: InstallPendingView | None = None
     fanout: list[FanoutItemView] = Field(default_factory=list)
     route_slots: list[str] = Field(default_factory=list)
     cursor: str = Field(min_length=1)
@@ -636,12 +662,16 @@ class VoiceTurnReceipt(BaseModel):
 
     @model_validator(mode="after")
     def _terminal_fields(self) -> Self:
+        install_pending = self.pending_install is not None
         if self.status == "complete":
             if self.reply is None or self.error_code is not None:
                 raise ValueError("complete receipt has reply and no error_code")
-            if self.action_digest is not None or self.pending_action is not None:
-                raise ValueError("complete receipt has no pending action")
-            if self.pending_tv is not None:
+            if (
+                self.action_digest is not None
+                or self.pending_action is not None
+                or self.pending_tv is not None
+                or install_pending
+            ):
                 raise ValueError("complete receipt has no pending action")
             if _readback_count(self.climate, self.tv, self.vacuum) > 1:
                 raise ValueError("complete receipt has one device read-back")
@@ -655,6 +685,7 @@ class VoiceTurnReceipt(BaseModel):
                 or self.action_digest is not None
                 or self.pending_action is not None
                 or self.pending_tv is not None
+                or install_pending
             ):
                 raise ValueError("failed receipt has no device result")
             if any(item.status != "failed" for item in self.fanout):
@@ -668,9 +699,11 @@ class VoiceTurnReceipt(BaseModel):
                 or self.vacuum is not None
             ):
                 raise ValueError("awaiting approval has no reply or device result")
-            climate_pending = self.pending_action is not None
-            tv_pending = self.pending_tv is not None
-            if self.action_digest is None or climate_pending == tv_pending:
+            named = sum(
+                item is not None
+                for item in (self.pending_action, self.pending_tv, self.pending_install)
+            )
+            if self.action_digest is None or named != 1:
                 raise ValueError("awaiting approval names the digest and one action")
             if self.fanout:
                 raise ValueError("awaiting approval has no fan-out")
@@ -683,6 +716,7 @@ class VoiceTurnReceipt(BaseModel):
             or self.action_digest is not None
             or self.pending_action is not None
             or self.pending_tv is not None
+            or install_pending
         ):
             raise ValueError("queued and running receipts omit device results")
         if self.status in {"queued", "running"} and any(
@@ -714,6 +748,7 @@ def voice_turn_receipt(
     action_digest: str | None = None,
     pending_action: ClimateRequestView | None = None,
     pending_tv: TvRequestView | None = None,
+    pending_install: InstallPendingView | None = None,
     fanout: list[FanoutItemView] | None = None,
     route_slots: list[str] | None = None,
 ) -> VoiceTurnReceipt:
@@ -726,6 +761,7 @@ def voice_turn_receipt(
     shown_digest = action_digest if status == "awaiting_approval" else None
     shown_pending = pending_action if status == "awaiting_approval" else None
     shown_pending_tv = pending_tv if status == "awaiting_approval" else None
+    shown_install = pending_install if status == "awaiting_approval" else None
     if shown_reply is not None and len(shown_reply) > 4000:
         shown_reply = shown_reply[:4000]
     return VoiceTurnReceipt.model_validate(
@@ -744,6 +780,9 @@ def voice_turn_receipt(
             ),
             "pending_tv": (
                 None if shown_pending_tv is None else shown_pending_tv.model_dump(mode="json")
+            ),
+            "pending_install": (
+                None if shown_install is None else shown_install.model_dump(mode="json")
             ),
             "fanout": [item.model_dump(mode="json") for item in (fanout or [])],
             "route_slots": [] if route_slots is None else list(route_slots),
