@@ -16,7 +16,8 @@
 
 """Ecovacs Open API transport. Stdlib HTTPS. No new dependency.
 
-The key is sent only in the JSON body of this request. Redirects are
+Device list is GET with ``ak`` as the query parameter (ADR 0042).
+Control stays POST with the key in the JSON body. Redirects are
 refused. The host must already be one of the two official API hosts.
 The nickname is the exact bound name. This module does not fuzzy-match.
 """
@@ -27,6 +28,7 @@ import json
 from collections.abc import Callable, Mapping
 from typing import cast
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from two.devices.vacuum.contract import (
@@ -79,7 +81,7 @@ class EcovacsCloud:
 
     def list_nicknames(self) -> tuple[str, ...]:
         """Account nicknames. Writes nothing."""
-        payload = self._call("POST", "/robot/deviceList", {})
+        payload = self._get("/robot/deviceList")
         return _nicknames(payload)
 
     def read(self, robot_id: str, nickname: str) -> VacuumReadback:
@@ -122,13 +124,26 @@ class EcovacsCloud:
             raise VacuumUpstreamError("vacuum upstream url is not allowed")
         return self._request(method, url, payload)
 
+    def _get(self, path: str) -> object:
+        if self._token == "":
+            raise VacuumUpstreamError("missing vacuum token")
+        if not path.startswith("/") or "?" in path or "://" in path:
+            raise VacuumUpstreamError("vacuum upstream url is not allowed")
+        query = urlencode({"ak": self._token})
+        url = f"https://{self._host}{path}?{query}"
+        return self._request("GET", url, {})
+
     def _http(self, method: str, url: str, body: Mapping[str, str]) -> object:
-        data = json.dumps(dict(body)).encode("utf-8")
+        headers = {"Accept": "application/json"}
+        data = None
+        if method != "GET":
+            data = json.dumps(dict(body)).encode("utf-8")
+            headers["Content-Type"] = "application/json"
         request = Request(
             url,
             data=data,
             method=method,
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            headers=headers,
         )
         try:
             with build_opener(_RefuseRedirect).open(request, timeout=_TIMEOUT_SECONDS) as response:
@@ -157,7 +172,7 @@ def _nicknames(payload: object) -> tuple[str, ...]:
             names.append(item.strip())
             continue
         if isinstance(item, dict):
-            raw = item.get("nickname", item.get("nickName"))
+            raw = item.get("nickname", item.get("nickName", item.get("nick")))
             if isinstance(raw, str) and raw.strip():
                 names.append(raw.strip())
     return tuple(names)

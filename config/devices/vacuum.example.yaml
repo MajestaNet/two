@@ -3,6 +3,13 @@
 #
 # Example Ecovacs vacuum binding (ADR 0038). Copy to
 # $TWO_DATA_DIR/devices/vacuum.yaml and set enabled: true.
+# Operator connect order (do not paste this file as the answer):
+# 1. Sign in at open.ecovacs.com with the same ECOVACS HOME account
+#    that already shows the robots. Create a server Access Key (AK).
+#    Do not open a second household and do not use the app password.
+# 2. Put ECO_API_KEY=<that AK> in $TWO_DATA_DIR/env. Never put the key here.
+# 3. Enable this binding, restart the worker, run `two vacuum robots`.
+# 4. Copy those exact account nicknames into nickname. Then restart again.
 # Nicknames are the exact names on the Ecovacs account.
 # `two vacuum robots` prints those names and writes nothing.
 # The API key is the environment variable named by token_env.

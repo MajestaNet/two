@@ -42,9 +42,15 @@
   harness profile: a redacted install snapshot, a guide allowlist, and
   approved shipped bindings or self-build tasks. An omitted profile does
   not route there. Do not paste that ADR here.
+- `adrs/0041-operator-chat-approval.md` lets a later operator transcript
+  that is only `approved` or `rejected` apply the stored digest. Silence
+  is still not approval. Do not paste that ADR here.
 - `adrs/0038-ecovacs-vacuum.md` is the closed vacuum tool contract.
   The slot stays off. The transport is the Ecovacs Open API on the two
   official hosts. Do not paste that ADR here.
+- `adrs/0042-ecovacs-device-list-get.md` lists robots with GET and `ak`
+  as the query parameter. Control stays POST JSON. Do not paste that
+  ADR here.
 - `adrs/0031-local-operator-console.md` is the in-repo loopback window
   at `apps/console`. It does not replace the mobile or watch apps.
   Do not paste that ADR here.

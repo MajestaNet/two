@@ -33,6 +33,7 @@ from pathlib import Path
 from two.operator.assist import (
     BINDING_TOOL,
     CLOSED_TOOLS,
+    DEVICE_CONNECT_HINTS,
     GUIDE_TOOL,
     PROPOSE_TOOLS,
     STATUS_TOOL,
@@ -70,34 +71,42 @@ def plan_operator_session(
     transcript: str,
     stored_session_id: str | None,
     session_is_valid: SessionValidator | None = None,
+    snapshot: str = "",
 ) -> ChatSessionPlan:
     """Resume a valid operator session, or start fresh with the closed tool list."""
+    prompt = _operator_prompt(transcript, snapshot)
     validator = session_is_valid or default_session_validator
     if stored_session_id and validator(stored_session_id):
         return ChatSessionPlan(
             mode=SessionMode.RESUME,
             session_id=stored_session_id,
             transcript=transcript,
-            prompt="",
+            prompt=prompt,
         )
-    prompt = (
-        f"{transcript}\n"
-        "profile: operator\n"
-        "Call one closed tool and stop.\n"
-        "install.status\n"
-        "install.read_guide arguments: doc "
-        "(setup, adapters, climate, climate-echonet, tv, vacuum)\n"
-        "install.propose_binding arguments: slot (climate, tv, vacuum), document\n"
-        "install.propose_change arguments: objective, acceptance_criteria, allowed_paths\n"
-        "Do not use shell, git, or any other tool.\n"
-        "A binding write and a code change wait for approval.\n"
-    )
     return ChatSessionPlan(
         mode=SessionMode.FRESH,
         session_id=None,
         transcript=transcript,
         prompt=prompt,
     )
+
+
+def _operator_prompt(transcript: str, snapshot: str) -> str:
+    lines = [transcript, "profile: operator", DEVICE_CONNECT_HINTS.rstrip()]
+    if snapshot.strip():
+        lines.extend(["snapshot:", snapshot.rstrip()])
+    lines.extend(
+        [
+            "install.status",
+            "install.read_guide arguments: doc "
+            "(setup, adapters, climate, climate-echonet, tv, vacuum)",
+            "install.propose_binding arguments: slot (climate, tv, vacuum), document",
+            "install.propose_change arguments: objective, acceptance_criteria, allowed_paths",
+            "Do not use shell, git, or any other tool.",
+            "A binding write and a code change wait for approval.",
+        ]
+    )
+    return "\n".join(lines) + "\n"
 
 
 def build_operator_argv(
@@ -169,6 +178,7 @@ def run_operator_turn(
         transcript=turn.request_text,
         stored_session_id=stored,
         session_is_valid=session_is_valid,
+        snapshot=operator_snapshot(data_dir, repo_root),
     )
     if argv_factory is not None:
         launched = list(argv_factory(plan))
@@ -368,6 +378,14 @@ def _handle_message(
         repo_root=repo_root,
         now=now,
     )
+
+
+def operator_snapshot(data_dir: Path | str | None, repo_root: Path | None) -> str:
+    """Redacted install snapshot for the operator prompt. Empty on refusal."""
+    try:
+        return install_status(data_dir, repo_root=repo_root)
+    except AssistError:
+        return ""
 
 
 def _stop_child(child: SupervisedChild) -> None:

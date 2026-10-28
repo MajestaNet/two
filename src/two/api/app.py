@@ -182,7 +182,7 @@ from two.devices.tv.config import load_tv_config
 from two.devices.vacuum.config import load_vacuum_config
 from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
-from two.operator.assist import pending_install_view
+from two.operator.assist import operator_chat_decision, pending_install_view
 from two.operator.menu import project_adapter_menu
 from two.projection import voice_turn_receipt
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
@@ -655,9 +655,26 @@ async def _queue_operator(
     text: str,
     principal_id: str,
 ) -> JSONResponse:
+    decision = operator_chat_decision(text)
     async with box.lock:
         ensure_operator_profile_dir(directory)
         box.store.ensure_operator_session()
+        if decision is not None:
+            pending = box.store.latest_awaiting_operator_turn(principal=principal_id)
+            if pending is not None and pending.action_digest is not None:
+                try:
+                    decided = box.store.decide_operator_approval(
+                        pending.id,
+                        pending.action_digest,
+                        approve=decision == "approve",
+                        resolver=principal_id,
+                    )
+                except StoreError as exc:
+                    _raise_decision_error(exc)
+                return JSONResponse(
+                    status_code=202,
+                    content=_operator_receipt(decided).model_dump(mode="json"),
+                )
         record = box.store.insert_operator_turn(
             text,
             principal_id,

@@ -51,6 +51,7 @@ from two.worker.operator_turn import (
     build_operator_argv,
     ensure_operator_profile_dir,
     operator_child_env,
+    operator_snapshot,
     perform_tool,
     plan_operator_session,
 )
@@ -95,6 +96,7 @@ def run_pinned_acp_operator(
         transcript=turn.request_text,
         stored_session_id=stored,
         session_is_valid=session_is_valid or default_session_validator,
+        snapshot=operator_snapshot(data_dir, repo_root),
     )
     profile_dir = ensure_operator_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
@@ -334,12 +336,16 @@ def _operator_patch(model_id: str, *, provider: str) -> str:
         "  name: '@deepseek-ai/dsh-system-prompt'\n"
         "  config:\n"
         "    persona: >-\n"
-        "      You help with this local installation by calling one closed tool.\n"
-        "      install.status reads a redacted snapshot.\n"
-        "      install.read_guide reads setup, adapters, climate, climate-echonet, tv, or vacuum.\n"
-        "      install.propose_binding proposes a climate, tv, or vacuum document.\n"
+        "      You help this local installation.\n"
+        "      Walk the operator through connecting a shipped adapter in numbered steps.\n"
+        "      Do not paste YAML. Do not invent a secret, nickname, address, or token.\n"
+        "      You may reply without a tool when the snapshot already answers.\n"
+        "      Call at most one closed tool, and only for a guide, a status refresh,\n"
+        "      a binding, or a change.\n"
+        "      install.read_guide vacuum returns Ecovacs connect steps, not a file to dump.\n"
+        "      install.propose_binding waits. The operator then types approved or rejected.\n"
         "      install.propose_change proposes a task for this repository.\n"
-        "      Do not use any other tool. Do not invent a secret.\n"
+        "      Do not use any other tool.\n"
         "- id: sandbox-policy\n"
         "  name: '@deepseek-ai/dsh-sandbox-policy'\n"
         "  config:\n"

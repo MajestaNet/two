@@ -38,10 +38,14 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued operator turn, which is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
-| Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.propose_binding`, and `install.propose_change`. A binding write and a self-build task wait for a digest. The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [B26](backlog/B26-operator-install-profile.md)) |
+| Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. After a pending binding, a later operator send that is only `approved` or `rejected` applies the stored digest ([ADR 0041](adrs/0041-operator-chat-approval.md)). An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.propose_binding`, and `install.propose_change`. A binding write and a self-build task wait for a digest. The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [B26](backlog/B26-operator-install-profile.md)) |
 | Harness profile `home-action` | Works when a local climate, television, or vacuum binding is enabled (`two climate`, `two tv`, or `two vacuum`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. When `$TWO_DATA_DIR/devices/vacuum.yaml` is enabled, it performs `vacuum.read`, `vacuum.clean`, and `vacuum.dock` against the Ecovacs Open API. A known robot is pre-authorized. Without one of those bindings the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set; "turn heat on upstairs office" compiles `climate.set_mode` without the harness; "start the downstairs vacuum" compiles `vacuum.clean` the same way, and "dock all vacuums" repeats the dock ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [ADR 0036](adrs/0036-closed-utterance-compile.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
 
-Last updated: 28 October 2026 (ADR 0040: the Model page can serve raw
+Last updated: 28 October 2026 (ADR 0042: Ecovacs listing is GET with
+`ak` on the query string. Control stays POST JSON.
+ADR 0041: a later operator send that is
+only `approved` or `rejected` applies the stored install digest.
+ADR 0040: the Model page can serve raw
 mlx-lm on loopback through DeepSeek Harness's OpenAI-compatible adapter.
 Ollama stays the default. Download lives in Local Model Catalog.
 ADR 0039: the local CLI and console can
@@ -902,14 +906,24 @@ to `$TWO_DATA_DIR/devices/vacuum.yaml`. The slot stays off until that
 file has `enabled: true` and at least one robot.
 
 The binding calls only `open.ecovacs.com` (Australia and the default) or
-`open.ecovacs.cn`. The key is posted in the JSON body. Redirects are
+`open.ecovacs.cn`. Listing is GET with the key as `ak` on the query
+string (ADR 0042). Control posts the key in the JSON body. Redirects are
 refused. Nicknames are exact. The API's fuzzy match is not used.
 
-Do this before the first turn:
+Do this before the first turn. Harness profile `operator` should walk
+these steps and call `install.propose_binding` only after you confirm
+the nicknames. It must not paste the example YAML as the answer, and it
+must not invent a nickname or put the key in the document.
 
-1. Create an API key at [open.ecovacs.com](https://open.ecovacs.com).
-   Put `ECO_API_KEY=...` in `$TWO_DATA_DIR/env`. The key is not a file
-   in this repository.
+1. Open [open.ecovacs.com](https://open.ecovacs.com) (Australia and
+   other non-mainland accounts; use [open.ecovacs.cn](https://open.ecovacs.cn)
+   only if the ECOVACS HOME app is on the mainland host). Sign in with
+   the same ECOVACS HOME account that already shows both robots. That
+   site is the Open Platform console, not a second household. Create a
+   server Access Key (AK) under Service overview. Put that AK in
+   `$TWO_DATA_DIR/env` as `ECO_API_KEY=...`. Do not use the app
+   password. A new email on that site will not see these robots. The
+   key is not a file in this repository.
 2. Copy the example binding. Leave the two placeholder robots, set
    `enabled: true`, and keep `api_host: open.ecovacs.com` unless the
    account is on the mainland host.

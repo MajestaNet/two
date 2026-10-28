@@ -9,7 +9,9 @@ loop and is not reimplemented here. The Mac mini is the always-on host for Qwen 
 DeepSeek Harness (ADR 0019). The installer selects the inference profile.
 A later wearable or device request resumes a persisted harness profile
 (`chat` or `home-action`), not the self-build profile. The local CLI
-and console may also resume `operator` explicitly (ADR 0039). A wearable
+and console may also resume `operator` explicitly (ADR 0039). A later
+operator send that is only `approved` or `rejected` applies the stored
+digest (ADR 0041). A wearable
 does not. One inference
 runs at a time. This repository is not a messenger product
 and it does not develop unrelated repositories. The CLI is the local surface
@@ -18,7 +20,8 @@ API. The climate device package is in-repo and default off (ADR 0022).
 A binding may use Home Assistant REST or ECHONET Lite (ADR 0027).
 The television package is in-repo and default off (ADR 0029).
 The vacuum package is in-repo and default off (ADR 0038). Its transport
-is the Ecovacs Open API on the two official hosts.
+is the Ecovacs Open API on the two official hosts. Listing is GET
+(ADR 0042).
 Speech remains specified and not implemented.
 The SQLite WAL store (`two.store`)
 persists tasks, events, leases, the work graph (schema v5),
