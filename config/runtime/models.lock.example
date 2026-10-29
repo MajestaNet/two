@@ -36,8 +36,9 @@ notes: >-
   security-audited; sandbox/approvals do not guarantee isolation. This cut
   enables public WebFetch by default — Majesta Two's profile overlay
   disables web fetch/search and session telemetry so cloud stays off until
-  a later item sets cloud_allowed. ACP is complete in the pin; Majesta Two
-  does not speak ACP yet (B09). Ollama compat: force system role
+  a later item sets cloud_allowed.   ACP is complete in the pin. Chat, home-action, and operator launch
+  pinned `dsh --profile acp` (ADR 0025, ADR 0028, ADR 0039). Coding
+  stays on the ADR 0011 JSONL fixture (B09). Ollama compat: force system role
   (supportsDeveloperRole: false) and maxTokensField: max_tokens (ADR 0009).
   Ollama/model digests remain empty until B01 soak. See architecture §6.1
   and §18.

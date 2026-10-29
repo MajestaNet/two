@@ -175,6 +175,9 @@ class ErrorCode(StrEnum):
     INSTALL_BINDING_DENIED = "install_binding_denied"
     INSTALL_CHANGE_REFUSED = "install_change_refused"
     INSTALL_REJECTED = "install_rejected"
+    INSTALL_ENV_MISSING = "install_env_missing"
+    INSTALL_ACCOUNT_DENIED = "install_account_denied"
+    INSTALL_PAIR_DENIED = "install_pair_denied"
     INTERNAL = "internal"
 
 

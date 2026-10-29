@@ -59,7 +59,9 @@ STATUS_TOOL: Literal["install.status"] = "install.status"
 GUIDE_TOOL: Literal["install.read_guide"] = "install.read_guide"
 BINDING_TOOL: Literal["install.propose_binding"] = "install.propose_binding"
 CHANGE_TOOL: Literal["install.propose_change"] = "install.propose_change"
-CLOSED_TOOLS = frozenset({STATUS_TOOL, GUIDE_TOOL, BINDING_TOOL, CHANGE_TOOL})
+LIST_TOOL: Literal["install.list_account"] = "install.list_account"
+PAIR_TOOL: Literal["install.pair_device"] = "install.pair_device"
+CLOSED_TOOLS = frozenset({STATUS_TOOL, GUIDE_TOOL, BINDING_TOOL, CHANGE_TOOL, LIST_TOOL, PAIR_TOOL})
 PROPOSE_TOOLS = frozenset({BINDING_TOOL, CHANGE_TOOL})
 BINDING_SLOTS = frozenset({"climate", "tv", "vacuum"})
 GUIDE_LIMIT = 3500
@@ -105,12 +107,13 @@ DEVICE_CONNECT_HINTS = (
     "second household; create a server Access Key and put it in the env "
     "name (default ECO_API_KEY); never the app password and never in the "
     "binding; nicknames must match the Ecovacs account exactly; after the "
-    "key is in env, two vacuum robots prints those names; then "
+    "key is in env, install.list_account vacuum prints those names; then "
     "propose_binding with enabled true, api_host matching that portal, "
     "token_env that name, and robots as a map of lowercase ids "
-    "(bob, lynne) to {nickname}, not a list.\n"
+    "the operator chose to {nickname}, not a list.\n"
     "climate: Home Assistant REST or ECHONET Lite; ask for zone ids and token_env.\n"
-    "tv: private LAN; per-set token_env; pairing prints the token into env.\n"
+    "tv: private LAN; per-set token_env; after the binding is approved, "
+    "install.pair_device stores the token in the data-dir env file.\n"
     "Ask for the missing fact. You may reply without a tool. Call at most "
     "one closed tool, and only for a guide, a status refresh, a binding, or a change. "
     "After propose_binding, wait. The operator types approved or rejected.\n"
@@ -182,7 +185,7 @@ def install_status(
     *,
     repo_root: Path | None = None,
 ) -> str:
-    """Redacted snapshot. Does not open a socket and does not read a key file."""
+    """Redacted snapshot. Does not open a socket. Env lines are present or missing."""
     lines = ["profile: operator", f"harness_pin: {DSH_PIN}"]
     backend = load_inference_backend(data_dir)
     lines.append(f"backend: {backend.kind}")
@@ -202,6 +205,12 @@ def install_status(
         devices = ", ".join(device.id for device in slot.devices) or "(none)"
         state = "on" if slot.install_enabled else "off"
         lines.append(f"  {slot.id}: {state} {devices}")
+    lines.append("env:")
+    from two.operator.first_run import env_presence
+
+    for env_name in env_presence(data_dir):
+        mark = "present" if env_name.present else "missing"
+        lines.append(f"  {env_name.name}: {mark}")
     return _fit("\n".join(lines))
 
 

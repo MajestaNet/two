@@ -6,6 +6,7 @@
 # A Mitsubishi Electric unit that speaks ECHONET Lite uses
 # climate-echonet.example.yaml instead (ADR 0027).
 # Put the token value in the named environment variable, not in this file.
+# Zone ids such as living are examples. Replace them with yours.
 # The upstream must be a private or loopback IP. Hostnames are refused.
 
 enabled: false

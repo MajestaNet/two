@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -329,11 +330,13 @@ def main(
 
         return run_climate(args, request=request)
     if args.command == "tv":
+        _apply_cli_data_dir(args)
         _load_host_env()
         from two.cli_tv import run_tv
 
         return run_tv(args, request=request)
     if args.command == "vacuum":
+        _apply_cli_data_dir(args)
         _load_host_env()
         from two.cli_vacuum import run_vacuum
 
@@ -343,6 +346,13 @@ def main(
         return 0
     parser.error(f"unknown command: {args.command}")
     return 2
+
+
+def _apply_cli_data_dir(args: argparse.Namespace) -> None:
+    """Pin TWO_DATA_DIR before loading env so --data-dir is this install."""
+    data_dir = getattr(args, "data_dir", None)
+    if isinstance(data_dir, str) and data_dir.strip():
+        os.environ["TWO_DATA_DIR"] = data_dir.strip()
 
 
 def _load_host_env() -> None:
@@ -847,7 +857,8 @@ def _add_tv_parser(subparsers: Any) -> None:
         help="Send, show, approve, or reject one home-action television turn",
         description=(
             "send, show, approve, and reject talk only to the control API. "
-            "pair and apps open the bound Samsung set and write nothing. "
+            "pair stores the Samsung token in $TWO_DATA_DIR/env. "
+            "apps prints application ids and writes nothing. "
             "The turn runs only when the local television binding is enabled."
         ),
     )
@@ -885,7 +896,7 @@ def _add_tv_parser(subparsers: Any) -> None:
     reject.add_argument("--digest", required=True, help="Exact action_digest")
     pair = tv_sub.add_parser(
         "pair",
-        help="Wait for the Samsung Allow prompt and print the token",
+        help="Wait for the Samsung Allow prompt and store the token in $TWO_DATA_DIR/env",
     )
     pair.add_argument("--set", required=True, help="Set id from the binding")
     pair.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
@@ -904,7 +915,7 @@ def _add_vacuum_parser(subparsers: Any) -> None:
         help="Send or show one home-action vacuum turn",
         description=(
             "send and show talk only to the control API. "
-            "robots lists account nicknames and writes nothing. "
+            "robots lists account nicknames without an enabled binding. "
             "The turn runs only when the local vacuum binding is enabled."
         ),
     )
@@ -931,6 +942,16 @@ def _add_vacuum_parser(subparsers: Any) -> None:
         help="Print Ecovacs account nicknames and write nothing",
     )
     robots.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
+    robots.add_argument(
+        "--token-env",
+        default=None,
+        help="Env name for the Access Key (default: ECO_API_KEY or the binding)",
+    )
+    robots.add_argument(
+        "--api-host",
+        default=None,
+        help="open.ecovacs.com or open.ecovacs.cn",
+    )
 
 
 if __name__ == "__main__":

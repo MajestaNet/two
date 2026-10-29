@@ -42,6 +42,9 @@
   harness profile: a redacted install snapshot, a guide allowlist, and
   approved shipped bindings or self-build tasks. An omitted profile does
   not route there. Do not paste that ADR here.
+- `adrs/0043-operator-first-run-steps.md` lists vacuum nicknames without
+  an enabled binding and stores a television token in the data-dir env
+  file. The model does not see the token. Do not paste that ADR here.
 - `adrs/0041-operator-chat-approval.md` lets a later operator transcript
   that is only `approved` or `rejected` apply the stored digest. Silence
   is still not approval. Do not paste that ADR here.
@@ -80,12 +83,12 @@
   Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
-- `backlog/` holds dedicated implementation items (B01–B26). B20
+- `backlog/` holds dedicated implementation items (B01–B27). B20
   resumes harness profile `chat`. B21 executes climate on `home-action`
   and leaves that slot default off. B25 executes the closed vacuum
   tools on the same profile (ADR 0038) and leaves that slot default off.
   B26 resumes harness profile `operator` (ADR 0039). An omitted profile
-  does not route there.
+  does not route there. B27 is first-run list and pair (ADR 0043).
   Status tables there are the tracker. Each item file ends with an
   agentic prompt. Do not copy the spec into those files; point at
   sections.

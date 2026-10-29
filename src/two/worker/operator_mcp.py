@@ -61,6 +61,40 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
         },
     ),
     (
+        "install_list_account",
+        "install.list_account",
+        "List Ecovacs account nicknames after the Access Key is in env. "
+        "Does not require an enabled binding. Returns nicknames only.",
+        {
+            "type": "object",
+            "properties": {
+                "slot": {"type": "string", "enum": ["vacuum"]},
+                "token_env": {"type": "string"},
+                "api_host": {
+                    "type": "string",
+                    "enum": ["open.ecovacs.com", "open.ecovacs.cn"],
+                },
+            },
+            "required": ["slot"],
+            "additionalProperties": False,
+        },
+    ),
+    (
+        "install_pair_device",
+        "install.pair_device",
+        "Pair one bound Samsung set. Stores the token in the data-dir env file. "
+        "Does not return the token.",
+        {
+            "type": "object",
+            "properties": {
+                "slot": {"type": "string", "enum": ["tv"]},
+                "set": {"type": "string"},
+            },
+            "required": ["slot", "set"],
+            "additionalProperties": False,
+        },
+    ),
+    (
         "install_propose_binding",
         "install.propose_binding",
         "Propose a climate, television, or vacuum binding after the operator "

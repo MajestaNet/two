@@ -1092,6 +1092,65 @@ async function adapters() {
   return parseJson(await runTwo(["adapters", "--json"]), "adapters failed");
 }
 
+async function installEnv() {
+  const response = await controlFetch(policy.apiOrigin(process.env) + policy.installEnvPath(), {
+    redirect: "error",
+    signal: AbortSignal.timeout(3000),
+  });
+  if (!response.ok) {
+    throw new Error("could not read install env names");
+  }
+  return response.json();
+}
+
+async function installVacuumRobots() {
+  const response = await controlFetch(
+    policy.apiOrigin(process.env) + policy.installVacuumRobotsPath(),
+    {
+      method: "POST",
+      redirect: "error",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error((body && body.detail) || "could not list vacuum nicknames");
+  }
+  return body;
+}
+
+async function installTvPair(setId) {
+  const response = await controlFetch(policy.apiOrigin(process.env) + policy.installTvPairPath(), {
+    method: "POST",
+    redirect: "error",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ set: setId }),
+    signal: AbortSignal.timeout(60000),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error((body && body.detail) || "could not pair the television");
+  }
+  return body;
+}
+
+async function installTvApps(setId) {
+  const response = await controlFetch(
+    policy.apiOrigin(process.env) + policy.installTvAppsPath(setId),
+    {
+      redirect: "error",
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error((body && body.detail) || "could not list television apps");
+  }
+  return body;
+}
+
 function controlPlaneError(error) {
   const cause = error && error.cause;
   const detail = cause && typeof cause.message === "string" ? cause.message : "";
@@ -1203,6 +1262,10 @@ const handlers = {
   "docs:read": docsRead,
   "docs:openExternal": docsOpenExternal,
   "adapters:list": adapters,
+  "install:env": installEnv,
+  "install:vacuumRobots": installVacuumRobots,
+  "install:tvPair": installTvPair,
+  "install:tvApps": installTvApps,
   "chat:send": chatSend,
   "chat:show": chatShow,
   "openrouter:status": openrouterStatus,
