@@ -11,6 +11,7 @@ dependencies = [
     "pyyaml>=6",
     "fastapi>=0.115",
     "uvicorn>=0.32",
+    "aioesphomeapi>=46",
 ]
 
 [project.scripts]

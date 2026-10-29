@@ -1,0 +1,25 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example climate binding that names an ESPHome climate entity (ADR 0043).
+# Copy to $TWO_DATA_DIR/devices/climate.yaml and set enabled: true.
+# The node must already be listed in $TWO_DATA_DIR/devices/esphome.yaml.
+# entity is the ESPHome climate object_id from `two esphome entities`.
+# entity_id stays a logical climate.* id. The model sees the zone id.
+# A file may also keep ECHONET zones; those zones omit transport here
+# when the document transport is echonet. See docs/setup.md.
+
+enabled: false
+transport: esphome
+zones:
+  office:
+    entity_id: climate.office
+    node: ir-bridge
+    entity: lg_ac
+    min_celsius: 18
+    max_celsius: 26
+    # Quote off. Unquoted, YAML 1.1 reads it as a boolean.
+    modes:
+      - cool
+      - heat
+      - "off"

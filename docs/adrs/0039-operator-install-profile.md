@@ -51,13 +51,14 @@ every install. Addresses, tokens, and adopted commits stay local.
    - `install.read_guide` returns a bounded excerpt from a fixed
      allowlist: `docs/setup.md`, `docs/adapters.md`, and the shipped
      device example files. Anything else is refused.
-   - `install.propose_binding` accepts only `climate`, `tv`, and
-     `vacuum`, and only a document the existing install model accepts.
-     `token_env` is an environment-variable name. A secret value is
-     refused.      Approval writes `$TWO_DATA_DIR/devices/<slot>.yaml` and
-     nothing else. Silence is not approval. A later operator
-     transcript that is only `approved` or `rejected` may apply the
-     stored digest (ADR 0041).
+   - `install.propose_binding` accepts only `climate`, `tv`,
+     `vacuum`, and `esphome`, and only a document the existing install
+     model accepts. `token_env` and `key_env` are environment-variable
+     names. A secret value is refused. Approval writes
+     `$TWO_DATA_DIR/devices/<slot>.yaml` and nothing else. Silence is
+     not approval. A later operator transcript that is only
+     `approved` or `rejected` may apply the stored digest (ADR 0041).
+     Slot `esphome` is the node file, not a catalog slot (ADR 0043).
    - `install.propose_change` drafts a task whose subject is this
      repository, with `cloud_allowed` false. Approval submits it
      through the existing task API. The reply states that the coding
@@ -67,11 +68,12 @@ every install. Addresses, tokens, and adopted commits stay local.
      A new device protocol still needs its own ADR in that worktree
      before implementation.
 4. **Local variation that fits a shipped schema is configuration.** A
-   new zone, set, robot, target, or the existing Home Assistant versus
-   ECHONET choice is a binding. A change to adapter code or a new
-   protocol is the task in decision 3. Another install uses the same
-   profile and the same tool contract. It adopts only its own commits.
-   Enablement stays the local binding file.
+   new zone, set, robot, target, ESPHome node, or the existing Home
+   Assistant versus ECHONET versus ESPHome choice is a binding. A
+   change to adapter code or a new protocol is the task in decision 3.
+   Another install uses the same profile and the same tool contract. It
+   adopts only its own commits. Enablement stays the local binding
+   file.
 
 ## Consequences
 

@@ -21,7 +21,7 @@ process. Copying a package into the tree does not enable it.
 | --- | --- | --- |
 | Client | CLI in this repo. The local operator console is `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md)). Mobile and watch apps are specified here and built elsewhere. Watch edge is `two.edge`. | CLI is on. The console is shipped and off. Mobile and watch stay `contract`. |
 | Messenger | `two.channels.<name>` | None selected. |
-| Device | `src/two/devices/climate/` (ADR 0022, ADR 0027), `src/two/devices/tv/` (ADR 0029), and `src/two/devices/vacuum/` (ADR 0038). The kind-level `device` slot stays reserved. | `climate`, `tv`, and `vacuum` are shipped and off. A local `climate.yaml` binds zones. A local `tv.yaml` binds Samsung sets. A local `vacuum.yaml` binds Ecovacs robots. `home-action` only. |
+| Device | `src/two/devices/climate/` (ADR 0022, ADR 0027, ADR 0043), `src/two/devices/tv/` (ADR 0029), and `src/two/devices/vacuum/` (ADR 0038). Shared ESPHome nodes live in `src/two/devices/esphome/` and are not a catalog slot. The kind-level `device` slot stays reserved. | `climate`, `tv`, and `vacuum` are shipped and off. A local `climate.yaml` binds zones. A local `esphome.yaml` lists nodes a climate zone may name. A local `tv.yaml` binds Samsung sets. A local `vacuum.yaml` binds Ecovacs robots. `home-action` only. |
 | Export | `src/two/export/` ([ADR 0012](adrs/0012-github-export-adapter.md)) | Reserved. Not a channel. |
 
 `two.providers` configures the model DeepSeek Harness calls. It is not

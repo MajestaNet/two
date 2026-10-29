@@ -44,6 +44,8 @@ ClimateMode = Literal["off", "heat", "cool", "auto"]
 CLIMATE_MODES: frozenset[str] = frozenset({"off", "heat", "cool", "auto"})
 TRANSPORT_HOME_ASSISTANT: Literal["home_assistant"] = "home_assistant"
 TRANSPORT_ECHONET: Literal["echonet"] = "echonet"
+TRANSPORT_ESPHOME: Literal["esphome"] = "esphome"
+ClimateTransport = Literal["home_assistant", "echonet", "esphome"]
 
 # A requested number outside this band is not a setpoint. It is refused
 # rather than offered for approval.
@@ -53,6 +55,7 @@ SANITY_MAX_CELSIUS = 50.0
 _ZONE_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 _ENTITY_RE = re.compile(r"^climate\.[a-z0-9_]+$")
 _TOKEN_ENV_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_ESPHOME_ENTITY_RE = re.compile(r"^[a-z][a-z0-9_]{0,119}$")
 
 DecisionKind = Literal["allow", "approve", "deny"]
 
@@ -98,6 +101,9 @@ class ZonePolicy:
     modes: frozenset[str]
     host: str = ""
     instance: int = 1
+    transport: str = TRANSPORT_HOME_ASSISTANT
+    node: str = ""
+    entity: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +213,12 @@ def require_token_env(name: object) -> str:
     if not isinstance(name, str) or _TOKEN_ENV_RE.fullmatch(name) is None:
         raise ValueError("token_env must name an environment variable")
     return name
+
+
+def require_esphome_entity(entity: object) -> str:
+    if not isinstance(entity, str) or _ESPHOME_ENTITY_RE.fullmatch(entity) is None:
+        raise ValueError("esphome entity is not allowed")
+    return entity
 
 
 def climate_action_digest(
@@ -396,3 +408,6 @@ class ZoneBounds(BaseModel):
     modes: list[ClimateMode] = Field(min_length=1)
     host: str = ""
     instance: int = Field(default=1, ge=1, le=255)
+    transport: ClimateTransport | None = None
+    node: str = ""
+    entity: str = ""

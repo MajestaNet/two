@@ -17,7 +17,8 @@ runs at a time. This repository is not a messenger product
 and it does not develop unrelated repositories. The CLI is the local surface
 today; ADR 0015/B14 plans a secure first-party mobile client over the same
 API. The climate device package is in-repo and default off (ADR 0022).
-A binding may use Home Assistant REST or ECHONET Lite (ADR 0027).
+A binding may use Home Assistant REST, ECHONET Lite (ADR 0027), or an
+ESPHome climate entity on a shared node (ADR 0043).
 The television package is in-repo and default off (ADR 0029).
 The vacuum package is in-repo and default off (ADR 0038). Its transport
 is the Ecovacs Open API on the two official hosts. Listing is GET
@@ -110,6 +111,7 @@ uv run two tv apps --set SET
 uv run two vacuum send --text TEXT
 uv run two vacuum show TURN_ID
 uv run two vacuum robots
+uv run two esphome entities
 uv run python -m two.providers --check
 ./scripts/smoke-test.sh --dry-run
 ./scripts/bootstrap-dev-host.sh --dry-run
@@ -190,7 +192,9 @@ the local operator window and is not part of that gate.
   enabled. `console` is the local window (`apps/console`, ADR 0031, ADR 0032, ADR 0034, ADR 0035, ADR 0037, ADR 0038, ADR 0040),
  shipped and off, and it resumes `chat` only. `watch` and `mobile`
  are clients at `contract`. `climate`
- is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027).
+ is shipped and off (`src/two/devices/climate/`, ADR 0022, ADR 0027,
+ ADR 0043). `$TWO_DATA_DIR/devices/esphome.yaml` lists ESPHome nodes
+ and is not a catalog slot.
  `tv` is shipped and off (`src/two/devices/tv/`, ADR 0029).
  `vacuum` is shipped and off (`src/two/devices/vacuum/`, ADR 0038).
  The kind-level `device` slot and `github` (`src/two/export/`) stay

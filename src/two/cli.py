@@ -243,6 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_climate_parser(subparsers)
     _add_tv_parser(subparsers)
     _add_vacuum_parser(subparsers)
+    _add_esphome_parser(subparsers)
     return parser
 
 
@@ -338,6 +339,11 @@ def main(
         from two.cli_vacuum import run_vacuum
 
         return run_vacuum(args, request=request)
+    if args.command == "esphome":
+        _load_host_env()
+        from two.cli_esphome import run_esphome
+
+        return run_esphome(args)
     if args.command is None:
         parser.print_help()
         return 0
@@ -931,6 +937,26 @@ def _add_vacuum_parser(subparsers: Any) -> None:
         help="Print Ecovacs account nicknames and write nothing",
     )
     robots.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
+
+
+def _add_esphome_parser(subparsers: Any) -> None:
+    esphome = subparsers.add_parser(
+        "esphome",
+        help="List entities on bound ESPHome nodes",
+        description=(
+            "entities lists domain, object id, and name for nodes in "
+            "$TWO_DATA_DIR/devices/esphome.yaml and writes nothing."
+        ),
+    )
+    esphome_sub = esphome.add_subparsers(dest="esphome_command", required=True)
+    entities = esphome_sub.add_parser(
+        "entities",
+        help="Print entity names on bound ESPHome nodes and write nothing",
+    )
+    entities.add_argument(
+        "--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)"
+    )
+    entities.add_argument("--node", default=None, help="Optional node id from the binding")
 
 
 if __name__ == "__main__":

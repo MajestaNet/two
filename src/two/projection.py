@@ -606,7 +606,7 @@ class InstallPendingView(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tool: Literal["install.propose_binding", "install.propose_change"]
-    slot: Literal["climate", "tv", "vacuum"] | None = None
+    slot: Literal["climate", "tv", "vacuum", "esphome"] | None = None
     summary: str = Field(min_length=1, max_length=500)
 
     @model_validator(mode="after")
@@ -1155,12 +1155,12 @@ class ArtifactContent(BaseModel):
 
 
 class AdapterDeviceView(BaseModel):
-    """One bound device id. Zone name or television set id. No address or token."""
+    """One bound device id. Zone, node, set, or robot id. No address or token."""
 
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    kind: Literal["zone", "set", "robot"]
+    kind: Literal["zone", "set", "robot", "node"]
 
 
 class AdapterSlotView(BaseModel):
