@@ -16,14 +16,21 @@ copyright holder is MajestaNet. See [ADR 0008](adrs/0008-majesta-two-identity.md
 ## Must never be published
 
 - `.env` and real tokens (GitHub App, cloud, SSH keys)
+- Private key files (`*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`)
 - Real private-network hostnames or Mac bind addresses
+- Git author and committer identities that contain a machine hostname
+  (`user@Some-Mac.local` is a private-network hostname). A `.mailmap`
+  does not remove that identity from the commit object.
+- Operator-filled `config/runtime/models.lock` (keep
+  `config/runtime/models.lock.example`)
 - Model weight files (`*.gguf`, `*.mlx`, `models/`)
 - SQLite files, worktrees, and task artifacts (`var/`, `data/`, `*.db`)
 - Evaluation workspace clones (`evals/workspaces/`)
 - Raw harness trajectories that include repository source
 
-`.gitignore` is written to keep those paths out. Templates such as
-`.env.example` and `config/dsh/settings.yaml.template` use placeholders only.
+`.gitignore` keeps those paths out of new commits. It does not rewrite
+commits that are already on a branch. Templates such as `.env.example`
+and `config/dsh/settings.yaml.template` use placeholders only.
 
 ## Source headers
 
