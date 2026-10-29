@@ -22,6 +22,7 @@ from pathlib import Path
 
 from two.adapters import load_catalog
 from two.devices.climate.config import load_climate_config
+from two.devices.esphome.config import load_esphome_config
 from two.devices.tv.config import load_tv_config
 from two.devices.vacuum.config import load_vacuum_config
 from two.projection import AdapterDeviceView, AdapterMenuView, AdapterSlotView
@@ -32,7 +33,7 @@ def project_adapter_menu(
     *,
     repo_root: Path | None = None,
 ) -> AdapterMenuView:
-    """Catalog slots plus bound climate zones, television sets, and vacuum robots.
+    """Catalog slots plus bound climate zones, ESPHome nodes, television sets, and vacuum robots.
 
     A missing or disabled binding contributes no devices. Entity ids, hosts,
     MAC addresses, and token env names are not copied onto the view.
@@ -40,6 +41,7 @@ def project_adapter_menu(
 
     catalog = load_catalog(repo_root=repo_root) if repo_root is not None else load_catalog()
     climate = load_climate_config(data_dir)
+    esphome = load_esphome_config(data_dir)
     television = load_tv_config(data_dir)
     vacuum = load_vacuum_config(data_dir)
     slots: list[AdapterSlotView] = []
@@ -50,6 +52,10 @@ def project_adapter_menu(
             install_enabled = climate is not None
             if climate is not None:
                 devices = [AdapterDeviceView(id=zone_id, kind="zone") for zone_id in climate.zones]
+            if esphome is not None:
+                devices.extend(
+                    AdapterDeviceView(id=node_id, kind="node") for node_id in esphome.nodes
+                )
         elif slot.id == "tv":
             install_enabled = television is not None
             if television is not None:

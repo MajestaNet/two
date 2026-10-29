@@ -42,7 +42,7 @@
   harness profile: a redacted install snapshot, a guide allowlist, and
   approved shipped bindings or self-build tasks. An omitted profile does
   not route there. Do not paste that ADR here.
-- `adrs/0043-operator-first-run-steps.md` lists vacuum nicknames without
+- `adrs/0044-operator-first-run-steps.md` lists vacuum nicknames without
   an enabled binding and stores a television token in the data-dir env
   file. The model does not see the token. Do not paste that ADR here.
 - `adrs/0041-operator-chat-approval.md` lets a later operator transcript
@@ -81,6 +81,9 @@
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.
+- `adrs/0043-esphome-nodes.md` is the shared ESPHome node client. A
+  climate zone may name a climate entity on that node. There is no
+  esphome catalog slot. Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
 - `backlog/` holds dedicated implementation items (B01–B27). B20
@@ -88,7 +91,7 @@
   and leaves that slot default off. B25 executes the closed vacuum
   tools on the same profile (ADR 0038) and leaves that slot default off.
   B26 resumes harness profile `operator` (ADR 0039). An omitted profile
-  does not route there. B27 is first-run list and pair (ADR 0043).
+  does not route there. B27 is first-run list and pair (ADR 0044).
   Status tables there are the tracker. Each item file ends with an
   agentic prompt. Do not copy the spec into those files; point at
   sections.

@@ -877,8 +877,7 @@ def _perform(
     *,
     data_dir: Path | str | None,
 ) -> ClimateReadback:
-    del data_dir
-    target = broker if broker is not None else _default_broker(install)
+    target = broker if broker is not None else _default_broker(install, data_dir=data_dir)
     if call.tool == "climate.read":
         return target.read(call.entity_id, zone=call.zone)
     if call.tool == "climate.set_setpoint":
@@ -890,8 +889,11 @@ def _perform(
     return target.set_mode(call.entity_id, call.mode, zone=call.zone)
 
 
-def _default_broker(install: ClimateInstall) -> ClimateBroker:
-    return open_climate_broker(install)
+def _default_broker(
+    install: ClimateInstall,
+    data_dir: Path | str | None = None,
+) -> ClimateBroker:
+    return open_climate_broker(install, data_dir=data_dir)
 
 
 def _handle_tv_tool(

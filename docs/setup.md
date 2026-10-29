@@ -38,12 +38,16 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued operator turn, which is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
-| Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. After a pending binding, a later operator send that is only `approved` or `rejected` applies the stored digest ([ADR 0041](adrs/0041-operator-chat-approval.md)). An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.list_account`, `install.pair_device`, `install.propose_binding`, and `install.propose_change`. `install.status` reports whether named env vars are present. `install.list_account` prints vacuum nicknames without an enabled binding. `install.pair_device` stores a television token in `$TWO_DATA_DIR/env` and does not print the token. The Adapters page runs those same steps. A binding write and a self-build task wait for a digest. The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [ADR 0043](adrs/0043-operator-first-run-steps.md), [B26](backlog/B26-operator-install-profile.md), [B27](backlog/B27-operator-first-run-steps.md)) |
-| Harness profile `home-action` | Works when a local climate, television, or vacuum binding is enabled (`two climate`, `two tv`, or `two vacuum`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. When `$TWO_DATA_DIR/devices/vacuum.yaml` is enabled, it performs `vacuum.read`, `vacuum.clean`, and `vacuum.dock` against the Ecovacs Open API. A known robot is pre-authorized. Without one of those bindings the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set; "turn heat on upstairs office" compiles `climate.set_mode` without the harness; "start the downstairs vacuum" compiles `vacuum.clean` the same way, and "dock all vacuums" repeats the dock ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [ADR 0036](adrs/0036-closed-utterance-compile.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
+| Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. After a pending binding, a later operator send that is only `approved` or `rejected` applies the stored digest ([ADR 0041](adrs/0041-operator-chat-approval.md)). An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.list_account`, `install.pair_device`, `install.propose_binding`, and `install.propose_change`. `install.status` reports whether named env vars are present. `install.list_account` prints vacuum nicknames without an enabled binding. `install.pair_device` stores a television token in `$TWO_DATA_DIR/env` and does not print the token. The Adapters page runs those same steps. A binding write and a self-build task wait for a digest. Bindings are climate, television, vacuum, and ESPHome nodes ([ADR 0043](adrs/0043-esphome-nodes.md)). The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [ADR 0044](adrs/0044-operator-first-run-steps.md), [B26](backlog/B26-operator-install-profile.md), [B27](backlog/B27-operator-first-run-steps.md)) |
+| Harness profile `home-action` | Works when a local climate, television, or vacuum binding is enabled (`two climate`, `two tv`, or `two vacuum`). A climate zone may name an ESPHome entity (`two esphome entities`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. When `$TWO_DATA_DIR/devices/vacuum.yaml` is enabled, it performs `vacuum.read`, `vacuum.clean`, and `vacuum.dock` against the Ecovacs Open API. A known robot is pre-authorized. Without one of those bindings the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set; "turn heat on upstairs office" compiles `climate.set_mode` without the harness; "start the downstairs vacuum" compiles `vacuum.clean` the same way, and "dock all vacuums" repeats the dock ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [ADR 0036](adrs/0036-closed-utterance-compile.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [ADR 0043](adrs/0043-esphome-nodes.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
 
-Last updated: 29 October 2026 (ADR 0043: operator first-run list and
+Last updated: 29 October 2026 (ADR 0044: operator first-run list and
 pair. Vacuum listing does not need an enabled binding. Television
 pairing stores the token in `$TWO_DATA_DIR/env`.
+ADR 0043: a climate zone may name an
+ESPHome climate entity on a shared node. `$TWO_DATA_DIR/devices/esphome.yaml`
+lists nodes. `two esphome entities` prints object ids. Infrared
+read-back is the node, not the air conditioner.
 ADR 0042: Ecovacs listing is GET with
 `ak` on the query string. Control stays POST JSON.
 ADR 0041: a later operator send that is
@@ -853,8 +857,51 @@ These units will not answer this transport:
 
 Home Assistant remains the other binding
 ([config/devices/climate.example.yaml](../config/devices/climate.example.yaml)).
-Use one file. A hostname, a public address, and a token on the ECHONET
-binding are refused, and `home-action` is not stored.
+An older infrared LG unit uses an ESPHome node instead
+([ADR 0043](adrs/0043-esphome-nodes.md)). Use one climate file. A
+hostname, a public address, and a token on the ECHONET binding are
+refused, and `home-action` is not stored.
+
+## ESPHome nodes
+
+The closed climate tools stay `climate.read`, `climate.set_setpoint`,
+and `climate.set_mode`. An RF433 / IR / BLE ESPHome board is a node,
+not an air conditioner. Older LG units are reached through ESPHome's
+`climate_ir_lg` entity on that node ([ADR 0043](adrs/0043-esphome-nodes.md)).
+Copy [config/devices/esphome.example.yaml](../config/devices/esphome.example.yaml)
+to `$TWO_DATA_DIR/devices/esphome.yaml`. Copy
+[config/devices/climate-esphome.example.yaml](../config/devices/climate-esphome.example.yaml)
+into the climate file, or add that zone beside existing ECHONET zones.
+The climate slot stays off until `climate.yaml` is enabled.
+`two climate` still talks only to the control API. `two esphome entities`
+lists names on the bound nodes and writes nothing.
+
+Do this before expecting a reply:
+
+1. Flash the vendor sample for this RF/IR/BLE board in the ESPHome
+   dashboard. Keep its pin map. Add `climate_ir_lg` on the IR
+   transmitter. An IR receiver is optional; it lets the handheld remote
+   update assumed state. Add `api` with an encryption key
+   (`openssl rand -base64 32`). Leave BLE proxy and 433 MHz unused by
+   Majesta. Pins and LG timings that differ by region stay in that
+   ESPHome file, not in this repository.
+2. Put the key in the environment variable named by `key_env` (default
+   `TWO_ESPHOME_KEY`). Never put the key in the binding. Reserve a DHCP
+   address on the same private LAN as the Mac mini.
+3. `install.propose_binding` slot `esphome` with the node id, that
+   address, and `key_env`. The operator types `approved`.
+4. Run `two esphome entities` and use the climate `object_id` it prints.
+5. `install.propose_binding` slot `climate` with that zone and every
+   zone already shown by `install.status`. Restart `two worker`.
+6. The LG room is then a normal zone:
+   `two climate send --text "what is the office temperature"`, or a
+   compiled utterance such as heat on that zone id
+   ([ADR 0036](adrs/0036-closed-utterance-compile.md)).
+
+Infrared cannot confirm the unit. `reachable` means the node answered.
+Room Celsius is present only when that entity reports it. Dry, fan, and
+swing are not closed modes. A hostname, a public address, and a
+plaintext API are refused.
 
 ## Samsung televisions on the LAN
 
