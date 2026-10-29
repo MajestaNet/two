@@ -4,7 +4,8 @@
 
 Accepted. The climate slot stays off until an installation binds it.
 Speech, MQTT, Matter commissioning, and other Wi-Fi dialects are not
-implemented by this ADR.
+implemented by this ADR. ADR 0043 amends decision 2: a zone may select
+ESPHome while other zones keep this transport.
 
 ## Context
 
@@ -36,8 +37,9 @@ is this transport.
    remains the default and still requires a private origin and a token
    variable. `transport: echonet` names each zone's private IPv4
    address and an instance number (default 1). It has no token and no
-   upstream URL. A missing or invalid file still leaves `home-action`
-   unexecutable. Landing this code does not enable the slot.
+   upstream URL. A zone may instead select ESPHome (ADR 0043). A
+   missing or invalid file still leaves `home-action` unexecutable.
+   Landing this code does not enable the slot.
 3. **The client is stdlib UDP.** The package stays `two.devices.climate`.
    One Get reads status, mode, setpoint, and room temperature. One
    SetC writes a whole-degree setpoint, or power together with

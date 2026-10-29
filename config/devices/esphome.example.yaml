@@ -1,0 +1,24 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example ESPHome node file (ADR 0043). Copy to
+# $TWO_DATA_DIR/devices/esphome.yaml and set enabled: true.
+# Operator connect order (do not paste this file as the answer):
+# 1. Flash the vendor RF/IR/BLE sample in the ESPHome dashboard.
+#    Keep its pin map. Add climate_ir_lg on the IR transmitter
+#    (optional IR receiver so the handheld remote updates assumed
+#    state). Add api encryption. Leave BLE proxy and 433 MHz unused
+#    by Majesta. Pins and LG timings stay in that ESPHome file.
+# 2. Put TWO_ESPHOME_KEY=<openssl rand -base64 32> in $TWO_DATA_DIR/env.
+#    Never put the key here.
+# 3. Enable this file, restart the worker, run `two esphome entities`.
+# 4. Use the climate object_id it prints in climate-esphome.example.yaml.
+# Host is the node's private IPv4 address. Port defaults to 6053.
+# See docs/setup.md.
+
+enabled: false
+nodes:
+  ir-bridge:
+    host: 192.168.1.60
+    port: 6053
+    key_env: TWO_ESPHOME_KEY

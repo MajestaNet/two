@@ -25,8 +25,11 @@ Configuration is data. Do not put Python here.
   messenger. `adapters/catalog.yaml` is the install menu (ADR 0021).
   `devices/climate.example.yaml` is the Home Assistant climate binding
   (ADR 0022). `devices/climate-echonet.example.yaml` is the direct
-  air-conditioner binding (ADR 0027). Copy one under `$TWO_DATA_DIR`
-  before enabling it. Do not enable both.
+  air-conditioner binding (ADR 0027). `devices/esphome.example.yaml` is
+  the shared ESPHome node file (ADR 0043).
+  `devices/climate-esphome.example.yaml` is a climate zone on that node.
+  Copy under `$TWO_DATA_DIR` before enabling. A climate file may mix
+  ECHONET and ESPHome zones.
   `devices/tv.example.yaml` is the Samsung television binding (ADR 0029).
   Copy it under `$TWO_DATA_DIR` before enabling it. Tokens stay in the
   environment. `devices/vacuum.example.yaml` is the Ecovacs vacuum

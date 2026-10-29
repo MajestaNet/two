@@ -11,3 +11,5 @@ those projects or companies.
 The local operator console includes Inter and Josefin Sans, each
 licensed under the SIL Open Font License, Version 1.1. Copies of those
 licenses are in apps/console/src/renderer/fonts/.
+
+This product uses aioesphomeapi, licensed under the MIT License.

@@ -78,6 +78,9 @@
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
   Do not paste that ADR here.
+- `adrs/0043-esphome-nodes.md` is the shared ESPHome node client. A
+  climate zone may name a climate entity on that node. There is no
+  esphome catalog slot. Do not paste that ADR here.
 - `setup.md` is the living operator guide. Update its status table in the
   same PR as setup, inference-profile, or deployment-topology changes.
 - `backlog/` holds dedicated implementation items (B01–B26). B20

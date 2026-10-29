@@ -104,7 +104,9 @@ Python package for the Majesta Two control plane.
   first-party mobile API client, not another `channels.*` agent runtime.
   Device adapters live under `devices/`, not here. `devices/climate/`
   is ADR 0022 and stays default off. The binding transport is Home
-  Assistant REST or ECHONET Lite (ADR 0027). `devices/tv/` is ADR 0029
+  Assistant REST, ECHONET Lite (ADR 0027), or an ESPHome climate entity
+  on a shared node (ADR 0043). `devices/esphome/` is that node client
+  and is not a catalog slot. `devices/tv/` is ADR 0029
   and stays default off. The transport is the Samsung local API.
   `devices/vacuum/` is ADR 0038 and stays default off. The transport is
   the Ecovacs Open API on the two official hosts. Listing is GET with
@@ -154,7 +156,8 @@ Python package for the Majesta Two control plane.
   dumping YAML. A binding write and a self-build task wait for
   an approval digest. A later operator transcript that is only
   `approved` or `rejected` applies that digest (ADR 0041).
-  The climate transport is Home Assistant REST or ECHONET Lite (ADR 0027).
+  The climate transport is Home Assistant REST, ECHONET Lite (ADR 0027),
+  or an ESPHome climate entity on a shared node (ADR 0043).
 - `recovery/` owns architecture §12.5 startup recovery (`recover_startup`)
   and the `two scheduler` / `two worker` process loops. The scheduler
   idle poll is 1s (`IDLE_POLL_SECONDS`); lease heartbeat stays 10s.

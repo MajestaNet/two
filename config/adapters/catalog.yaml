@@ -87,8 +87,9 @@ slots:
     notes: >
       Closed climate tools (ADR 0022). Default off. An install enables it
       with $TWO_DATA_DIR/devices/climate.yaml. The transport is Home
-      Assistant REST or ECHONET Lite (ADR 0027). The model does not call
-      the upstream. The control plane performs the read-back.
+      Assistant REST, ECHONET Lite (ADR 0027), or an ESPHome climate
+      entity on a shared node (ADR 0043). The model does not call the
+      upstream. The control plane performs the read-back.
 
   tv:
     kind: device

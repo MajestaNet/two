@@ -99,8 +99,8 @@ def _operator_prompt(transcript: str, snapshot: str) -> str:
         [
             "install.status",
             "install.read_guide arguments: doc "
-            "(setup, adapters, climate, climate-echonet, tv, vacuum)",
-            "install.propose_binding arguments: slot (climate, tv, vacuum), document",
+            "(setup, adapters, climate, climate-echonet, esphome, climate-esphome, tv, vacuum)",
+            "install.propose_binding arguments: slot (climate, tv, vacuum, esphome), document",
             "install.propose_change arguments: objective, acceptance_criteria, allowed_paths",
             "Do not use shell, git, or any other tool.",
             "A binding write and a code change wait for approval.",
