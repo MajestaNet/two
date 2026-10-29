@@ -24,7 +24,7 @@ close §21 item 20.
 B26 resumes harness profile `operator` for this install (ADR 0039).
 An omitted profile does not route there. B26 does not move the coding
 child onto pinned ACP and does not close §21 item 20.
-B27 adds operator first-run list and pair (ADR 0043). Device slots stay
+B27 adds operator first-run list and pair (ADR 0044). Device slots stay
 off. B27 does not close §21 item 20.
 
 Each item is one markdown file. **Status is the tracker.** Update the

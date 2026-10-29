@@ -37,6 +37,11 @@ from two.devices.climate.config import (
     climate_config_path,
     load_climate_config,
 )
+from two.devices.esphome.config import (
+    canonical_esphome_document,
+    esphome_config_path,
+    load_esphome_config,
+)
 from two.devices.tv.config import canonical_tv_document, load_tv_config, tv_config_path
 from two.devices.vacuum.config import (
     canonical_vacuum_document,
@@ -63,7 +68,7 @@ LIST_TOOL: Literal["install.list_account"] = "install.list_account"
 PAIR_TOOL: Literal["install.pair_device"] = "install.pair_device"
 CLOSED_TOOLS = frozenset({STATUS_TOOL, GUIDE_TOOL, BINDING_TOOL, CHANGE_TOOL, LIST_TOOL, PAIR_TOOL})
 PROPOSE_TOOLS = frozenset({BINDING_TOOL, CHANGE_TOOL})
-BINDING_SLOTS = frozenset({"climate", "tv", "vacuum"})
+BINDING_SLOTS = frozenset({"climate", "tv", "vacuum", "esphome"})
 GUIDE_LIMIT = 3500
 _SUMMARY_LIMIT = 500
 _OBJECTIVE_LIMIT = 1500
@@ -85,6 +90,8 @@ _GUIDES: dict[str, str] = {
     "adapters": "docs/adapters.md",
     "climate": "config/devices/climate.example.yaml",
     "climate-echonet": "config/devices/climate-echonet.example.yaml",
+    "esphome": "config/devices/esphome.example.yaml",
+    "climate-esphome": "config/devices/climate-esphome.example.yaml",
     "tv": "config/devices/tv.example.yaml",
     "vacuum": "config/devices/vacuum.example.yaml",
 }
@@ -92,11 +99,14 @@ _SETUP_RELPATH = "docs/setup.md"
 _GUIDE_HEADINGS: dict[str, str] = {
     "climate": "## Air conditioners on the LAN",
     "climate-echonet": "## Air conditioners on the LAN",
+    "esphome": "## ESPHome nodes",
+    "climate-esphome": "## ESPHome nodes",
     "tv": "## Samsung televisions on the LAN",
     "vacuum": "## Ecovacs vacuums",
 }
 _TRUNCATION_NOTE = (
-    "\n[truncated] Device connect steps: read_guide climate, climate-echonet, tv, or vacuum."
+    "\n[truncated] Device connect steps: read_guide climate, climate-echonet, "
+    "esphome, climate-esphome, tv, or vacuum."
 )
 DEVICE_CONNECT_HINTS = (
     "Reply in numbered steps. Do not paste YAML. Do not invent a secret, "
@@ -111,11 +121,18 @@ DEVICE_CONNECT_HINTS = (
     "propose_binding with enabled true, api_host matching that portal, "
     "token_env that name, and robots as a map of lowercase ids "
     "the operator chose to {nickname}, not a list.\n"
-    "climate: Home Assistant REST or ECHONET Lite; ask for zone ids and token_env.\n"
+    "climate: Home Assistant REST, ECHONET Lite, or ESPHome; ask for zone ids "
+    "and token_env or node id plus climate object_id.\n"
+    "esphome: flash the vendor sample with climate_ir_lg and an api encryption "
+    "key; put the key in the env name (default TWO_ESPHOME_KEY); never in the "
+    "binding; propose_binding slot esphome with enabled true, nodes as a map of "
+    "lowercase ids to {host, key_env}, then two esphome entities prints object "
+    "ids; a climate proposal must repeat every zone already shown by status.\n"
     "tv: private LAN; per-set token_env; after the binding is approved, "
     "install.pair_device stores the token in the data-dir env file.\n"
     "Ask for the missing fact. You may reply without a tool. Call at most "
-    "one closed tool, and only for a guide, a status refresh, a binding, or a change. "
+    "one closed tool, and only for a guide, a status refresh, an account "
+    "list, a television pair, a binding, or a change. "
     "After propose_binding, wait. The operator types approved or rejected.\n"
 )
 _PATH_PREFIXES = ("src/", "tests/", "config/", "scripts/", "docs/", "deploy/", "evals/")
@@ -150,6 +167,7 @@ _CANONICAL = {
     "climate": canonical_climate_document,
     "tv": canonical_tv_document,
     "vacuum": canonical_vacuum_document,
+    "esphome": canonical_esphome_document,
 }
 
 
@@ -477,13 +495,15 @@ def _robot_id_from_label(label: str) -> str | None:
     return slug
 
 
-def _slot_name(slot: object) -> Literal["climate", "tv", "vacuum"] | None:
+def _slot_name(slot: object) -> Literal["climate", "tv", "vacuum", "esphome"] | None:
     if slot == "climate":
         return "climate"
     if slot == "tv":
         return "tv"
     if slot == "vacuum":
         return "vacuum"
+    if slot == "esphome":
+        return "esphome"
     return None
 
 
@@ -492,6 +512,8 @@ def _binding_path(slot: str, data_dir: Path | str | None) -> Path:
         return climate_config_path(data_dir)
     if slot == "tv":
         return tv_config_path(data_dir)
+    if slot == "esphome":
+        return esphome_config_path(data_dir)
     return vacuum_config_path(data_dir)
 
 
@@ -500,6 +522,8 @@ def _loaded(slot: str, data_dir: Path | str | None) -> object:
         return load_climate_config(data_dir)
     if slot == "tv":
         return load_tv_config(data_dir)
+    if slot == "esphome":
+        return load_esphome_config(data_dir)
     return load_vacuum_config(data_dir)
 
 
@@ -512,11 +536,13 @@ def _binding_summary(slot: str, document: Mapping[str, object]) -> str:
         return f"climate {enabled} transport {label} zones {names}"
     if slot == "tv":
         return f"tv {enabled} sets {names}"
+    if slot == "esphome":
+        return f"esphome {enabled} nodes {names}"
     return f"vacuum {enabled} robots {names}"
 
 
 def _device_names(slot: str, document: Mapping[str, object]) -> list[str]:
-    key = {"climate": "zones", "tv": "sets", "vacuum": "robots"}[slot]
+    key = {"climate": "zones", "tv": "sets", "vacuum": "robots", "esphome": "nodes"}[slot]
     raw = document.get(key)
     if not isinstance(raw, dict):
         return []

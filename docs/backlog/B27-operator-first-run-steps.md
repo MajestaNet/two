@@ -7,8 +7,8 @@
 | Status | done |
 | Depends on | B26 |
 | Blocks | Nothing. Landing this item does not close architecture §21 item 20. |
-| Architecture | §5.4, §15, ADR 0043 |
-| Design | [ADR 0043](../adrs/0043-operator-first-run-steps.md). Do not treat this file as a second contract. |
+| Architecture | §5.4, §15, ADR 0044 |
+| Design | [ADR 0044](../adrs/0044-operator-first-run-steps.md). Do not treat this file as a second contract. |
 
 ## Goal
 
@@ -35,5 +35,5 @@ for the install routes. `make ci` is green.
 
 ## Agentic prompt
 
-Implement ADR 0043. Keep device slots default off. Do not add a runtime
+Implement ADR 0044. Keep device slots default off. Do not add a runtime
 dependency. Do not put a secret value on an operator reply.

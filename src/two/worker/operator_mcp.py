@@ -51,6 +51,8 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
                         "adapters",
                         "climate",
                         "climate-echonet",
+                        "esphome",
+                        "climate-esphome",
                         "tv",
                         "vacuum",
                     ],
@@ -97,14 +99,16 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
     (
         "install_propose_binding",
         "install.propose_binding",
-        "Propose a climate, television, or vacuum binding after the operator "
-        "gave nicknames or zone names and the token env name. Does not write it. "
-        "Vacuum document.robots must be a map of lowercase ids to {nickname}. "
-        "Do not invent a nickname, address, or secret.",
+        "Propose a climate, television, vacuum, or esphome binding after the "
+        "operator gave nicknames, zone names, node ids, and the token or key "
+        "env name. Does not write it. Vacuum document.robots must be a map of "
+        "lowercase ids to {nickname}. Esphome document.nodes must be a map of "
+        "lowercase ids to {host, key_env}. Do not invent a nickname, address, "
+        "or secret.",
         {
             "type": "object",
             "properties": {
-                "slot": {"type": "string", "enum": ["climate", "tv", "vacuum"]},
+                "slot": {"type": "string", "enum": ["climate", "tv", "vacuum", "esphome"]},
                 "document": {"type": "object"},
             },
             "required": ["slot", "document"],

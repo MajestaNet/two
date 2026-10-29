@@ -25,7 +25,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -34,11 +33,14 @@ from two.devices.climate.contract import (
     SANITY_MAX_CELSIUS,
     SANITY_MIN_CELSIUS,
     TRANSPORT_ECHONET,
+    TRANSPORT_ESPHOME,
     TRANSPORT_HOME_ASSISTANT,
     ClimateInstall,
+    ClimateTransport,
     ZoneBounds,
     ZonePolicy,
     require_entity_id,
+    require_esphome_entity,
     require_private_host,
     require_private_upstream,
     require_token_env,
@@ -55,7 +57,7 @@ class _Document(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool
-    transport: Literal["home_assistant", "echonet"] = TRANSPORT_HOME_ASSISTANT
+    transport: ClimateTransport = TRANSPORT_HOME_ASSISTANT
     upstream: str = ""
     token_env: str = ""
     zones: dict[str, ZoneBounds] = Field(default_factory=dict)
@@ -127,9 +129,47 @@ def _untangle_yaml_off(raw: dict[object, object]) -> None:
 
 
 def _install(document: _Document) -> ClimateInstall:
-    if document.transport == TRANSPORT_ECHONET:
-        return _echonet_install(document)
-    return _home_assistant_install(document)
+    if not document.zones:
+        raise ClimateConfigError("climate binding needs a zone")
+    zones: dict[str, ZonePolicy] = {}
+    seen_entities: set[str] = set()
+    seen_units: set[tuple[str, int]] = set()
+    seen_esphome: set[tuple[str, str]] = set()
+    used: set[str] = set()
+    for key, bounds in document.zones.items():
+        zone = require_zone_id(key)
+        transport = bounds.transport if bounds.transport is not None else document.transport
+        policy = _zone_policy(zone, bounds, transport)
+        if policy.entity_id in seen_entities:
+            raise ClimateConfigError(f"{zone} repeats an entity id")
+        seen_entities.add(policy.entity_id)
+        if transport == TRANSPORT_ECHONET:
+            unit = (policy.host, policy.instance)
+            if unit in seen_units:
+                raise ClimateConfigError(f"{zone} repeats a unit address")
+            seen_units.add(unit)
+        if transport == TRANSPORT_ESPHOME:
+            pair = (policy.node, policy.entity)
+            if pair in seen_esphome:
+                raise ClimateConfigError(f"{zone} repeats an esphome entity")
+            seen_esphome.add(pair)
+        zones[zone] = policy
+        used.add(transport)
+    needs_ha = TRANSPORT_HOME_ASSISTANT in used
+    if needs_ha:
+        upstream = require_private_upstream(document.upstream)
+        token_env = require_token_env(document.token_env)
+    else:
+        if document.upstream.strip() or document.token_env.strip():
+            raise ClimateConfigError("non-home-assistant binding has no upstream and no token")
+        upstream = ""
+        token_env = ""
+    return ClimateInstall(
+        upstream=upstream,
+        token_env=token_env,
+        zones=zones,
+        transport=document.transport,
+    )
 
 
 def _zone_band(zone: str, bounds: ZoneBounds) -> tuple[float, float, frozenset[str]]:
@@ -144,61 +184,64 @@ def _zone_band(zone: str, bounds: ZoneBounds) -> tuple[float, float, frozenset[s
     )
 
 
-def _home_assistant_install(document: _Document) -> ClimateInstall:
-    upstream = require_private_upstream(document.upstream)
-    token_env = require_token_env(document.token_env)
-    if not document.zones:
-        raise ClimateConfigError("climate binding needs a zone")
-    zones: dict[str, ZonePolicy] = {}
-    for key, bounds in document.zones.items():
-        zone = require_zone_id(key)
-        if bounds.host.strip():
-            raise ClimateConfigError(f"{zone} host is only valid for echonet")
-        if bounds.instance != 1:
-            raise ClimateConfigError(f"{zone} instance is only valid for echonet")
-        minimum, maximum, modes = _zone_band(zone, bounds)
-        zones[zone] = ZonePolicy(
-            zone=zone,
-            entity_id=require_entity_id(bounds.entity_id),
-            min_celsius=minimum,
-            max_celsius=maximum,
-            modes=modes,
-        )
-    return ClimateInstall(upstream=upstream, token_env=token_env, zones=zones)
-
-
-def _echonet_install(document: _Document) -> ClimateInstall:
-    if document.upstream.strip() or document.token_env.strip():
-        raise ClimateConfigError("echonet binding has no upstream and no token")
-    if not document.zones:
-        raise ClimateConfigError("climate binding needs a zone")
-    zones: dict[str, ZonePolicy] = {}
-    seen_units: set[tuple[str, int]] = set()
-    seen_entities: set[str] = set()
-    for key, bounds in document.zones.items():
-        zone = require_zone_id(key)
-        host = require_private_host(bounds.host)
-        entity_id = require_entity_id(bounds.entity_id)
-        unit = (host, bounds.instance)
-        if unit in seen_units:
-            raise ClimateConfigError(f"{zone} repeats a unit address")
-        if entity_id in seen_entities:
-            raise ClimateConfigError(f"{zone} repeats an entity id")
-        seen_units.add(unit)
-        seen_entities.add(entity_id)
-        minimum, maximum, modes = _zone_band(zone, bounds)
-        zones[zone] = ZonePolicy(
+def _zone_policy(zone: str, bounds: ZoneBounds, transport: str) -> ZonePolicy:
+    minimum, maximum, modes = _zone_band(zone, bounds)
+    entity_id = require_entity_id(bounds.entity_id)
+    if transport == TRANSPORT_HOME_ASSISTANT:
+        _reject_direct_fields(zone, bounds, allow_host=False, allow_esphome=False)
+        return ZonePolicy(
             zone=zone,
             entity_id=entity_id,
             min_celsius=minimum,
             max_celsius=maximum,
             modes=modes,
-            host=host,
-            instance=bounds.instance,
+            transport=TRANSPORT_HOME_ASSISTANT,
         )
-    return ClimateInstall(
-        upstream="",
-        token_env="",
-        zones=zones,
-        transport=TRANSPORT_ECHONET,
+    if transport == TRANSPORT_ECHONET:
+        _reject_direct_fields(zone, bounds, allow_host=True, allow_esphome=False)
+        return ZonePolicy(
+            zone=zone,
+            entity_id=entity_id,
+            min_celsius=minimum,
+            max_celsius=maximum,
+            modes=modes,
+            host=require_private_host(bounds.host),
+            instance=bounds.instance,
+            transport=TRANSPORT_ECHONET,
+        )
+    if transport != TRANSPORT_ESPHOME:
+        raise ClimateConfigError("climate transport is not allowed")
+    _reject_direct_fields(zone, bounds, allow_host=False, allow_esphome=True)
+    return ZonePolicy(
+        zone=zone,
+        entity_id=entity_id,
+        min_celsius=minimum,
+        max_celsius=maximum,
+        modes=modes,
+        transport=TRANSPORT_ESPHOME,
+        node=require_zone_id(bounds.node),
+        entity=require_esphome_entity(bounds.entity),
     )
+
+
+def _reject_direct_fields(
+    zone: str,
+    bounds: ZoneBounds,
+    *,
+    allow_host: bool,
+    allow_esphome: bool,
+) -> None:
+    if allow_host:
+        if bounds.node.strip() or bounds.entity.strip():
+            raise ClimateConfigError(f"{zone} node is only valid for esphome")
+        return
+    if bounds.host.strip():
+        raise ClimateConfigError(f"{zone} host is only valid for echonet")
+    if bounds.instance != 1:
+        raise ClimateConfigError(f"{zone} instance is only valid for echonet")
+    if allow_esphome:
+        if not bounds.node.strip() or not bounds.entity.strip():
+            raise ClimateConfigError(f"{zone} needs an esphome node and entity")
+        return
+    if bounds.node.strip() or bounds.entity.strip():
+        raise ClimateConfigError(f"{zone} node is only valid for esphome")
