@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from collections.abc import Mapping, MutableMapping
 from pathlib import Path
@@ -94,6 +95,46 @@ def format_env_value(value: str) -> str:
     if any(ch.isspace() or ch in "#'\"" for ch in value):
         return json.dumps(value)
     return value
+
+
+_ENV_KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+
+
+def upsert_env_value(data_dir: Path, name: str, value: str) -> Path:
+    """Write one KEY=VALUE into ``$TWO_DATA_DIR/env`` at mode 0600.
+
+    Comments stay. The named key is replaced or appended. The value is
+    not logged.
+    """
+    if _ENV_KEY.fullmatch(name) is None:
+        raise ValueError("env name is not allowed")
+    if value.strip() == "" or any(ch in value for ch in "\n\r\0"):
+        raise ValueError("env value is not allowed")
+    path = env_file_path(data_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        lines = path.read_text(encoding="utf-8").splitlines()
+    else:
+        lines = ["# Local install env. Mode 0600. Do not commit."]
+    found = False
+    out: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        body = stripped[7:].strip() if stripped.startswith("export ") else stripped
+        if stripped.startswith("#") or "=" not in body:
+            out.append(line)
+            continue
+        key = body.split("=", 1)[0].strip()
+        if key == name:
+            out.append(f"{name}={format_env_value(value)}")
+            found = True
+        else:
+            out.append(line)
+    if not found:
+        out.append(f"{name}={format_env_value(value)}")
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    path.chmod(0o600)
+    return path
 
 
 def canonical_ollama_url(url: str) -> str:

@@ -5,7 +5,8 @@
 # $TWO_DATA_DIR/devices/tv.yaml and set enabled: true.
 # Addresses are private IPv4. MAC values come from the router.
 # Tokens are environment variables, not this file.
-# Application ids come from `two tv apps`. See docs/setup.md.
+# Set ids such as living-room are examples. Replace them.
+# Application ids come from `two tv apps` or the Adapters page. See docs/setup.md.
 
 enabled: false
 sets:

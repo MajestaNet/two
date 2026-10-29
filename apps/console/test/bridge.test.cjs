@@ -78,6 +78,20 @@ test("model pull is an argument list for one profile", () => {
   assert.throws(() => policy.twoArgv(["model", "pull tag"]));
 });
 
+test("install paths stay on the control API and reject a bad set id", () => {
+  assert.equal(policy.installEnvPath(), "/v1/install/env");
+  assert.equal(policy.installVacuumRobotsPath(), "/v1/install/vacuum/robots");
+  assert.equal(policy.installTvPairPath(), "/v1/install/tv/pair");
+  assert.equal(policy.installTvAppsPath("living-room"), "/v1/install/tv/apps?set=living-room");
+  assert.throws(() => policy.installTvAppsPath("Living Room"));
+  assert.match(policy.operatorChatHint("operator"), /Adapters page/);
+  assert.equal(policy.operatorChatHint("chat"), "");
+  const names = policy.rendererMethods.map((pair) => pair[0]);
+  assert.equal(names.includes("installEnv"), true);
+  assert.equal(names.includes("installVacuumRobots"), true);
+  assert.equal(mainSource.includes("install:env"), true);
+});
+
 test("the console refuses a public API bind", () => {
   assert.equal(policy.apiOrigin({}), "http://127.0.0.1:8741");
   assert.throws(() => policy.apiOrigin({ TWO_API_BIND: "0.0.0.0" }));

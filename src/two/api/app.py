@@ -132,6 +132,12 @@ from two.api.schemas import (
     FanoutItemView,
     HealthObservation,
     HealthResponse,
+    InstallAccountRequest,
+    InstallAccountView,
+    InstallEnvView,
+    InstallPairRequest,
+    InstallPairView,
+    InstallTvAppsView,
     ProjectConfigCandidateRequest,
     ProjectCreateRequest,
     ProjectListResponse,
@@ -182,7 +188,7 @@ from two.devices.tv.config import load_tv_config
 from two.devices.vacuum.config import load_vacuum_config
 from two.graph.view import to_graph_view, todos_from_graph
 from two.manifest import TaskManifest
-from two.operator.assist import operator_chat_decision, pending_install_view
+from two.operator.assist import AssistError, operator_chat_decision, pending_install_view
 from two.operator.menu import project_adapter_menu
 from two.projection import voice_turn_receipt
 from two.reporting import REPORT_EVENT_TYPE, format_final_report, report_from_payload
@@ -218,7 +224,7 @@ from two.store.models import (
     QuestionRecord,
     TaskRecord,
 )
-from two.types import EventType, HarnessProfile, LifecycleState, Scope
+from two.types import ErrorCode, EventType, HarnessProfile, LifecycleState, Scope
 from two.worker.chat import ensure_chat_profile_dir
 from two.worker.home_action import ensure_home_action_profile_dir
 from two.worker.operator_turn import ensure_operator_profile_dir
@@ -367,6 +373,14 @@ def create_app(
     router = APIRouter(dependencies=[Depends(_authenticate)])
     router.add_api_route("/v1/system/capabilities", _get_capabilities, methods=["GET"])
     router.add_api_route("/v1/system/adapters", _get_system_adapters, methods=["GET"])
+    router.add_api_route("/v1/install/env", _get_install_env, methods=["GET"])
+    router.add_api_route(
+        "/v1/install/vacuum/robots",
+        _list_install_vacuum_robots,
+        methods=["POST"],
+    )
+    router.add_api_route("/v1/install/tv/pair", _pair_install_tv, methods=["POST"])
+    router.add_api_route("/v1/install/tv/apps", _get_install_tv_apps, methods=["GET"])
     router.add_api_route("/v1/system/health", _get_system_health, methods=["GET"])
     router.add_api_route("/v1/system/queue", _get_system_queue, methods=["GET"])
     router.add_api_route("/v1/tasks", _create_task, methods=["POST"], status_code=201)
@@ -1303,6 +1317,83 @@ async def _get_system_adapters(request: Request) -> AdapterMenuView:
     data_dir = request.app.state.data_dir
     directory = data_dir if isinstance(data_dir, Path) else None
     return project_adapter_menu(directory)
+
+
+def _install_data_dir(request: Request) -> Path | None:
+    data_dir = request.app.state.data_dir
+    return data_dir if isinstance(data_dir, Path) else None
+
+
+def _install_error(exc: AssistError) -> NoReturn:
+    status = 400
+    if exc.code in {
+        ErrorCode.INSTALL_ENV_MISSING.value,
+        ErrorCode.TV_SET_DENIED.value,
+        ErrorCode.INSTALL_PAIR_DENIED.value,
+        ErrorCode.INSTALL_ACCOUNT_DENIED.value,
+    }:
+        status = 409
+    raise HTTPException(status_code=status, detail=exc.code) from exc
+
+
+async def _get_install_env(request: Request) -> InstallEnvView:
+    require_scope(request, Scope.CONFIG_READ)
+    from two.operator.first_run import env_presence
+    from two.projection import InstallEnvNameView
+
+    names = [
+        InstallEnvNameView(name=item.name, present=item.present)
+        for item in env_presence(_install_data_dir(request))
+    ]
+    return InstallEnvView(names=names)
+
+
+async def _list_install_vacuum_robots(
+    request: Request,
+    body: InstallAccountRequest,
+) -> InstallAccountView:
+    require_scope(request, Scope.CONFIG_READ)
+    from two.operator.first_run import list_account
+
+    offered: dict[str, object] = {}
+    if body.token_env is not None:
+        offered["token_env"] = body.token_env
+    if body.api_host is not None:
+        offered["api_host"] = body.api_host
+    try:
+        listing = list_account("vacuum", offered, data_dir=_install_data_dir(request))
+    except AssistError as exc:
+        _install_error(exc)
+    return InstallAccountView(token_env=listing.token_env, nicknames=list(listing.nicknames))
+
+
+async def _pair_install_tv(request: Request, body: InstallPairRequest) -> InstallPairView:
+    require_scope(request, Scope.CONFIG_WRITE)
+    from two.operator.first_run import pair_device
+
+    try:
+        stored = pair_device("tv", body.set, data_dir=_install_data_dir(request))
+    except AssistError as exc:
+        _install_error(exc)
+    return InstallPairView(set=stored.set_id, token_env=stored.token_env, stored=stored.stored)
+
+
+async def _get_install_tv_apps(
+    request: Request,
+    set: str = Query(min_length=1, max_length=64),
+) -> InstallTvAppsView:
+    require_scope(request, Scope.CONFIG_READ)
+    from two.operator.first_run import list_tv_apps
+    from two.projection import TvAppRowView
+
+    try:
+        listing = list_tv_apps(set, data_dir=_install_data_dir(request))
+    except AssistError as exc:
+        _install_error(exc)
+    return InstallTvAppsView(
+        set=listing.set_id,
+        apps=[TvAppRowView(app_id=app_id, name=name) for app_id, name in listing.apps],
+    )
 
 
 async def _get_system_health(request: Request) -> SystemHealth:

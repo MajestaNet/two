@@ -45,6 +45,10 @@
     Object.freeze(["docsRead", "docs:read"]),
     Object.freeze(["docsOpenExternal", "docs:openExternal"]),
     Object.freeze(["adapters", "adapters:list"]),
+    Object.freeze(["installEnv", "install:env"]),
+    Object.freeze(["installVacuumRobots", "install:vacuumRobots"]),
+    Object.freeze(["installTvPair", "install:tvPair"]),
+    Object.freeze(["installTvApps", "install:tvApps"]),
     Object.freeze(["chatSend", "chat:send"]),
     Object.freeze(["chatShow", "chat:show"]),
     Object.freeze(["openrouterStatus", "openrouter:status"]),
@@ -190,6 +194,32 @@
       throw new Error("turn id is not allowed");
     }
     return "/v1/voice/turns/" + turnId;
+  }
+
+  function installEnvPath() {
+    return "/v1/install/env";
+  }
+
+  function installVacuumRobotsPath() {
+    return "/v1/install/vacuum/robots";
+  }
+
+  function installTvPairPath() {
+    return "/v1/install/tv/pair";
+  }
+
+  function installTvAppsPath(setId) {
+    if (typeof setId !== "string" || !/^[a-z][a-z0-9_-]{0,31}$/.test(setId)) {
+      throw new Error("set id is not allowed");
+    }
+    return "/v1/install/tv/apps?set=" + encodeURIComponent(setId);
+  }
+
+  function operatorChatHint(profile) {
+    if (profile === "operator") {
+      return "Operator mode drafts a binding. List robots and pair a TV on the Adapters page so tokens never enter this chat.";
+    }
+    return "";
   }
 
   function apiOrigin(env) {
@@ -904,6 +934,11 @@
     receiptText,
     receiptErrorLine,
     chatShowPath,
+    installEnvPath,
+    installVacuumRobotsPath,
+    installTvPairPath,
+    installTvAppsPath,
+    operatorChatHint,
     apiOrigin,
     modelPullArgs,
     publicModelText,

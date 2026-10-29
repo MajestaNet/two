@@ -414,10 +414,12 @@ def test_vacuum_send_prints_a_queued_receipt(
     assert "route_slots: vacuum" in captured.out
 
 
-def test_robots_refuses_a_missing_binding(
+def test_robots_refuses_a_missing_key(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv("ECO_API_KEY", raising=False)
     assert main(["vacuum", "robots", "--data-dir", str(tmp_path)]) == 1
     captured = capsys.readouterr()
-    assert "not enabled" in captured.err
+    assert "install_env_missing" in captured.err

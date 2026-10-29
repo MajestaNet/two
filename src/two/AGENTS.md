@@ -45,8 +45,10 @@ Python package for the Majesta Two control plane.
   (ADR 0039): redacted status, a guide allowlist, and shipped-slot
   binding checks. A device guide splices the matching `docs/setup.md`
   heading ahead of the example file. No model client and no network. No
-  store at import time. The API may call the menu. It does not call
-  Ollama.
+  store at import time. `operator/first_run.py` lists vacuum nicknames
+  and pairs a television (ADR 0043). That module may call the device
+  packages. Inject those calls in tests. The API may call the menu. It
+  does not call Ollama.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop. An OpenRouter backend
@@ -147,9 +149,10 @@ Python package for the Majesta Two control plane.
   enabled, the closed television and vacuum tools. The control plane
   performs them and does not send `execute` to the child (ADR 0022,
   ADR 0029, ADR 0038).   Profile `operator` may request
-  `install.status`, `install.read_guide`, `install.propose_binding`, and
+  `install.status`, `install.read_guide`, `install.list_account`,
+  `install.pair_device`, `install.propose_binding`, and
   `install.propose_change`. This process performs them and does not send
-  `execute` (ADR 0039). The session prompt injects a redacted snapshot
+  `execute` (ADR 0039, ADR 0043). The session prompt injects a redacted snapshot
   and connect hints so the model can walk a shipped adapter without
   dumping YAML. A binding write and a self-build task wait for
   an approval digest. A later operator transcript that is only

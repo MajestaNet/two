@@ -807,6 +807,8 @@ async function refreshDocs() {
 async function refreshAdapters() {
   const root = $("adapter-list");
   root.replaceChildren();
+  await refreshInstallEnv();
+  renderTvSets([]);
   let menu;
   try {
     menu = await globalThis.two.adapters();
@@ -816,6 +818,9 @@ async function refreshAdapters() {
     root.append(p);
     return;
   }
+  const tv = (menu.slots || []).find((slot) => slot.id === "tv");
+  const sets = tv && tv.install_enabled ? tv.devices.map((device) => device.id) : [];
+  renderTvSets(sets);
   for (const slot of menu.slots) {
     const block = document.createElement("section");
     block.className = "slot";
@@ -836,6 +841,92 @@ async function refreshAdapters() {
   }
 }
 
+async function refreshInstallEnv() {
+  const list = $("install-env");
+  const note = $("install-env-note");
+  list.replaceChildren();
+  try {
+    const body = await globalThis.two.installEnv();
+    const names = (body && body.names) || [];
+    if (!names.length) {
+      note.textContent = "Start the server to see which env names are present.";
+      return;
+    }
+    note.textContent = "";
+    for (const item of names) {
+      list.append(fact(item.name, item.present ? "present" : "missing", item.present));
+    }
+  } catch (error) {
+    note.textContent = error.message;
+  }
+}
+
+function renderTvSets(setIds) {
+  const root = $("tv-sets");
+  root.replaceChildren();
+  if (!setIds.length) {
+    $("tv-note").textContent = "Approve a television binding in operator chat, then pair each set here.";
+    return;
+  }
+  $("tv-note").textContent = "Accept Allow on the television when pairing. The token stays in the data directory.";
+  for (const setId of setIds) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const label = document.createElement("span");
+    label.className = "meta";
+    label.textContent = setId;
+    const pair = document.createElement("button");
+    pair.type = "button";
+    pair.textContent = "Pair";
+    pair.addEventListener("click", () => pairTelevision(setId));
+    const apps = document.createElement("button");
+    apps.type = "button";
+    apps.className = "quiet";
+    apps.textContent = "List apps";
+    apps.addEventListener("click", () => listTelevisionApps(setId));
+    row.append(label, pair, apps);
+    root.append(row);
+  }
+}
+
+async function listVacuumRobots() {
+  const note = $("vacuum-robots-note");
+  note.textContent = "Listing…";
+  try {
+    const body = await globalThis.two.installVacuumRobots();
+    const names = (body && body.nicknames) || [];
+    note.textContent = names.length ? names.join(", ") : "No robots on that account.";
+  } catch (error) {
+    note.textContent = error.message;
+  }
+}
+
+async function pairTelevision(setId) {
+  const note = $("tv-note");
+  note.textContent = "Waiting for Allow on " + setId + "…";
+  try {
+    const body = await globalThis.two.installTvPair(setId);
+    note.textContent = "Stored " + body.token_env + " in the data-dir env file.";
+    await refreshInstallEnv();
+  } catch (error) {
+    note.textContent = error.message;
+  }
+}
+
+async function listTelevisionApps(setId) {
+  const note = $("tv-note");
+  note.textContent = "Listing apps…";
+  try {
+    const body = await globalThis.two.installTvApps(setId);
+    const apps = (body && body.apps) || [];
+    note.textContent = apps.length
+      ? apps.map((app) => app.app_id + " " + app.name).join(", ")
+      : "No applications on that set.";
+  } catch (error) {
+    note.textContent = error.message;
+  }
+}
+
 function refreshChatGate() {
   const apiUp = Boolean(state.server && state.server.health === "ok");
   const ollamaUp = Boolean(state.ollama && state.ollama.up);
@@ -852,7 +943,8 @@ function refreshChatGate() {
   });
   $("chat-text").disabled = !gate.enabled;
   $("chat-send").disabled = !gate.enabled;
-  $("chat-reason").textContent = gate.reason;
+  const operator = policy.operatorChatHint($("chat-profile").value);
+  $("chat-reason").textContent = operator || gate.reason;
 }
 
 function addLine(role, text) {
@@ -1172,6 +1264,8 @@ $("openrouter-logout").addEventListener("click", async () => {
   }
 });
 $("chat-form").addEventListener("submit", sendChat);
+$("chat-profile").addEventListener("change", refreshChatGate);
+$("vacuum-robots").addEventListener("click", listVacuumRobots);
 
 $("doc-body").addEventListener("click", (event) => {
   const link = event.target.closest("a");

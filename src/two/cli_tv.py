@@ -17,8 +17,8 @@
 """Television subcommand handlers.
 
 ``send``, ``show``, ``approve``, and ``reject`` talk only to the control
-API. ``pair`` and ``apps`` are local configuration commands: they open the
-bound set and write nothing.
+API. ``pair`` stores the Samsung token in ``$TWO_DATA_DIR/env``. ``apps``
+prints application ids and writes nothing.
 """
 
 from __future__ import annotations
@@ -89,18 +89,16 @@ def _dispatch(args: argparse.Namespace, client: ControlClient) -> int:
 
 
 def _pair(args: argparse.Namespace) -> int:
-    from two.devices.tv.samsung import SamsungTv
+    from two.operator.assist import AssistError
+    from two.operator.first_run import pair_device
 
-    policy = _policy(args)
-    if policy is None:
-        return 1
     try:
-        token = SamsungTv(policy, "").pair()
-    except TvUpstreamError:
-        print("error: the television did not return a token", file=sys.stderr)
+        stored = pair_device("tv", args.set, data_dir=getattr(args, "data_dir", None))
+    except AssistError as exc:
+        print(f"error: {exc.code}", file=sys.stderr)
         return 1
-    print(f"{policy.token_env}={token}")
-    print("Add that line to $TWO_DATA_DIR/env and restart the worker. This command stores nothing.")
+    print(f"stored {stored.token_env} in $TWO_DATA_DIR/env")
+    print("Restart the worker if it is already running. This command does not print the token.")
     return 0
 
 

@@ -32,9 +32,12 @@ from pathlib import Path
 
 from two.operator.assist import (
     BINDING_TOOL,
+    CHANGE_TOOL,
     CLOSED_TOOLS,
     DEVICE_CONNECT_HINTS,
     GUIDE_TOOL,
+    LIST_TOOL,
+    PAIR_TOOL,
     PROPOSE_TOOLS,
     STATUS_TOOL,
     AssistError,
@@ -100,6 +103,8 @@ def _operator_prompt(transcript: str, snapshot: str) -> str:
             "install.status",
             "install.read_guide arguments: doc "
             "(setup, adapters, climate, climate-echonet, tv, vacuum)",
+            "install.list_account arguments: slot=vacuum, optional token_env, optional api_host",
+            "install.pair_device arguments: slot=tv, set",
             "install.propose_binding arguments: slot (climate, tv, vacuum), document",
             "install.propose_change arguments: objective, acceptance_criteria, allowed_paths",
             "Do not use shell, git, or any other tool.",
@@ -237,14 +242,33 @@ def perform_tool(
                 raise AssistError(ErrorCode.INSTALL_GUIDE_DENIED.value)
             reply = read_guide(doc, repo_root=repo_root)
             return store.complete_operator_turn(turn_id, reply, now=now)
+        if tool == LIST_TOOL:
+            from two.operator.first_run import account_reply, list_account
+
+            slot = arguments.get("slot")
+            if not isinstance(slot, str):
+                raise AssistError(ErrorCode.INSTALL_ACCOUNT_DENIED.value)
+            listing = list_account(slot, arguments, data_dir=data_dir)
+            return store.complete_operator_turn(turn_id, account_reply(listing), now=now)
+        if tool == PAIR_TOOL:
+            from two.operator.first_run import pair_device, pair_reply
+
+            slot = arguments.get("slot")
+            set_id = arguments.get("set")
+            if not isinstance(slot, str) or not isinstance(set_id, str):
+                raise AssistError(ErrorCode.INSTALL_PAIR_DENIED.value)
+            stored = pair_device(slot, set_id, data_dir=data_dir)
+            return store.complete_operator_turn(turn_id, pair_reply(stored), now=now)
         if tool == BINDING_TOOL:
             slot = arguments.get("slot")
             document = arguments.get("document")
             if not isinstance(slot, str) or not isinstance(document, dict):
                 raise AssistError(ErrorCode.INSTALL_BINDING_DENIED.value)
             encoded, digest, _summary = propose_binding(slot, document)
-        else:
+        elif tool == CHANGE_TOOL:
             encoded, digest, _summary = propose_change(arguments)
+        else:
+            raise AssistError(ErrorCode.PROFILE_TOOL_DENIED.value)
     except AssistError as exc:
         return store.fail_operator_turn(turn_id, exc.code, now=now)
     return store.hold_operator_for_approval(
