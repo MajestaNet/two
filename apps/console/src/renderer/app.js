@@ -22,6 +22,7 @@ const state = {
   openrouterModel: "",
   doc: "setup",
   poll: null,
+  mobilePoll: null,
 };
 
 function $(id) {
@@ -72,6 +73,9 @@ async function refreshServer() {
       fact("ollama", server.ollama, server.ollama === "up"),
       fact("mlx-lm", server.mlx || "down", server.mlx === "up"),
     );
+    if (server.children.caddy === "running") {
+      list.append(fact("caddy", "running", true));
+    }
     $("server-note").textContent =
       "Closing this window leaves the control plane and Ollama running in the background.";
   } catch (error) {
@@ -80,7 +84,53 @@ async function refreshServer() {
   await refreshOllama();
   await refreshMlx();
   await refreshHarness();
+  await refreshMobile();
   refreshChatGate();
+}
+
+async function refreshMobile() {
+  const status = await globalThis.two.mobileStatus();
+  const field = $("mobile-host");
+  if (field && !field.value && status.host) field.value = status.host;
+  if (status.note) $("mobile-note").textContent = status.note;
+  $("mobile-cancel").classList.toggle("hidden", status.phase !== "waiting");
+  $("mobile-register").disabled = status.phase === "working" || status.phase === "waiting";
+}
+
+function watchMobile() {
+  if (state.mobilePoll) clearInterval(state.mobilePoll);
+  state.mobilePoll = setInterval(async () => {
+    try {
+      await refreshMobile();
+      const status = await globalThis.two.mobileStatus();
+      if (status.phase !== "waiting" && status.phase !== "working") {
+        clearInterval(state.mobilePoll);
+        state.mobilePoll = null;
+      }
+    } catch (_error) {
+      clearInterval(state.mobilePoll);
+      state.mobilePoll = null;
+    }
+  }, 1000);
+}
+
+async function registerPhone() {
+  const button = $("mobile-register");
+  button.disabled = true;
+  $("mobile-note").textContent = "Issuing the edge and restarting the API…";
+  try {
+    const result = await globalThis.two.mobileRegister({
+      host: $("mobile-host").value,
+      caddy: $("mobile-caddy").checked,
+    });
+    $("mobile-note").textContent = result.note || "";
+    $("mobile-cancel").classList.toggle("hidden", result.phase !== "waiting");
+    if (result.phase === "waiting") watchMobile();
+    else button.disabled = false;
+  } catch (error) {
+    $("mobile-note").textContent = error.message;
+    button.disabled = false;
+  }
 }
 
 async function refreshHarness() {
@@ -161,14 +211,21 @@ function renderOllama() {
   }
   const version = info.version ? " " + info.version : "";
   $("ollama-path").textContent = "Ollama" + version + "  " + info.bin;
-  const target = loadTarget();
+  const target = ollamaLoadTarget();
   const resident = policy.modelResident(info.loaded, target);
   if (!info.up) {
-    $("ollama-note").textContent = target
-      ? "Start Ollama, then it loads " + target + ". That uses a large share of this Mac's memory."
-      : "Start Ollama to serve on 127.0.0.1:11434.";
+    $("ollama-note").textContent = mlx
+      ? "Start Ollama if you switch to the Ollama runtime on the Model page."
+      : target
+        ? "Start Ollama, then it loads " + target + ". That uses a large share of this Mac's memory."
+        : "Start Ollama to serve on 127.0.0.1:11434.";
     start.disabled = false;
     start.textContent = "Start Ollama";
+  } else if (mlx) {
+    $("ollama-note").textContent =
+      "Ollama is answering. Chat uses mlx-lm, so Start mlx-lm below. Select Ollama on the Model page to load an Ollama tag.";
+    start.disabled = true;
+    start.textContent = "Load model";
   } else if (resident) {
     $("ollama-note").textContent = target + " is loaded. Closing this window leaves Ollama running.";
     start.disabled = true;
@@ -226,21 +283,35 @@ function mlxLoadTarget() {
   return recommendedMlxModel();
 }
 
+function ollamaLoadTarget() {
+  if (state.selected === "own") {
+    try {
+      return policy.normalizeLocalModel(state.ownModel, "ollama");
+    } catch (_error) {
+      return "";
+    }
+  }
+  const profile = selectedProfile();
+  const models = (state.ollama && state.ollama.models) || [];
+  const tags = (state.model && state.model.installed_tags) || [];
+  const names = tags.concat(models);
+  if (profile) {
+    const present = names.includes(profile.upstream_model) || names.includes(profile.alias);
+    if (present || !models.length) return profile.upstream_model;
+  }
+  return models[0] || (profile ? profile.upstream_model : "");
+}
+
 function loadTarget() {
-  if (state.selected === "own") return ownTag();
-  const catalog = selectedCatalogModel();
-  const mlxId = catalogServeId(catalog);
   if (localRuntime() === "mlx-lm") {
+    if (state.selected === "own") return ownTag();
+    const catalog = selectedCatalogModel();
+    const mlxId = catalogServeId(catalog);
     const names = (state.mlx && state.mlx.models) || [];
     if (mlxId && (names.includes(mlxId) || !names.length)) return mlxId;
     return names[0] || mlxId;
   }
-  const profile = selectedProfile();
-  if (profile && (modelPresent() || !state.ollama || !(state.ollama.models || []).length)) {
-    return profile.upstream_model;
-  }
-  const models = (state.ollama && state.ollama.models) || [];
-  return models[0] || (profile ? profile.upstream_model : "");
+  return ollamaLoadTarget();
 }
 
 function renderInstalled() {
@@ -1040,6 +1111,18 @@ document.querySelector(".nav").addEventListener("click", (event) => {
   if (button && button.dataset.view) show(button.dataset.view);
 });
 
+$("mobile-register").addEventListener("click", registerPhone);
+$("mobile-cancel").addEventListener("click", async () => {
+  const status = await globalThis.two.mobileCancel();
+  $("mobile-note").textContent = status.note || "";
+  $("mobile-cancel").classList.add("hidden");
+  $("mobile-register").disabled = false;
+  if (state.mobilePoll) {
+    clearInterval(state.mobilePoll);
+    state.mobilePoll = null;
+  }
+});
+
 $("start").addEventListener("click", async () => {
   $("server-note").textContent = "Starting…";
   try {
@@ -1062,7 +1145,9 @@ $("stop").addEventListener("click", async () => {
 $("download").addEventListener("click", downloadModel);
 
 $("ollama-start").addEventListener("click", async () => {
-  const target = loadTarget();
+  state.localRuntime = "ollama";
+  renderRuntime();
+  const target = ollamaLoadTarget();
   const loading = state.ollama && state.ollama.up;
   $("ollama-note").textContent = loading
     ? "Loading " + target + " into memory…"
@@ -1077,8 +1162,8 @@ $("ollama-start").addEventListener("click", async () => {
     else if (state.selected === "own") payload.numCtx = policy.OWN_NUM_CTX;
     else if (profile) payload.numCtx = policy.parseNumCtx(profile.num_ctx) || profile.num_ctx;
     if (target) payload.model = target;
-    await globalThis.two.ollamaStart(payload);
     await persistBackend();
+    await globalThis.two.ollamaStart(payload);
   } catch (error) {
     $("ollama-note").textContent = error.message;
   }

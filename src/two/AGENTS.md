@@ -22,8 +22,13 @@ Python package for the Majesta Two control plane.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
   no I/O. `issue_edge` writes a private CA and Caddyfile under the data
-  directory and calls `openssl`. No store, no listen socket, no Python
-  TLS library. CLI lazy-imports it from `two edge`.
+  directory and calls `openssl`. `sign_phone_csr` signs a phone CSR
+  (CN = username) into `clients/`. No store, no listen socket, no Python
+  TLS library. CLI lazy-imports it from `two edge`. `edge_enroll.py` is
+  the one-shot HTTPS listener (`two edge enroll`) on a port other than
+  Caddy. It uses stdlib `ssl` only, does not require a client
+  certificate, and does not change the Caddyfile. Caddy on :8443 stays
+  `require_and_verify`.
 - `setup.py` is the Mac mini plan (ADR 0019). `two setup --current` prints the optional split list (ADR 0013). No I/O, no
   network, no store. `two setup --plan` prints it. Apply I/O lives in
   `operator/`. CLI lazy-imports `two.operator` (not `two.runtime`).

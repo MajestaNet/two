@@ -76,6 +76,19 @@
             <button type="button" id="harness-install" class="hidden">Install DeepSeek Harness</button>
           </div>
           <pre id="harness-log" class="log"></pre>
+          <h2>Mobile</h2>
+          <p class="lede">Register a simulator or a phone on this network. This issues the edge, restarts the API with its token, and can start Caddy for development.</p>
+          <label for="mobile-host">Private LAN host</label>
+          <input id="mobile-host" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="192.168.0.95" />
+          <label class="check" for="mobile-caddy">
+            <input id="mobile-caddy" type="checkbox" checked />
+            Caddy for development
+          </label>
+          <div class="row">
+            <button type="button" id="mobile-register">Register phone</button>
+            <button type="button" id="mobile-cancel" class="quiet hidden">Cancel</button>
+          </div>
+          <p id="mobile-note" class="note"></p>
         </section>
         <section id="model" class="view hidden">
           <h1>Model</h1>
