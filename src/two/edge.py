@@ -24,6 +24,7 @@ import the store, or terminate TLS in Python.
 from __future__ import annotations
 
 import ipaddress
+import re
 import secrets
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -38,9 +39,12 @@ CLIENT_ID_HEADER = "X-Two-Client-Id"
 WATCH_CLIENT_ID = "watch"
 ENV_EDGE_TOKEN = "TWO_EDGE_TOKEN"
 DEFAULT_EDGE_PORT = 8443
+DEFAULT_ENROLL_PORT = 8444
 DEFAULT_API_UPSTREAM = "127.0.0.1:8741"
 _CA_DAYS = "825"
 _HOSTNAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
+_USERNAME = re.compile(r"^[A-Za-z0-9-]{1,32}$")
+_CSR_PEM_MARKERS = ("-----BEGIN CERTIFICATE REQUEST-----", "-----END CERTIFICATE REQUEST-----")
 
 
 class EdgeListenError(ValueError):
@@ -49,6 +53,10 @@ class EdgeListenError(ValueError):
 
 class EdgeIssueError(RuntimeError):
     """Certificate issuance failed, or the directory already holds a CA."""
+
+
+class EdgeUsernameError(ValueError):
+    """The phone username or CSR subject is not acceptable."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,3 +416,144 @@ def _issue_client(root: Path, *, openssl: str) -> None:
     (root / "watch.key").chmod(0o600)
     (root / "watch.p12").chmod(0o600)
     (root / "watch.crt").chmod(0o644)
+
+
+def parse_edge_username(value: str) -> str:
+    """Accept one phone username. Letters, digits, and hyphens, 1 to 32 characters."""
+    token = value.strip()
+    if _USERNAME.fullmatch(token) is None:
+        raise EdgeUsernameError("username must be 1 to 32 letters, digits, or hyphens")
+    return token
+
+
+def clients_dir(root: Path) -> Path:
+    """Directory for phone certificates signed after ``two edge issue``."""
+    return root / "clients"
+
+
+def require_issued_edge(root: Path) -> None:
+    """Refuse enroll until the CA and server certificate exist."""
+    missing = [
+        name
+        for name in ("ca.crt", "ca.key", "server.crt", "server.key")
+        if not (root / name).is_file()
+    ]
+    if missing:
+        raise EdgeIssueError(
+            f"missing {', '.join(missing)}; run two edge issue before two edge enroll"
+        )
+
+
+def sign_phone_csr(
+    root: Path,
+    username: str,
+    csr_pem: str,
+    *,
+    replace: bool = False,
+    openssl: str = "openssl",
+) -> str:
+    """Sign a phone CSR with the edge CA. The certificate CN is the username.
+
+    The phone keeps the private key. This writes ``clients/<username>.crt``.
+    A second name is refused unless ``replace`` is set.
+    """
+    require_issued_edge(root)
+    name = parse_edge_username(username)
+    pem = csr_pem.strip()
+    if not pem.startswith(_CSR_PEM_MARKERS[0]) or _CSR_PEM_MARKERS[1] not in pem:
+        raise EdgeUsernameError("CSR must be a PEM certificate request")
+    destination = clients_dir(root) / f"{name}.crt"
+    if destination.is_file() and not replace:
+        raise EdgeIssueError(f"{destination} already exists; pass --replace")
+    csr_path = root / "phone.csr"
+    csr_path.write_text(pem + "\n", encoding="utf-8")
+    csr_path.chmod(0o600)
+    _verify_csr(csr_path, username=name, openssl=openssl)
+    ext = root / "phone.ext"
+    ext.write_text(
+        "\n".join(
+            [
+                "basicConstraints=CA:FALSE",
+                "extendedKeyUsage=clientAuth",
+                "keyUsage=digitalSignature",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    clients_dir(root).mkdir(parents=True, exist_ok=True)
+    clients_dir(root).chmod(0o700)
+    _run_openssl(
+        [
+            openssl,
+            "x509",
+            "-req",
+            "-in",
+            "phone.csr",
+            "-CA",
+            "ca.crt",
+            "-CAkey",
+            "ca.key",
+            "-CAcreateserial",
+            "-out",
+            str(Path("clients") / f"{name}.crt"),
+            "-days",
+            _CA_DAYS,
+            "-sha256",
+            "-extfile",
+            "phone.ext",
+        ],
+        cwd=root,
+    )
+    destination.chmod(0o644)
+    return destination.read_text(encoding="utf-8")
+
+
+def _verify_csr(path: Path, *, username: str, openssl: str) -> None:
+    _run_openssl([openssl, "req", "-verify", "-noout", "-in", path.name], cwd=path.parent)
+    completed = subprocess.run(
+        [
+            openssl,
+            "req",
+            "-in",
+            path.name,
+            "-noout",
+            "-subject",
+            "-nameopt",
+            "RFC2253",
+        ],
+        cwd=path.parent,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        completed = subprocess.run(
+            [openssl, "req", "-in", path.name, "-noout", "-subject"],
+            cwd=path.parent,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip()
+        raise EdgeIssueError(detail or "openssl could not read the CSR subject")
+    common = _csr_common_name(completed.stdout)
+    if common != username:
+        raise EdgeUsernameError("CSR subject must be the username")
+
+
+def _csr_common_name(subject: str) -> str | None:
+    text = subject.strip()
+    if text.startswith("subject="):
+        text = text[len("subject=") :].strip()
+    if text.startswith("/"):
+        for part in text.split("/"):
+            if part.startswith("CN="):
+                return part[3:]
+        return None
+    for part in text.split(","):
+        token = part.strip()
+        if token.startswith("CN=") or token.startswith("CN ="):
+            return token.split("=", 1)[1].strip().strip('"')
+    return None

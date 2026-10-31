@@ -18,7 +18,7 @@ import pytest
 from two.cli import main
 from two.operator.apply import apply_lan_setup
 from two.operator.doctor import doctor_exit_code, format_report, run_doctor
-from two.operator.supervisor import format_up_plan, run_down, run_up
+from two.operator.supervisor import format_up_plan, read_supervisor_status, run_down, run_up
 from two.runtime.health import HealthState
 
 
@@ -196,6 +196,72 @@ def test_format_up_plan_lists_three_children(tmp_path: Path) -> None:
     assert "python -m two api" in text
     assert "python -m two scheduler" in text
     assert "python -m two worker" in text
+
+
+def test_run_up_caddy_passes_the_edge_token_without_printing_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    edge = tmp_path / "edge"
+    edge.mkdir()
+    (edge / "Caddyfile").write_text("https://10.1.1.5:8443 {\n}\n", encoding="utf-8")
+    (edge / "edge.env").write_text("TWO_EDGE_TOKEN=super-secret-token\n", encoding="utf-8")
+    seen: list[tuple[list[str], str | None]] = []
+
+    def spawn(cmd: list[str] | tuple[str, ...], env: dict[str, str]) -> _FakeChild:
+        seen.append((list(cmd), env.get("TWO_EDGE_TOKEN")))
+        return _FakeChild(len(seen) + 20)
+
+    code = run_up(
+        data_dir=tmp_path,
+        spawn=spawn,
+        should_stop=lambda: True,
+        sleep=lambda _seconds: None,
+        executable="/usr/bin/python3",
+        caddy=True,
+        which=lambda name: "/opt/caddy" if name == "caddy" else None,
+    )
+    assert code == 0
+    assert len(seen) == 4
+    assert seen[0][1] == "super-secret-token"
+    assert seen[-1][0][:3] == ["/opt/caddy", "run", "--config"]
+    assert "super-secret-token" not in capsys.readouterr().out
+
+
+def test_run_up_caddy_refuses_a_missing_binary(tmp_path: Path) -> None:
+    spawned: list[list[str]] = []
+
+    def spawn(cmd: list[str] | tuple[str, ...], _env: dict[str, str]) -> _FakeChild:
+        spawned.append(list(cmd))
+        return _FakeChild(1)
+
+    code = run_up(
+        data_dir=tmp_path,
+        spawn=spawn,
+        should_stop=lambda: True,
+        caddy=True,
+        which=lambda _name: None,
+    )
+    assert code == 1
+    assert spawned == []
+
+
+def test_status_reports_a_caddy_child(tmp_path: Path) -> None:
+    (tmp_path / "two.up.pid").write_text(
+        "api 1\nscheduler 2\nworker 3\ncaddy 4\n",
+        encoding="utf-8",
+    )
+    status = read_supervisor_status(data_dir=tmp_path)
+    assert [child.name for child in status.children] == ["api", "scheduler", "worker", "caddy"]
+    assert status.children[-1].pid == 4
+
+
+def test_up_caddy_dry_run_requires_an_issued_edge(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["up", "--caddy", "--dry-run", "--data-dir", str(tmp_path)]) == 1
+    err = capsys.readouterr().err
+    assert "Caddyfile" in err
+    assert "TWO_EDGE_TOKEN=" not in err
 
 
 def test_doctor_and_up_help() -> None:

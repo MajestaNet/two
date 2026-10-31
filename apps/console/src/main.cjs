@@ -108,7 +108,7 @@ async function serverStatus() {
   try {
     const body = parseJson(await runTwo(["up", "--status"]), "status failed");
     for (const child of body.children) {
-      if (Object.prototype.hasOwnProperty.call(children, child.name)) {
+      if (child.name === "api" || child.name === "scheduler" || child.name === "worker" || child.name === "caddy") {
         children[child.name] = child.pid ? "running" : "stopped";
       }
     }
@@ -1237,6 +1237,142 @@ function openrouterLogout() {
   return openrouterStatus();
 }
 
+const mobileState = { phase: "idle", host: "", note: "", child: null };
+
+async function mobileDetect() {
+  return parseJson(await runTwo(policy.edgeDetectArgs()), "detect failed");
+}
+
+async function mobileStatus() {
+  let host = mobileState.host;
+  if (!host) {
+    try {
+      host = (await mobileDetect()).listen || "";
+    } catch (_error) {
+      host = "";
+    }
+  }
+  return { phase: mobileState.phase, host: host, note: mobileState.note };
+}
+
+function rememberEnroll(child, host) {
+  mobileState.child = child;
+  mobileState.phase = "waiting";
+  mobileState.host = host;
+  mobileState.note = policy.mobileWaitingNote(host);
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr = (stderr + chunk.toString("utf8")).slice(-4000);
+  });
+  child.stdout.on("data", () => {});
+  child.on("close", (code) => {
+    if (mobileState.child !== child) return;
+    mobileState.child = null;
+    if (code === 0) {
+      mobileState.phase = "enrolled";
+      mobileState.note = "The phone is enrolled. The globe replaces the enroll screen. Hold it to speak.";
+      return;
+    }
+    mobileState.phase = "error";
+    mobileState.note = stderr.trim() || "Enrollment stopped.";
+  });
+}
+
+async function waitForHealth(tries) {
+  for (let i = 0; i < tries; i += 1) {
+    if ((await readHealth()) === "ok") return true;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return false;
+}
+
+async function mobileRegister(payload) {
+  let host = "";
+  try {
+    host = policy.privateLanHost(payload && payload.host);
+  } catch (error) {
+    mobileState.phase = "error";
+    mobileState.note = error.message;
+    return { ok: false, phase: "error", host: "", note: error.message };
+  }
+  const caddy = Boolean(payload && payload.caddy);
+  if (mobileState.child) {
+    mobileState.child.kill("SIGTERM");
+    mobileState.child = null;
+  }
+  mobileState.phase = "working";
+  mobileState.host = host;
+  mobileState.note = "Issuing the edge and restarting the API…";
+  let prepared;
+  try {
+    prepared = parseJson(await runTwo(policy.edgePrepareArgs(host, false)), "prepare failed");
+  } catch (error) {
+    mobileState.phase = "error";
+    mobileState.note = error.message;
+    return { ok: false, phase: "error", host: host, note: error.message };
+  }
+  if (caddy && !prepared.caddy) {
+    const note = "Caddy is not on PATH. Install it, or turn off Caddy for development.";
+    mobileState.phase = "error";
+    mobileState.note = note;
+    return { ok: false, phase: "error", host: host, note: note };
+  }
+  if (caddy) {
+    const plan = await runTwo(policy.upArgs(true).concat(["--dry-run"]));
+    if (plan.code !== 0) {
+      const note = (plan.stderr || plan.stdout || "Caddy could not start.").trim();
+      mobileState.phase = "error";
+      mobileState.note = note;
+      return { ok: false, phase: "error", host: host, note: note };
+    }
+  }
+  try {
+    parseJson(await runTwo(policy.edgePrepareArgs(host, true)), "restart failed");
+  } catch (error) {
+    mobileState.phase = "error";
+    mobileState.note = error.message;
+    return { ok: false, phase: "error", host: host, note: error.message };
+  }
+  const upArgv = policy.commandArgv(launcher(), policy.upArgs(caddy));
+  const up = spawn(upArgv[0], upArgv.slice(1), {
+    cwd: installRoot(),
+    shell: false,
+    detached: true,
+    stdio: "ignore",
+    env: controlPlaneEnv(),
+  });
+  up.on("error", () => {});
+  up.unref();
+  if (!(await waitForHealth(30))) {
+    const note = "The API did not come back after the restart.";
+    mobileState.phase = "error";
+    mobileState.note = note;
+    return { ok: false, phase: "error", host: host, note: note };
+  }
+  const enrollArgv = policy.commandArgv(launcher(), policy.edgeEnrollArgs(host));
+  const enroll = spawn(enrollArgv[0], enrollArgv.slice(1), {
+    cwd: installRoot(),
+    shell: false,
+    env: controlPlaneEnv(),
+  });
+  enroll.on("error", (error) => {
+    mobileState.phase = "error";
+    mobileState.note = error.message;
+  });
+  rememberEnroll(enroll, host);
+  return { ok: true, phase: "waiting", host: host, note: mobileState.note };
+}
+
+async function mobileCancel() {
+  if (mobileState.child) {
+    mobileState.child.kill("SIGTERM");
+    mobileState.child = null;
+  }
+  mobileState.phase = "idle";
+  mobileState.note = "Enrollment cancelled. The API is still running.";
+  return mobileStatus();
+}
+
 const handlers = {
   "server:status": serverStatus,
   "server:start": serverStart,
@@ -1272,6 +1408,10 @@ const handlers = {
   "openrouter:save": openrouterSave,
   "openrouter:login": openrouterLogin,
   "openrouter:logout": openrouterLogout,
+  "mobile:detect": mobileDetect,
+  "mobile:register": mobileRegister,
+  "mobile:status": mobileStatus,
+  "mobile:cancel": mobileCancel,
 };
 
 function registerHandlers() {

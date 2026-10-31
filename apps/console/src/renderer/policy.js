@@ -55,6 +55,10 @@
     Object.freeze(["openrouterSave", "openrouter:save"]),
     Object.freeze(["openrouterLogin", "openrouter:login"]),
     Object.freeze(["openrouterLogout", "openrouter:logout"]),
+    Object.freeze(["mobileDetect", "mobile:detect"]),
+    Object.freeze(["mobileRegister", "mobile:register"]),
+    Object.freeze(["mobileStatus", "mobile:status"]),
+    Object.freeze(["mobileCancel", "mobile:cancel"]),
   ]);
 
   const CHAT_NEEDS_SERVER = "Start the local server before chat.";
@@ -518,6 +522,47 @@
     return commandArgv(twoLauncher(""), args);
   }
 
+  function privateLanHost(host) {
+    if (typeof host !== "string") {
+      throw new Error("private LAN host is required");
+    }
+    const token = host.trim();
+    if (!/^[A-Za-z0-9.-]{1,253}$/.test(token)) {
+      throw new Error("private LAN host is not usable");
+    }
+    if (token === "localhost" || token === "0.0.0.0" || token.startsWith("127.")) {
+      throw new Error("the phone cannot use loopback");
+    }
+    return token;
+  }
+
+  function edgeDetectArgs() {
+    return ["edge", "detect"];
+  }
+
+  function edgePrepareArgs(host, stop) {
+    const args = ["edge", "prepare", "--listen", privateLanHost(host), "--json"];
+    if (stop) args.push("--stop");
+    return args;
+  }
+
+  function edgeEnrollArgs(host) {
+    return ["edge", "enroll", "--listen", privateLanHost(host)];
+  }
+
+  function upArgs(caddy) {
+    return caddy ? ["up", "--caddy"] : ["up"];
+  }
+
+  function mobileWaitingNote(host) {
+    const listen = privateLanHost(host);
+    return (
+      "Enrollment is waiting. In the simulator, enter a username, set the host to " +
+      listen +
+      ", and tap Enroll."
+    );
+  }
+
   function harnessArgs(action) {
     if (action !== "status" && action !== "install") {
       throw new Error("that harness command is not available here");
@@ -964,6 +1009,12 @@
     twoLauncher,
     commandArgv,
     twoArgv,
+    privateLanHost,
+    edgeDetectArgs,
+    edgePrepareArgs,
+    edgeEnrollArgs,
+    upArgs,
+    mobileWaitingNote,
     harnessArgs,
     dataDir,
     needsReplace,

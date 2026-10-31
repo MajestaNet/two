@@ -92,6 +92,32 @@ test("install paths stay on the control API and reject a bad set id", () => {
   assert.equal(mainSource.includes("install:env"), true);
 });
 
+test("mobile registration stays an argument list and refuses loopback", () => {
+  assert.deepEqual(policy.edgePrepareArgs("10.1.1.5", true), [
+    "edge",
+    "prepare",
+    "--listen",
+    "10.1.1.5",
+    "--json",
+    "--stop",
+  ]);
+  assert.deepEqual(policy.upArgs(true), ["up", "--caddy"]);
+  assert.deepEqual(policy.edgeEnrollArgs("10.1.1.5"), ["edge", "enroll", "--listen", "10.1.1.5"]);
+  assert.equal(policy.edgeDetectArgs().join(" ").includes(" "), true);
+  assert.throws(() => policy.privateLanHost("127.0.0.1"));
+  assert.throws(() => policy.privateLanHost("10.1.1.5; rm"));
+  assert.match(policy.mobileWaitingNote("10.1.1.5"), /tap Enroll/);
+  const names = policy.rendererMethods.map((pair) => pair[0]);
+  for (const name of ["mobileDetect", "mobileRegister", "mobileStatus", "mobileCancel"]) {
+    assert.equal(names.includes(name), true);
+  }
+  assert.equal(mainSource.includes("mobile:register"), true);
+  assert.equal(mainSource.includes("shell: true"), false);
+  const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
+  assert.equal(html.includes("Register phone"), true);
+  assert.equal(html.includes("Caddy for development"), true);
+});
+
 test("the console refuses a public API bind", () => {
   assert.equal(policy.apiOrigin({}), "http://127.0.0.1:8741");
   assert.throws(() => policy.apiOrigin({ TWO_API_BIND: "0.0.0.0" }));
@@ -120,6 +146,7 @@ test("chat stays closed until the server, Ollama, and model are up", () => {
   );
   assert.match(policy.queuedNote("queued", false), /not loaded/);
   assert.doesNotMatch(policy.queuedNote("queued", false, "openrouter"), /not loaded/);
+  assert.throws(() => policy.preloadBody("mlx-community/Qwen3.5-9B-OptiQ-4bit"));
   assert.deepEqual(policy.preloadBody("qwen3.5:9b-mlx"), {
     model: "qwen3.5:9b-mlx",
     prompt: "",
@@ -548,6 +575,8 @@ test("mlx-lm is a closed argv on loopback and catalog download sits with local m
   assert.equal(html.includes("mlx-host"), true);
   assert.equal(mainSource.includes("sysctlArgv"), true);
   assert.equal(appSource.includes("mlxLoadTarget"), true);
+  assert.equal(appSource.includes("ollamaLoadTarget"), true);
+  assert.match(appSource, /state\.localRuntime = "ollama";\n  renderRuntime\(\);\n  const target = ollamaLoadTarget\(\);/);
   assert.match(
     appSource,
     /function modelPresent\(\) \{\n  if \(localRuntime\(\) === "mlx-lm"\) \{\n    const names = \(state\.mlx && state\.mlx\.models\) \|\| \[\];\n    const target = mlxLoadTarget\(\);/,

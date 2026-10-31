@@ -60,18 +60,35 @@ uv run two edge issue --listen PRIVATE-LAN-IP
 | `edge.env` | `TWO_EDGE_TOKEN` for the Caddy process and `two api` | No |
 | `Caddyfile` | `caddy run --config` that file | No |
 
-Copy `ca.crt` and `watch.p12` to the iPhone by AirDrop or a cable.
-Do not email them and do not put them in git. The operator exports
-`TWO_EDGE_TOKEN` from `edge.env` into the environment of both Caddy
-and `two api`, then starts Caddy. The API process is not given a LAN
-bind.
+Copy `ca.crt` and `watch.p12` to the iPhone by AirDrop or a cable when
+enrolling the watch from a PKCS#12. Do not email them and do not put
+them in git. The operator exports `TWO_EDGE_TOKEN` from `edge.env`
+into the environment of both Caddy and `two api`, then starts Caddy.
+The API process is not given a LAN bind.
 
-The iPhone screen asks for the PKCS#12 password, calls
-`SecPKCS12Import`, and stores the identity in the keychain with
-`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` and the shared access
-group. The item is not synchronizable. iCloud Keychain must not copy
-it. After import, the app deletes any copy of the p12 from the
-container. The password is not stored.
+The iPhone app generates its own P-256 key and sends a CSR. After
+`two edge issue`, run:
+
+```bash
+uv run two edge enroll --listen PRIVATE-LAN-IP
+```
+
+That command is a one-shot HTTPS listener on port 8444. It uses the
+issued server certificate and does not ask for a client certificate.
+Caddy on 8443 stays `require_and_verify`. The phone types one username
+(letters, digits, hyphen). Bonjour `_two-enroll._tcp` should find the
+mini; otherwise type the LAN host. The listener signs `CN=<username>`,
+writes `$TWO_DATA_DIR/edge/clients/<username>.crt`, returns `ca.crt`
+and the Caddy host/port, then exits. A second username is refused
+until `two edge enroll --replace`. The iPhone stores the identity in
+the keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` and
+the shared access group. The item is not synchronizable. The private
+key never leaves the phone.
+
+The watch PKCS#12 path remains: the iPhone can still import
+`watch.p12` with `SecPKCS12Import` when that file is used. The
+password is typed once and is not stored. After import, the app
+deletes any copy of the p12 from the container.
 
 Confirm against current Apple documentation whether that keychain
 access group is visible to the paired watch. If it is not, send the

@@ -245,6 +245,13 @@ button:disabled { color: var(--slate); cursor: not-allowed; }
   cursor: pointer;
 }
 
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .field {
   display: block;
   width: 100%;
