@@ -554,6 +554,23 @@
     return caddy ? ["up", "--caddy"] : ["up"];
   }
 
+  function knownCaddyPaths() {
+    return ["/opt/homebrew/bin/caddy", "/usr/local/bin/caddy"];
+  }
+
+  function edgeMarkerPaths(dataDir) {
+    if (!nodePath) {
+      throw new Error("edge paths are resolved in the main process");
+    }
+    if (typeof dataDir !== "string" || dataDir.length < 1) {
+      throw new Error("data directory is required");
+    }
+    return [
+      nodePath.join(dataDir, "edge", "Caddyfile"),
+      nodePath.join(dataDir, "edge", "edge.env"),
+    ];
+  }
+
   function mobileWaitingNote(host) {
     const listen = privateLanHost(host);
     return (
@@ -1014,6 +1031,8 @@
     edgePrepareArgs,
     edgeEnrollArgs,
     upArgs,
+    knownCaddyPaths,
+    edgeMarkerPaths,
     mobileWaitingNote,
     harnessArgs,
     dataDir,

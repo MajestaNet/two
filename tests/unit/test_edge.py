@@ -65,6 +65,18 @@ def test_caddyfile_requires_client_certs_and_omits_secrets(tmp_path: Path) -> No
     assert 'header_up X-Two-Client-Id "watch"' in text
     assert "BEGIN" not in text
     assert "token" not in text.lower() or "TWO_EDGE_TOKEN" in text
+    assert "bind 10.1.2.3" in text
+    assert "https://:8443 {" in text
+    assert "https://10.1.2.3:8443 {" not in text
+    assert "protocols h1 h2" in text
+    assert "strict_sni_host insecure_off" in text
+
+
+def test_caddyfile_keeps_a_hostname_in_the_site_address(tmp_path: Path) -> None:
+    plan = build_edge_plan(listen="mini.example.ts.net", data_dir=tmp_path)
+    text = render_caddyfile(plan)
+    assert "https://mini.example.ts.net:8443 {" in text
+    assert "bind " not in text
 
 
 def test_cli_plan_writes_nothing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -58,7 +58,7 @@ function fact(label, value, good) {
   return item;
 }
 
-async function refreshServer() {
+async function refreshServer(note) {
   const list = $("server-lines");
   list.replaceChildren();
   try {
@@ -73,11 +73,11 @@ async function refreshServer() {
       fact("ollama", server.ollama, server.ollama === "up"),
       fact("mlx-lm", server.mlx || "down", server.mlx === "up"),
     );
-    if (server.children.caddy === "running") {
-      list.append(fact("caddy", "running", true));
+    if (server.children.caddy) {
+      list.append(fact("caddy", server.children.caddy, server.children.caddy === "running"));
     }
     $("server-note").textContent =
-      "Closing this window leaves the control plane and Ollama running in the background.";
+      note || "Closing this window leaves the control plane and Ollama running in the background.";
   } catch (error) {
     $("server-note").textContent = error.message;
   }
@@ -1126,7 +1126,10 @@ $("mobile-cancel").addEventListener("click", async () => {
 $("start").addEventListener("click", async () => {
   $("server-note").textContent = "Starting…";
   try {
-    await globalThis.two.serverStart();
+    const result = await globalThis.two.serverStart();
+    const note = result && result.ok === false ? result.note : "";
+    setTimeout(() => refreshServer(note), 600);
+    return;
   } catch (error) {
     $("server-note").textContent = error.message;
   }

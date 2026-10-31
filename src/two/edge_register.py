@@ -40,6 +40,8 @@ from two.edge import (
 from two.operator.supervisor import run_down
 
 _SITE = re.compile(r"^https://([^\s:/]+):(\d+)\s*\{")
+_PORT_SITE = re.compile(r"^https://:(\d+)\s*\{")
+_BIND = re.compile(r"^bind\s+(\S+)\s*$")
 Inspect = Callable[[int], tuple[list[int], list[int]]]
 Kill = Callable[[int, int], None]
 
@@ -69,11 +71,23 @@ def detect_listen_host(probe: Callable[[], str] | None = None) -> str:
 def read_issued_site(caddyfile: Path) -> tuple[str, int] | None:
     if not caddyfile.is_file():
         return None
+    bound_host: str | None = None
+    bound_port: int | None = None
     for line in caddyfile.read_text(encoding="utf-8").splitlines():
-        match = _SITE.match(line.strip())
+        stripped = line.strip()
+        match = _SITE.match(stripped)
         if match is not None:
             return match.group(1), int(match.group(2))
-    return None
+        port_only = _PORT_SITE.match(stripped)
+        if port_only is not None:
+            bound_port = int(port_only.group(1))
+            continue
+        bind = _BIND.match(stripped)
+        if bind is not None:
+            bound_host = bind.group(1)
+    if bound_host is None or bound_port is None:
+        return None
+    return bound_host, bound_port
 
 
 def is_two_api_command(args: str) -> bool:

@@ -57,6 +57,35 @@ function controlPlaneEnv(overlay) {
   return env;
 }
 
+function edgeIsIssued(env) {
+  try {
+    return policy.edgeMarkerPaths(env.TWO_DATA_DIR).every((file) => fs.existsSync(file));
+  } catch (_error) {
+    return false;
+  }
+}
+
+function findCaddy(env) {
+  const names = policy.knownCaddyPaths();
+  const pathEnv = env && typeof env.PATH === "string" ? env.PATH : "";
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir || !path.isAbsolute(dir) || /\s/.test(dir)) continue;
+    names.push(path.join(dir, "caddy"));
+  }
+  for (const candidate of names) {
+    if (isExecutable(candidate)) return candidate;
+  }
+  return "";
+}
+
+function prependExecutable(env, file) {
+  if (!file) return env;
+  const directory = path.dirname(file);
+  if (!directory) return env;
+  env.PATH = directory + path.delimiter + (env.PATH || "");
+  return env;
+}
+
 function runTwo(args, envOverlay) {
   const argv = policy.commandArgv(launcher(), args);
   const env = controlPlaneEnv(envOverlay);
@@ -105,6 +134,8 @@ async function readHealth() {
 
 async function serverStatus() {
   const children = { api: "stopped", scheduler: "stopped", worker: "stopped" };
+  const issued = edgeIsIssued(controlPlaneEnv());
+  if (issued) children.caddy = "stopped";
   try {
     const body = parseJson(await runTwo(["up", "--status"]), "status failed");
     for (const child of body.children) {
@@ -126,25 +157,47 @@ async function serverStatus() {
   return { children, health: await readHealth(), ollama, mlx: mlxUp ? "up" : "down" };
 }
 
+let serverStartTask = null;
+
 async function serverStart() {
-  const current = await serverStatus();
-  const running = Object.values(current.children).some((state) => state === "running");
-  if (running) {
-    return { ok: true, already: true };
-  }
-  const argv = policy.commandArgv(launcher(), ["up"]);
+  if (serverStartTask) return serverStartTask;
+  serverStartTask = startControlPlane().finally(() => {
+    serverStartTask = null;
+  });
+  return serverStartTask;
+}
+
+async function startControlPlane() {
   const env = controlPlaneEnv();
+  const issued = edgeIsIssued(env);
+  const caddyBin = issued ? findCaddy(env) : "";
+  let note = "";
+  const withCaddy = issued && Boolean(caddyBin);
+  if (issued && !caddyBin) {
+    note = "Caddy is not installed, so the phone cannot reach this Mac. The local server can still start.";
+  }
+  prependExecutable(env, caddyBin);
+  delete env.TWO_EDGE_TOKEN;
+  const current = await serverStatus();
+  const running = ["api", "scheduler", "worker", "caddy"].some(
+    (name) => current.children[name] === "running",
+  );
+  const caddyUp = current.children.caddy === "running";
+  if (running && (!withCaddy || caddyUp)) {
+    return { ok: !note, already: true, note: note };
+  }
+  if (running) {
+    await serverStop();
+  }
   try {
     const harness = parseJson(await runTwo(policy.harnessArgs("status")), "harness status failed");
     if (harness && typeof harness.bin === "string" && harness.bin !== "") {
-      const directory = path.dirname(harness.bin);
-      if (directory) {
-        env.PATH = directory + path.delimiter + (env.PATH || "");
-      }
+      prependExecutable(env, harness.bin);
     }
   } catch (_error) {
     // The control plane can start before the harness is installed.
   }
+  const argv = policy.commandArgv(launcher(), policy.upArgs(withCaddy));
   const child = spawn(argv[0], argv.slice(1), {
     cwd: installRoot(),
     shell: false,
@@ -156,7 +209,7 @@ async function serverStart() {
     // A missing interpreter is reported by the next status read.
   });
   child.unref();
-  return { ok: true, already: false };
+  return { ok: !note, already: false, note: note };
 }
 
 async function serverStop() {
@@ -1334,12 +1387,15 @@ async function mobileRegister(payload) {
     return { ok: false, phase: "error", host: host, note: error.message };
   }
   const upArgv = policy.commandArgv(launcher(), policy.upArgs(caddy));
+  const upEnv = controlPlaneEnv();
+  if (caddy) prependExecutable(upEnv, findCaddy(upEnv));
+  delete upEnv.TWO_EDGE_TOKEN;
   const up = spawn(upArgv[0], upArgv.slice(1), {
     cwd: installRoot(),
     shell: false,
     detached: true,
     stdio: "ignore",
-    env: controlPlaneEnv(),
+    env: upEnv,
   });
   up.on("error", () => {});
   up.unref();
