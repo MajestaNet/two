@@ -160,16 +160,45 @@ def render_caddyfile(plan: EdgePlan) -> str:
 
     The edge token is read from the environment at Caddy start. It is not
     written into this file.
+
+    An IP listen address is bound on that address only. Caddy otherwise
+    treats the IP as a TLS server name and listens on every interface, then
+    skips client certificates when the phone omits that name. IP URLs do
+    not send a server name. A hostname stays in the site address so the
+    certificate name still matches.
     """
     root = plan.data_dir
-    return "\n".join(
+    try:
+        ipaddress.ip_address(plan.listen_host)
+    except ValueError:
+        ip_listen = False
+    else:
+        ip_listen = True
+    lines = ["{", "\tadmin off", "\tauto_https off"]
+    if ip_listen:
+        # An IP URL does not send a server name. Strict name checks would
+        # reject the phone after a valid client certificate. The listener is
+        # this one address, and every handshake still requires that certificate.
+        lines.extend(
+            [
+                "\tservers {",
+                "\t\tprotocols h1 h2",
+                "\t\tstrict_sni_host insecure_off",
+                "\t}",
+            ]
+        )
+    lines.extend(["}", ""])
+    if ip_listen:
+        lines.extend(
+            [
+                f"https://:{plan.listen_port} {{",
+                f"\tbind {plan.listen_host}",
+            ]
+        )
+    else:
+        lines.append(f"https://{plan.listen_host}:{plan.listen_port} {{")
+    lines.extend(
         [
-            "{",
-            "\tadmin off",
-            "\tauto_https off",
-            "}",
-            "",
-            f"https://{plan.listen_host}:{plan.listen_port} {{",
             "\ttls "
             + _caddy_path(root / "server.crt")
             + " "
@@ -188,6 +217,7 @@ def render_caddyfile(plan: EdgePlan) -> str:
             "",
         ]
     )
+    return "\n".join(lines)
 
 
 def format_edge_plan(plan: EdgePlan) -> str:

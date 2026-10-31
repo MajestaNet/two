@@ -102,6 +102,12 @@ test("mobile registration stays an argument list and refuses loopback", () => {
     "--stop",
   ]);
   assert.deepEqual(policy.upArgs(true), ["up", "--caddy"]);
+  assert.deepEqual(policy.upArgs(false), ["up"]);
+  assert.deepEqual(policy.knownCaddyPaths(), ["/opt/homebrew/bin/caddy", "/usr/local/bin/caddy"]);
+  assert.deepEqual(policy.edgeMarkerPaths("/tmp/two"), [
+    "/tmp/two/edge/Caddyfile",
+    "/tmp/two/edge/edge.env",
+  ]);
   assert.deepEqual(policy.edgeEnrollArgs("10.1.1.5"), ["edge", "enroll", "--listen", "10.1.1.5"]);
   assert.equal(policy.edgeDetectArgs().join(" ").includes(" "), true);
   assert.throws(() => policy.privateLanHost("127.0.0.1"));
@@ -327,6 +333,8 @@ test("the packaged window launches the bundled control plane and stays in the me
   assert.equal(mainSource.includes("event.preventDefault()"), true);
   assert.equal(mainSource.includes("requestSingleInstanceLock"), true);
   assert.equal(mainSource.includes("serverStart()"), true);
+  assert.equal(mainSource.includes("policy.upArgs(withCaddy)"), true);
+  assert.equal(mainSource.includes("edgeIsIssued"), true);
   assert.equal(/window-all-closed[\s\S]*two down/.test(mainSource), false);
   assert.equal(mainSource.includes("shell: true"), false);
   const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
