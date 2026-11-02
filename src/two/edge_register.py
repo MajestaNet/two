@@ -251,12 +251,19 @@ def prepare_edge(
         if site is None:
             raise EdgeIssueError("edge CA exists but the Caddyfile has no site")
         issued_host, issued_port = site
-        chosen = issued_host if listen is None else listen
-        if chosen != issued_host or port != issued_port:
+        bindings = read_issued_bindings(data_dir / "Caddyfile")
+        known = list(bindings[0]) if bindings is not None else [issued_host]
+        if listen is not None and listen not in known:
             raise EdgeIssueError(
                 f"edge is already issued for {issued_host}:{issued_port}; "
                 "pass --force to replace it"
             )
+        if port != issued_port:
+            raise EdgeIssueError(
+                f"edge is already issued for {issued_host}:{issued_port}; "
+                "pass --force to replace it"
+            )
+        chosen = issued_host
         overlay, lan = host_pair()
         plan = build_edge_plan(
             listen=chosen,

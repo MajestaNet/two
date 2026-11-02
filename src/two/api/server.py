@@ -36,6 +36,7 @@ from two.api.bind import (
     resolve_bind,
 )
 from two.edge import ENV_EDGE_TOKEN
+from two.operator.hostenv import default_data_dir
 
 
 def serve(
@@ -68,6 +69,8 @@ def serve(
 
     token = environ.get(ENV_TOKEN, "").strip() or None
     edge_token = environ.get(ENV_EDGE_TOKEN, "").strip() or None
+    configured = environ.get("TWO_DATA_DIR", "").strip()
+    data_dir = Path(configured) if configured else default_data_dir()
     if target.requires_auth and token is None:
         print(
             "non-loopback control API bind requires TWO_API_TOKEN",
@@ -82,6 +85,7 @@ def serve(
         require_auth=target.requires_auth,
         auth_token=token,
         edge_token=edge_token,
+        data_dir=data_dir,
     )
     _announce(target)
     _run_server(app, target, run=run)

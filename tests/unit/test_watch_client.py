@@ -62,6 +62,12 @@ def store(tmp_path: Path) -> Iterator[Store]:
 
 @pytest.fixture
 def client(store: Store, tmp_path: Path) -> Iterator[TestClient]:
+    edge = tmp_path / "edge"
+    edge.mkdir()
+    (edge / "Caddyfile").write_text(
+        "https://:8443 {\n\tbind 100.64.1.5 10.1.1.5\n}\n",
+        encoding="utf-8",
+    )
     app = create_app(store=store, edge_token=EDGE, data_dir=tmp_path)
     with TestClient(app) as test_client:
         yield test_client
@@ -101,6 +107,7 @@ def test_edge_capabilities_are_the_watch_client(client: TestClient) -> None:
     assert "tasks:read" in body["scopes"]
     assert "approvals:decide" in body["scopes"]
     assert "system:read" in body["scopes"]
+    assert body["edge_hosts"] == ["100.64.1.5", "10.1.1.5"]
 
 
 def test_client_id_without_edge_token_stays_local_trust(client: TestClient) -> None:

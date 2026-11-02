@@ -101,6 +101,8 @@ test("mobile registration stays an argument list and refuses loopback", () => {
     "--json",
     "--stop",
   ]);
+  assert.deepEqual(policy.edgePrepareArgs("", false), ["edge", "prepare", "--json"]);
+  assert.equal(policy.mobileAddressLine("100.64.1.5", "10.1.1.5"), "Home Wi-Fi 10.1.1.5. Tailscale 100.64.1.5");
   assert.deepEqual(policy.upArgs(true), ["up", "--caddy"]);
   assert.deepEqual(policy.upArgs(false), ["up"]);
   assert.deepEqual(policy.caddyArgv("/opt/homebrew/bin/caddy", "/tmp/two/edge/Caddyfile"), [
@@ -117,10 +119,16 @@ test("mobile registration stays an argument list and refuses loopback", () => {
     "/tmp/two/edge/edge.env",
   ]);
   assert.deepEqual(policy.edgeEnrollArgs("10.1.1.5"), ["edge", "enroll", "--listen", "10.1.1.5"]);
+  assert.deepEqual(policy.parseCliJson('{"listen":"10.1.1.5"}'), { listen: "10.1.1.5" });
+  assert.deepEqual(policy.parseCliJson('+ sent SIGTERM to api pid=12\n{"caddy":true,"listen":"10.1.1.5"}'), {
+    caddy: true,
+    listen: "10.1.1.5",
+  });
   assert.equal(policy.edgeDetectArgs().join(" ").includes(" "), true);
   assert.throws(() => policy.privateLanHost("127.0.0.1"));
   assert.throws(() => policy.privateLanHost("10.1.1.5; rm"));
   assert.match(policy.mobileWaitingNote("10.1.1.5"), /tap Enroll/);
+  assert.match(policy.mobileWaitingNote("10.1.1.5"), /this Wi-Fi/);
   const names = policy.rendererMethods.map((pair) => pair[0]);
   for (const name of ["mobileDetect", "mobileRegister", "mobileStatus", "mobileCancel", "caddyStart"]) {
     assert.equal(names.includes(name), true);
@@ -131,8 +139,8 @@ test("mobile registration stays an argument list and refuses loopback", () => {
   assert.equal(appSource.includes("caddyStart"), true);
   assert.equal(mainSource.includes("shell: true"), false);
   const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
-  assert.equal(html.includes("Register phone"), true);
-  assert.equal(html.includes("Caddy for development"), true);
+  assert.equal(html.includes("Start enrollment"), true);
+  assert.equal(html.includes("Stop enrollment"), true);
   assert.equal(html.includes("Start Caddy"), true);
 });
 

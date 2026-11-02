@@ -99,11 +99,13 @@ function renderCaddy() {
 
 async function refreshMobile() {
   const status = await globalThis.two.mobileStatus();
-  const field = $("mobile-host");
-  if (field && !field.value && status.host) field.value = status.host;
+  const addrs = $("mobile-addrs");
+  if (addrs) addrs.textContent = policy.mobileAddressLine(status.overlay, status.lan);
   if (status.note) $("mobile-note").textContent = status.note;
-  $("mobile-cancel").classList.toggle("hidden", status.phase !== "waiting");
-  $("mobile-register").disabled = status.phase === "working" || status.phase === "waiting";
+  const waiting = status.phase === "waiting";
+  const working = status.phase === "working";
+  $("mobile-register").disabled = waiting || working;
+  $("mobile-cancel").disabled = !waiting;
 }
 
 function watchMobile() {
@@ -126,19 +128,18 @@ function watchMobile() {
 async function registerPhone() {
   const button = $("mobile-register");
   button.disabled = true;
-  $("mobile-note").textContent = "Issuing the edge and restarting the API…";
+  $("mobile-cancel").disabled = true;
+  $("mobile-note").textContent = "Starting enrollment…";
   try {
-    const result = await globalThis.two.mobileRegister({
-      host: $("mobile-host").value,
-      caddy: $("mobile-caddy").checked,
-    });
+    const result = await globalThis.two.mobileRegister();
     $("mobile-note").textContent = result.note || "";
-    $("mobile-cancel").classList.toggle("hidden", result.phase !== "waiting");
+    $("mobile-cancel").disabled = result.phase !== "waiting";
     if (result.phase === "waiting") watchMobile();
     else button.disabled = false;
   } catch (error) {
     $("mobile-note").textContent = error.message;
     button.disabled = false;
+    $("mobile-cancel").disabled = true;
   }
 }
 
@@ -1122,10 +1123,13 @@ document.querySelector(".nav").addEventListener("click", (event) => {
 
 $("mobile-register").addEventListener("click", registerPhone);
 $("mobile-cancel").addEventListener("click", async () => {
+  $("mobile-cancel").disabled = true;
   const status = await globalThis.two.mobileCancel();
   $("mobile-note").textContent = status.note || "";
-  $("mobile-cancel").classList.add("hidden");
   $("mobile-register").disabled = false;
+  $("mobile-cancel").disabled = true;
+  const addrs = $("mobile-addrs");
+  if (addrs) addrs.textContent = policy.mobileAddressLine(status.overlay, status.lan);
   if (state.mobilePoll) {
     clearInterval(state.mobilePoll);
     state.mobilePoll = null;

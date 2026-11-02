@@ -98,6 +98,31 @@ def test_prepare_json_hides_the_token(tmp_path: Path, capsys: pytest.CaptureFixt
     assert "token" not in body
 
 
+def test_prepare_accepts_a_bound_extra_address(tmp_path: Path) -> None:
+    edge = tmp_path / "edge"
+    _issued(edge, host="100.64.1.5")
+    (edge / "Caddyfile").write_text(
+        "https://:8443 {\n\tbind 100.64.1.5 10.1.1.5\n}\n",
+        encoding="utf-8",
+    )
+
+    def issue(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("must not reissue")
+
+    prepared = prepare_edge(
+        listen="10.1.1.5",
+        port=8443,
+        api="127.0.0.1:8741",
+        data_dir=edge,
+        hosts=lambda: ("100.64.1.5", "10.1.1.5"),
+        issue=issue,
+        refresh=lambda *_args, **_kwargs: None,
+        caddy_bin=lambda _name: None,
+    )
+    assert prepared.created is False
+    assert prepared.listen == "100.64.1.5"
+
+
 def test_prepare_refuses_a_different_host(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -105,20 +105,23 @@ def serve_one_enroll(
     if enroll_port == plan.listen_port:
         raise EdgeIssueError("enroll port must differ from the Caddy port")
 
+    plan = _plan_with_home_network(plan)
+    bind_host = _enroll_bind_host(plan)
+
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(plan.data_dir / "server.crt", plan.data_dir / "server.key")
 
     server = _EnrollHTTPServer(
-        (_enroll_bind_host(plan), enroll_port),
+        (bind_host, enroll_port),
         _EnrollHandler,
         plan=plan,
         replace=replace,
     )
     server.socket = context.wrap_socket(server.socket, server_side=True)
-    advertisement = _advertise(plan.listen_host, enroll_port)
+    advertisement = _advertise(bind_host, enroll_port)
     print(
-        f"waiting for one phone at https://{plan.listen_host}:{enroll_port}{ENROLL_PATH} "
+        f"waiting for one phone at https://{bind_host}:{enroll_port}{ENROLL_PATH} "
         f"(Bonjour {BONJOUR_TYPE}). Caddy stays on https://{plan.listen_host}:{plan.listen_port} "
         "with client certificates.",
         flush=True,
@@ -214,6 +217,24 @@ class _EnrollHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+
+def _plan_with_home_network(plan: EdgePlan) -> EdgePlan:
+    """Attach the live LAN address so enroll can bind it beside Tailscale."""
+    from two.edge import build_edge_plan
+    from two.edge_register import extra_private_hosts, private_edge_hosts
+
+    overlay, lan = private_edge_hosts()
+    also = extra_private_hosts(plan.listen_host, overlay=overlay, lan=lan)
+    if not also:
+        return plan
+    return build_edge_plan(
+        listen=plan.listen_host,
+        port=plan.listen_port,
+        api=f"{plan.api_host}:{plan.api_port}",
+        data_dir=plan.data_dir,
+        also=also,
+    )
 
 
 def _enroll_bind_host(plan: EdgePlan) -> str:

@@ -78,16 +78,11 @@
           </div>
           <pre id="harness-log" class="log"></pre>
           <h2>Mobile</h2>
-          <p class="lede">Register a phone once. It keeps this Mac’s Tailscale address for cellular and the home Wi-Fi address for this network, and uses whichever it can reach.</p>
-          <label for="mobile-host">Tailscale address</label>
-          <input id="mobile-host" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="100.64.0.1" />
-          <label class="check" for="mobile-caddy">
-            <input id="mobile-caddy" type="checkbox" checked />
-            Caddy for development
-          </label>
+          <p class="lede">Start enrollment on this Wi-Fi. The phone registers once, then uses Tailscale away from home and this address on the LAN. Stop enrollment when you are done. The API and Caddy stay up.</p>
+          <p id="mobile-addrs" class="note"></p>
           <div class="row">
-            <button type="button" id="mobile-register">Register phone</button>
-            <button type="button" id="mobile-cancel" class="quiet hidden">Cancel</button>
+            <button type="button" id="mobile-register">Start enrollment</button>
+            <button type="button" id="mobile-cancel" class="quiet" disabled>Stop enrollment</button>
           </div>
           <p id="mobile-note" class="note"></p>
         </section>

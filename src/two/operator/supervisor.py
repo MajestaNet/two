@@ -262,9 +262,9 @@ def run_down(
     for name, pid in rows:
         try:
             killer(pid, signal.SIGTERM)
-            print(f"+ sent SIGTERM to {name} pid={pid}")
+            print(f"+ sent SIGTERM to {name} pid={pid}", file=sys.stderr)
         except ProcessLookupError:
-            print(f"+ {name} pid={pid} already gone")
+            print(f"+ {name} pid={pid} already gone", file=sys.stderr)
     path.unlink(missing_ok=True)
     return 0
 

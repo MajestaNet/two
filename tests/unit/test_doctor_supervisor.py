@@ -178,7 +178,7 @@ def test_run_down_missing_pidfile(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert "no pidfile" in capsys.readouterr().out
 
 
-def test_run_down_signals(tmp_path: Path) -> None:
+def test_run_down_signals(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     pid_path = tmp_path / "two.up.pid"
     pid_path.write_text("api 4242\nscheduler 4243\nworker 4244\n", encoding="utf-8")
     sent: list[tuple[int, int]] = []
@@ -189,6 +189,9 @@ def test_run_down_signals(tmp_path: Path) -> None:
     assert run_down(data_dir=tmp_path, kill=kill) == 0
     assert [pid for pid, _sig in sent] == [4242, 4243, 4244]
     assert not pid_path.exists()
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "sent SIGTERM" in captured.err
 
 
 def test_format_up_plan_lists_three_children(tmp_path: Path) -> None:

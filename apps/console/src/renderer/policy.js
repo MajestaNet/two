@@ -537,12 +537,34 @@
     return token;
   }
 
+  function parseCliJson(text) {
+    const raw = String(text || "");
+    try {
+      return JSON.parse(raw);
+    } catch (_error) {
+      const objectStart = raw.indexOf("{");
+      const arrayStart = raw.indexOf("[");
+      const starts = [objectStart, arrayStart].filter((index) => index >= 0);
+      if (starts.length === 0) {
+        throw new Error("the command did not return JSON");
+      }
+      const start = Math.min(...starts);
+      const endChar = raw.charAt(start) === "{" ? "}" : "]";
+      const end = raw.lastIndexOf(endChar);
+      if (end < start) {
+        throw new Error("the command did not return JSON");
+      }
+      return JSON.parse(raw.slice(start, end + 1));
+    }
+  }
+
   function edgeDetectArgs() {
     return ["edge", "detect"];
   }
 
   function edgePrepareArgs(host, stop) {
-    const args = ["edge", "prepare", "--listen", privateLanHost(host), "--json"];
+    const args = ["edge", "prepare", "--json"];
+    if (host) args.splice(2, 0, "--listen", privateLanHost(host));
     if (stop) args.push("--stop");
     return args;
   }
@@ -591,10 +613,17 @@
   function mobileWaitingNote(host) {
     const listen = privateLanHost(host);
     return (
-      "Enrollment is waiting. On the iPhone, enter a username, set the host to " +
+      "Enrollment is listening. On this Wi-Fi, open Two Phone, enter a username, set the host to " +
       listen +
-      ", and tap Enroll. Use the Tailscale address when the phone is away from this Wi-Fi."
+      ", and tap Enroll. Stop enrollment when the phone is on the globe."
     );
+  }
+
+  function mobileAddressLine(overlay, lan) {
+    const parts = [];
+    if (typeof lan === "string" && lan.trim()) parts.push("Home Wi-Fi " + lan.trim());
+    if (typeof overlay === "string" && overlay.trim()) parts.push("Tailscale " + overlay.trim());
+    return parts.join(". ");
   }
 
   function harnessArgs(action) {
@@ -1044,6 +1073,7 @@
     commandArgv,
     twoArgv,
     privateLanHost,
+    parseCliJson,
     edgeDetectArgs,
     edgePrepareArgs,
     edgeEnrollArgs,
@@ -1052,6 +1082,7 @@
     knownCaddyPaths,
     edgeMarkerPaths,
     mobileWaitingNote,
+    mobileAddressLine,
     harnessArgs,
     dataDir,
     needsReplace,
