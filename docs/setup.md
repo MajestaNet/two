@@ -149,6 +149,11 @@ Opening the window starts `two up` when the control plane is not already
 running. Closing the window hides it. The menu-bar icon opens it again.
 Quit of the window process does not stop the control plane. **Stop** does.
 The same is true of an Ollama serve or mlx-lm server this window started.
+After the phone edge is issued, **Start Caddy** runs Caddy against
+`$TWO_DATA_DIR/edge/Caddyfile` without restarting the API. **Stop** stops
+that process too. One phone registration stores the Tailscale address and
+the home Wi-Fi address. Caddy listens on both. The phone uses Tailscale on
+cellular and the home address on this Wi-Fi.
 
 The window looks for an existing `ollama` at the remembered path,
 Homebrew, `/usr/local/bin`, and `PATH`. If none run, **Install Ollama**
@@ -813,6 +818,8 @@ controller plus validation gates, never a model self-report.
 
 The closed tools stay `climate.read`, `climate.set_setpoint`, and
 `climate.set_mode` ([ADR 0022](adrs/0022-climate-device-protocol.md)).
+Each zone may list `aliases`: up to eight spoken ids such as `lounge`.
+The router treats that word as the zone. An alias is not an address.
 The production child is pinned `dsh --profile acp`
 ([ADR 0028](adrs/0028-home-action-acp-client.md)). It can request those
 tools. This process performs them. Restart the control plane after
@@ -907,7 +914,9 @@ plaintext API are refused.
 
 The closed tools are `tv.read`, `tv.set_power`, `tv.open`, and
 `tv.set_volume` ([ADR 0029](adrs/0029-samsung-tv.md)). The set stays a
-target. Nothing is installed on the television. Copy
+target. Nothing is installed on the television. Each set may list
+`aliases` for the set itself, such as `big-tv`. App names stay under
+`targets`. Copy
 [config/devices/tv.example.yaml](../config/devices/tv.example.yaml) to
 `$TWO_DATA_DIR/devices/tv.yaml`. The slot stays off until that file has
 `enabled: true`.
@@ -950,6 +959,9 @@ on `two chat`.
 
 The closed tools are `vacuum.read`, `vacuum.clean`, and `vacuum.dock`
 ([ADR 0038](adrs/0038-ecovacs-vacuum.md)). The robot stays a target.
+Each robot may list `aliases`, such as `downstairs`. An alias is the
+spoken id. It is not the account nickname, and the nickname stays out
+of the model prompt.
 Nothing is installed on the robot, and this repository does not run the
 vendor MCP server. Copy
 [config/devices/vacuum.example.yaml](../config/devices/vacuum.example.yaml)

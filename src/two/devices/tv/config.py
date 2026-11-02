@@ -30,6 +30,7 @@ from urllib.parse import urlsplit
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from two.devices.alias import assign_aliases, claim_name, omit_empty_aliases
 from two.devices.tv.contract import (
     SetBounds,
     SetPolicy,
@@ -96,6 +97,7 @@ def canonical_tv_document(raw: Mapping[str, object]) -> dict[str, object]:
     if document.enabled:
         _install(document)
     dumped: dict[str, object] = document.model_dump(mode="json")
+    omit_empty_aliases(dumped, "sets")
     return dumped
 
 
@@ -104,6 +106,11 @@ def _install(document: _Document) -> TvInstall:
         raise TvConfigError("tv binding needs a set")
     sets: dict[str, SetPolicy] = {}
     seen_addresses: set[str] = set()
+    taken: set[str] = set()
+    for key, bounds in document.sets.items():
+        claim_name(taken, require_set_id(key))
+        for target in bounds.targets:
+            claim_name(taken, require_set_id(target))
     for key, bounds in document.sets.items():
         set_id = require_set_id(key)
         address = require_private_host(bounds.address)
@@ -116,6 +123,10 @@ def _install(document: _Document) -> TvInstall:
             raise TvConfigError(f"{set_id} volume_min exceeds volume_max")
         volume_url = _volume_url(set_id, address, bounds.volume_url)
         targets = _targets(set_id, bounds)
+        try:
+            aliases = assign_aliases(set_id, bounds.aliases, taken)
+        except ValueError as exc:
+            raise TvConfigError(str(exc)) from exc
         sets[set_id] = SetPolicy(
             set_id=set_id,
             address=address,
@@ -127,6 +138,7 @@ def _install(document: _Document) -> TvInstall:
             volume_step=bounds.volume_step,
             volume_url=volume_url,
             targets=targets,
+            aliases=aliases,
         )
     return TvInstall(sets=sets)
 

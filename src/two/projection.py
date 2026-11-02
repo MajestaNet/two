@@ -470,6 +470,7 @@ class SystemCapabilities(BaseModel):
     allowed_harness_profiles: list[str] = Field(default_factory=list)
     auth: AuthCapabilities
     features: ClientFeatures = Field(default_factory=ClientFeatures)
+    edge_hosts: list[str] = Field(default_factory=list)
 
 
 class VoiceTurnRequest(BaseModel):

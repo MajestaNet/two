@@ -22,7 +22,9 @@ ESPHome climate entity on a shared node (ADR 0043).
 The television package is in-repo and default off (ADR 0029).
 The vacuum package is in-repo and default off (ADR 0038). Its transport
 is the Ecovacs Open API on the two official hosts. Listing is GET
-(ADR 0042). Operator first-run listing and television pairing stay in
+(ADR 0042). A zone, set, or robot may list spoken aliases. The router
+matches those names and compiles one specific closed verb without the
+harness (ADR 0045). Operator first-run listing and television pairing stay in
 this process (ADR 0044).
 Speech remains specified and not implemented.
 The SQLite WAL store (`two.store`)

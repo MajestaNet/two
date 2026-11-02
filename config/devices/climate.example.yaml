@@ -14,6 +14,8 @@ upstream: http://192.168.1.10:8123
 token_env: TWO_CLIMATE_TOKEN
 zones:
   living:
+    # Optional spoken ids. "turn the lounge off" selects this zone.
+    # aliases: [lounge]
     entity_id: climate.living
     min_celsius: 18
     max_celsius: 26

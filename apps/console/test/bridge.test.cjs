@@ -103,6 +103,14 @@ test("mobile registration stays an argument list and refuses loopback", () => {
   ]);
   assert.deepEqual(policy.upArgs(true), ["up", "--caddy"]);
   assert.deepEqual(policy.upArgs(false), ["up"]);
+  assert.deepEqual(policy.caddyArgv("/opt/homebrew/bin/caddy", "/tmp/two/edge/Caddyfile"), [
+    "/opt/homebrew/bin/caddy",
+    "run",
+    "--config",
+    "/tmp/two/edge/Caddyfile",
+  ]);
+  assert.throws(() => policy.caddyArgv("caddy", "/tmp/two/edge/Caddyfile"));
+  assert.throws(() => policy.caddyArgv("/opt/homebrew/bin/caddy", "/tmp/two/Caddyfile"));
   assert.deepEqual(policy.knownCaddyPaths(), ["/opt/homebrew/bin/caddy", "/usr/local/bin/caddy"]);
   assert.deepEqual(policy.edgeMarkerPaths("/tmp/two"), [
     "/tmp/two/edge/Caddyfile",
@@ -114,14 +122,18 @@ test("mobile registration stays an argument list and refuses loopback", () => {
   assert.throws(() => policy.privateLanHost("10.1.1.5; rm"));
   assert.match(policy.mobileWaitingNote("10.1.1.5"), /tap Enroll/);
   const names = policy.rendererMethods.map((pair) => pair[0]);
-  for (const name of ["mobileDetect", "mobileRegister", "mobileStatus", "mobileCancel"]) {
+  for (const name of ["mobileDetect", "mobileRegister", "mobileStatus", "mobileCancel", "caddyStart"]) {
     assert.equal(names.includes(name), true);
   }
   assert.equal(mainSource.includes("mobile:register"), true);
+  assert.equal(mainSource.includes("caddy:start"), true);
+  assert.equal(mainSource.includes("readEdgeToken"), true);
+  assert.equal(appSource.includes("caddyStart"), true);
   assert.equal(mainSource.includes("shell: true"), false);
   const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
   assert.equal(html.includes("Register phone"), true);
   assert.equal(html.includes("Caddy for development"), true);
+  assert.equal(html.includes("Start Caddy"), true);
 });
 
 test("the console refuses a public API bind", () => {

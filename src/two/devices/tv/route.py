@@ -38,9 +38,15 @@ def television_route_card(install: TvInstall | None) -> DeviceRouteCard:
     """Set ids come from the binding. A missing binding stays disabled."""
     targets = () if install is None else tuple(sorted(install.sets))
     aliases: tuple[str, ...] = ()
+    spoken: tuple[tuple[str, str], ...] = ()
     if install is not None:
         names = {alias for policy in install.sets.values() for alias in policy.targets}
         aliases = tuple(sorted(names))
+        spoken = tuple(
+            (alias, set_id)
+            for set_id, policy in sorted(install.sets.items())
+            for alias in policy.aliases
+        )
     return DeviceRouteCard(
         slot="tv",
         tool_prefix="tv",
@@ -54,4 +60,5 @@ def television_route_card(install: TvInstall | None) -> DeviceRouteCard:
         ),
         aliases=aliases,
         closed_verbs=_CLOSED,
+        spoken=spoken,
     )

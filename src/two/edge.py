@@ -61,22 +61,31 @@ class EdgeUsernameError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class EdgePlan:
-    """Operator plan for the Caddy process in front of the loopback API."""
+    """Operator plan for the Caddy process in front of the loopback API.
+
+    ``listen_host`` is the address the phone keeps for cellular. ``also``
+    adds the home Wi-Fi address so the same registration works on both.
+    """
 
     listen_host: str
     listen_port: int
     api_host: str
     api_port: int
     data_dir: Path
+    also: tuple[str, ...] = ()
+
+    @property
+    def bind_hosts(self) -> tuple[str, ...]:
+        hosts = [self.listen_host]
+        for host in self.also:
+            if host not in hosts:
+                hosts.append(host)
+        return tuple(hosts)
 
     @property
     def san(self) -> str:
         """OpenSSL subjectAltName value for the server certificate."""
-        try:
-            ipaddress.ip_address(self.listen_host)
-        except ValueError:
-            return f"DNS:{self.listen_host}"
-        return f"IP:{self.listen_host}"
+        return ",".join(_san_token(host) for host in self.bind_hosts)
 
 
 def resolve_edge_data_dir(
@@ -136,67 +145,70 @@ def parse_api_upstream(value: str) -> tuple[str, int]:
     return host, port
 
 
+def _san_token(host: str) -> str:
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return f"DNS:{host}"
+    return f"IP:{host}"
+
+
+def _is_ip(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True
+
+
+def is_overlay_host(host: str) -> bool:
+    """True for a Tailscale IPv4 address or a hostname.
+
+    Tailscale uses 100.64.0.0/10. A hostname is the overlay name the
+    phone can resolve off the home network.
+    """
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return True
+    if not isinstance(address, ipaddress.IPv4Address):
+        return False
+    network = ipaddress.ip_network("100.64.0.0/10")
+    return address in network
+
+
 def build_edge_plan(
     *,
     listen: str,
     port: int = DEFAULT_EDGE_PORT,
     api: str = DEFAULT_API_UPSTREAM,
     data_dir: Path,
+    also: Sequence[str] = (),
 ) -> EdgePlan:
     """Validate addresses and return a plan. Does not write files."""
     listen_port = _parse_port(port, source="edge port")
     api_host, api_port = parse_api_upstream(api)
+    primary = validate_listen_host(listen)
+    extras: list[str] = []
+    for host in also:
+        chosen = validate_listen_host(host)
+        if chosen != primary and chosen not in extras:
+            extras.append(chosen)
     return EdgePlan(
-        listen_host=validate_listen_host(listen),
+        listen_host=primary,
         listen_port=listen_port,
         api_host=api_host,
         api_port=api_port,
         data_dir=data_dir,
+        also=tuple(extras),
     )
 
 
-def render_caddyfile(plan: EdgePlan) -> str:
-    """Render a Caddyfile that requires a client certificate.
-
-    The edge token is read from the environment at Caddy start. It is not
-    written into this file.
-
-    An IP listen address is bound on that address only. Caddy otherwise
-    treats the IP as a TLS server name and listens on every interface, then
-    skips client certificates when the phone omits that name. IP URLs do
-    not send a server name. A hostname stays in the site address so the
-    certificate name still matches.
-    """
+def _site_block(plan: EdgePlan, *, address: str, bind: str | None) -> list[str]:
     root = plan.data_dir
-    try:
-        ipaddress.ip_address(plan.listen_host)
-    except ValueError:
-        ip_listen = False
-    else:
-        ip_listen = True
-    lines = ["{", "\tadmin off", "\tauto_https off"]
-    if ip_listen:
-        # An IP URL does not send a server name. Strict name checks would
-        # reject the phone after a valid client certificate. The listener is
-        # this one address, and every handshake still requires that certificate.
-        lines.extend(
-            [
-                "\tservers {",
-                "\t\tprotocols h1 h2",
-                "\t\tstrict_sni_host insecure_off",
-                "\t}",
-            ]
-        )
-    lines.extend(["}", ""])
-    if ip_listen:
-        lines.extend(
-            [
-                f"https://:{plan.listen_port} {{",
-                f"\tbind {plan.listen_host}",
-            ]
-        )
-    else:
-        lines.append(f"https://{plan.listen_host}:{plan.listen_port} {{")
+    lines = [f"{address} {{"]
+    if bind is not None:
+        lines.append(f"\tbind {bind}")
     lines.extend(
         [
             "\ttls "
@@ -214,17 +226,70 @@ def render_caddyfile(plan: EdgePlan) -> str:
             f'\t\theader_up {CLIENT_ID_HEADER} "{WATCH_CLIENT_ID}"',
             "\t}",
             "}",
-            "",
         ]
     )
+    return lines
+
+
+def render_caddyfile(plan: EdgePlan) -> str:
+    """Render a Caddyfile that requires a client certificate.
+
+    The edge token is read from the environment at Caddy start. It is not
+    written into this file.
+
+    IP listeners are bound on those addresses only. Caddy otherwise treats
+    an IP as a TLS server name and listens on every interface, then skips
+    client certificates when the phone omits that name. IP URLs do not send
+    a server name. A hostname stays in the site address so the certificate
+    name still matches.
+    """
+    ips = [host for host in plan.bind_hosts if _is_ip(host)]
+    names = [host for host in plan.bind_hosts if not _is_ip(host)]
+    lines = ["{", "\tadmin off", "\tauto_https off"]
+    if ips:
+        # An IP URL does not send a server name. Strict name checks would
+        # reject the phone after a valid client certificate. Every handshake
+        # still requires that certificate.
+        lines.extend(
+            [
+                "\tservers {",
+                "\t\tprotocols h1 h2",
+                "\t\tstrict_sni_host insecure_off",
+                "\t}",
+            ]
+        )
+    lines.extend(["}", ""])
+    blocks: list[str] = []
+    if ips:
+        blocks.extend(
+            _site_block(
+                plan,
+                address=f"https://:{plan.listen_port}",
+                bind=" ".join(ips),
+            )
+        )
+    for name in names:
+        if blocks:
+            blocks.append("")
+        blocks.extend(
+            _site_block(
+                plan,
+                address=f"https://{name}:{plan.listen_port}",
+                bind=None,
+            )
+        )
+    lines.extend(blocks)
+    lines.append("")
     return "\n".join(lines)
 
 
 def format_edge_plan(plan: EdgePlan) -> str:
     """Human-readable plan. Omits key material."""
+    binds = ", ".join(plan.bind_hosts)
     return "\n".join(
         [
             f"listen: https://{plan.listen_host}:{plan.listen_port}",
+            f"also: {binds}",
             f"upstream: http://{plan.api_host}:{plan.api_port}",
             f"data_dir: {plan.data_dir}",
             "api bind stays loopback. Caddy requires a client certificate.",
@@ -233,6 +298,21 @@ def format_edge_plan(plan: EdgePlan) -> str:
             render_caddyfile(plan),
         ]
     )
+
+
+def refresh_server_certificate(plan: EdgePlan, *, openssl: str = "openssl") -> None:
+    """Reissue the server certificate and Caddyfile for the current addresses.
+
+    The CA, the edge token, and phone certificates stay. The phone pins the
+    CA, so it does not enroll again when a home address is added.
+    """
+    root = plan.data_dir
+    if not (root / "ca.crt").is_file() or not (root / "ca.key").is_file():
+        raise EdgeIssueError("edge CA is missing; run two edge issue")
+    _issue_server(plan, openssl=openssl)
+    caddyfile = root / "Caddyfile"
+    caddyfile.write_text(render_caddyfile(plan), encoding="utf-8")
+    caddyfile.chmod(0o600)
 
 
 def issue_edge(

@@ -76,6 +76,7 @@ async function refreshServer(note) {
     if (server.children.caddy) {
       list.append(fact("caddy", server.children.caddy, server.children.caddy === "running"));
     }
+    renderCaddy();
     $("server-note").textContent =
       note || "Closing this window leaves the control plane and Ollama running in the background.";
   } catch (error) {
@@ -86,6 +87,14 @@ async function refreshServer(note) {
   await refreshHarness();
   await refreshMobile();
   refreshChatGate();
+}
+
+function renderCaddy() {
+  const button = $("caddy-start");
+  if (!button) return;
+  const issued = Boolean(state.server && state.server.children && state.server.children.caddy);
+  button.classList.toggle("hidden", !issued);
+  button.disabled = issued && state.server.children.caddy === "running";
 }
 
 async function refreshMobile() {
@@ -1143,6 +1152,19 @@ $("stop").addEventListener("click", async () => {
     $("server-note").textContent = error.message;
   }
   setTimeout(refreshServer, 400);
+});
+
+$("caddy-start").addEventListener("click", async () => {
+  const button = $("caddy-start");
+  button.disabled = true;
+  $("server-note").textContent = "Starting Caddy…";
+  try {
+    const result = await globalThis.two.caddyStart();
+    await refreshServer(result && result.note ? result.note : "");
+  } catch (error) {
+    $("server-note").textContent = error.message;
+    button.disabled = false;
+  }
 });
 
 $("download").addEventListener("click", downloadModel);

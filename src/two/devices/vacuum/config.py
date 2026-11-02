@@ -29,6 +29,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from two.devices.alias import assign_aliases, claim_name, omit_empty_aliases
 from two.devices.vacuum.contract import (
     DEFAULT_API_HOST,
     RobotBounds,
@@ -94,6 +95,7 @@ def canonical_vacuum_document(raw: Mapping[str, object]) -> dict[str, object]:
     if document.enabled:
         _install(document)
     dumped: dict[str, object] = document.model_dump(mode="json")
+    omit_empty_aliases(dumped, "robots")
     return dumped
 
 
@@ -104,11 +106,18 @@ def _install(document: _Document) -> VacuumInstall:
     token_env = require_token_env(document.token_env)
     robots: dict[str, RobotPolicy] = {}
     seen_nicknames: set[str] = set()
+    taken: set[str] = set()
+    for key in document.robots:
+        claim_name(taken, require_robot_id(key))
     for key, bounds in document.robots.items():
         robot_id = require_robot_id(key)
         nickname = require_nickname(bounds.nickname)
         if nickname in seen_nicknames:
             raise VacuumConfigError(f"{robot_id} repeats a nickname")
         seen_nicknames.add(nickname)
-        robots[robot_id] = RobotPolicy(robot_id=robot_id, nickname=nickname)
+        try:
+            aliases = assign_aliases(robot_id, bounds.aliases, taken)
+        except ValueError as exc:
+            raise VacuumConfigError(str(exc)) from exc
+        robots[robot_id] = RobotPolicy(robot_id=robot_id, nickname=nickname, aliases=aliases)
     return VacuumInstall(api_host=api_host, token_env=token_env, robots=robots)

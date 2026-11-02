@@ -799,7 +799,7 @@ def test_pinned_acp_rejects_a_tool_outside_the_list(
 ) -> None:
     _binding(tmp_path)
     transport = transport_from_testclient(client)
-    assert main(["climate", "send", "--text", "temperature"], request=transport) == 0
+    assert main(["climate", "send", "--text", "hello there"], request=transport) == 0
     turn_id = capsys.readouterr().out.split("turn_id: ", 1)[1].splitlines()[0].strip()
     _install_fake_acp(
         tmp_path,
