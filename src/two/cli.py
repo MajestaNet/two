@@ -518,7 +518,10 @@ def _run_edge_detect() -> int:
     except EdgeListenError as exc:
         print(f"two edge: {exc}", file=sys.stderr)
         return 1
-    print(json.dumps({"listen": host}))
+    from two.edge_register import private_edge_hosts
+
+    overlay, lan = private_edge_hosts()
+    print(json.dumps({"listen": host, "overlay": overlay, "lan": lan}))
     return 0
 
 

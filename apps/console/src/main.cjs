@@ -116,7 +116,7 @@ function parseJson(result, label) {
   if (result.code !== 0) {
     throw new Error((result.stderr || result.stdout || label).trim());
   }
-  return JSON.parse(result.stdout);
+  return policy.parseCliJson(result.stdout);
 }
 
 async function readHealth() {
@@ -1457,16 +1457,39 @@ async function mobileDetect() {
   return parseJson(await runTwo(policy.edgeDetectArgs()), "detect failed");
 }
 
-async function mobileStatus() {
-  let host = mobileState.host;
-  if (!host) {
-    try {
-      host = (await mobileDetect()).listen || "";
-    } catch (_error) {
-      host = "";
-    }
+async function detectedHosts() {
+  try {
+    const detected = await mobileDetect();
+    return {
+      overlay: typeof detected.overlay === "string" ? detected.overlay : "",
+      lan: typeof detected.lan === "string" ? detected.lan : "",
+      listen: typeof detected.listen === "string" ? detected.listen : "",
+    };
+  } catch (_error) {
+    return { overlay: "", lan: "", listen: "" };
   }
-  return { phase: mobileState.phase, host: host, note: mobileState.note };
+}
+
+function enrollHostFrom(detected) {
+  const lan = detected.lan || "";
+  const overlay = detected.overlay || "";
+  const listen = detected.listen || "";
+  if (lan) return policy.privateLanHost(lan);
+  if (listen) return policy.privateLanHost(listen);
+  if (overlay) return policy.privateLanHost(overlay);
+  throw new Error("No private address is available for enrollment.");
+}
+
+async function mobileStatus() {
+  const detected = await detectedHosts();
+  const host = mobileState.host || detected.lan || detected.listen || "";
+  return {
+    phase: mobileState.phase,
+    host: host,
+    overlay: detected.overlay,
+    lan: detected.lan,
+    note: mobileState.note,
+  };
 }
 
 function rememberEnroll(child, host) {
@@ -1475,10 +1498,19 @@ function rememberEnroll(child, host) {
   mobileState.host = host;
   mobileState.note = policy.mobileWaitingNote(host);
   let stderr = "";
+  const noteLine = (chunk) => {
+    const line = String(chunk || "")
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .pop();
+    if (line && mobileState.child === child) mobileState.note = line;
+  };
   child.stderr.on("data", (chunk) => {
     stderr = (stderr + chunk.toString("utf8")).slice(-4000);
+    noteLine(chunk);
   });
-  child.stdout.on("data", () => {});
+  child.stdout.on("data", noteLine);
   child.on("close", (code) => {
     if (mobileState.child !== child) return;
     mobileState.child = null;
@@ -1500,69 +1532,46 @@ async function waitForHealth(tries) {
   return false;
 }
 
-async function mobileRegister(payload) {
+async function mobileRegister(_payload) {
   let host = "";
   try {
-    host = policy.privateLanHost(payload && payload.host);
+    host = enrollHostFrom(await detectedHosts());
   } catch (error) {
     mobileState.phase = "error";
     mobileState.note = error.message;
     return { ok: false, phase: "error", host: "", note: error.message };
   }
-  const caddy = Boolean(payload && payload.caddy);
-  if (mobileState.child) {
-    mobileState.child.kill("SIGTERM");
-    mobileState.child = null;
-  }
+  await stopEnrollListener();
   mobileState.phase = "working";
   mobileState.host = host;
-  mobileState.note = "Issuing the edge and restarting the API…";
-  let prepared;
-  try {
-    prepared = parseJson(await runTwo(policy.edgePrepareArgs(host, false)), "prepare failed");
-  } catch (error) {
-    mobileState.phase = "error";
-    mobileState.note = error.message;
-    return { ok: false, phase: "error", host: host, note: error.message };
+  mobileState.note = "Starting enrollment…";
+  const env = controlPlaneEnv();
+  if (!edgeIsIssued(env)) {
+    try {
+      parseJson(await runTwo(policy.edgePrepareArgs("", false)), "prepare failed");
+    } catch (error) {
+      mobileState.phase = "error";
+      mobileState.note = error.message;
+      return { ok: false, phase: "error", host: host, note: error.message };
+    }
   }
-  if (caddy && !prepared.caddy) {
-    const note = "Caddy is not on PATH. Install it, or turn off Caddy for development.";
+  const started = await serverStart();
+  if (started && started.ok === false) {
+    const note = started.note || "The server could not start.";
     mobileState.phase = "error";
     mobileState.note = note;
     return { ok: false, phase: "error", host: host, note: note };
   }
-  if (caddy) {
-    const plan = await runTwo(policy.upArgs(true).concat(["--dry-run"]));
-    if (plan.code !== 0) {
-      const note = (plan.stderr || plan.stdout || "Caddy could not start.").trim();
+  if (edgeIsIssued(env)) {
+    const caddy = await caddyStart();
+    if (caddy && caddy.ok === false) {
       mobileState.phase = "error";
-      mobileState.note = note;
-      return { ok: false, phase: "error", host: host, note: note };
+      mobileState.note = caddy.note;
+      return { ok: false, phase: "error", host: host, note: caddy.note };
     }
   }
-  try {
-    parseJson(await runTwo(policy.edgePrepareArgs(host, true)), "restart failed");
-  } catch (error) {
-    mobileState.phase = "error";
-    mobileState.note = error.message;
-    return { ok: false, phase: "error", host: host, note: error.message };
-  }
-  if (caddy) await stopSidecarCaddy();
-  const upArgv = policy.commandArgv(launcher(), policy.upArgs(caddy));
-  const upEnv = controlPlaneEnv();
-  if (caddy) prependExecutable(upEnv, findCaddy(upEnv));
-  delete upEnv.TWO_EDGE_TOKEN;
-  const up = spawn(upArgv[0], upArgv.slice(1), {
-    cwd: installRoot(),
-    shell: false,
-    detached: true,
-    stdio: "ignore",
-    env: upEnv,
-  });
-  up.on("error", () => {});
-  up.unref();
   if (!(await waitForHealth(30))) {
-    const note = "The API did not come back after the restart.";
+    const note = "The API is not up. Start the server, then start enrollment again.";
     mobileState.phase = "error";
     mobileState.note = note;
     return { ok: false, phase: "error", host: host, note: note };
@@ -1581,13 +1590,45 @@ async function mobileRegister(payload) {
   return { ok: true, phase: "waiting", host: host, note: mobileState.note };
 }
 
-async function mobileCancel() {
-  if (mobileState.child) {
+function stopTrackedEnroll() {
+  if (!mobileState.child) return;
+  try {
     mobileState.child.kill("SIGTERM");
-    mobileState.child = null;
+  } catch (_error) {
+    // Already gone.
   }
+  mobileState.child = null;
+}
+
+function stopEnrollListener() {
+  stopTrackedEnroll();
+  return new Promise((resolve) => {
+    execFile(
+      "/usr/sbin/lsof",
+      ["-nP", "-iTCP:8444", "-sTCP:LISTEN", "-t"],
+      { timeout: 1500 },
+      (_error, stdout) => {
+        const pids = String(stdout || "")
+          .trim()
+          .split(/\s+/)
+          .filter((pid) => /^\d+$/.test(pid));
+        for (const pid of pids) {
+          try {
+            process.kill(Number(pid), "SIGTERM");
+          } catch (_error) {
+            // Already gone.
+          }
+        }
+        resolve();
+      },
+    );
+  });
+}
+
+async function mobileCancel() {
+  await stopEnrollListener();
   mobileState.phase = "idle";
-  mobileState.note = "Enrollment cancelled. The API is still running.";
+  mobileState.note = "Enrollment is stopped. The API and Caddy are still running.";
   return mobileStatus();
 }
 

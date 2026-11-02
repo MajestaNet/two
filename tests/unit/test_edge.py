@@ -37,7 +37,7 @@ from two.edge import (
     render_caddyfile,
     sign_phone_csr,
 )
-from two.edge_enroll import enroll_phone
+from two.edge_enroll import _enroll_bind_host, enroll_phone
 
 LISTEN = "10.1.2.3"
 
@@ -70,6 +70,17 @@ def test_caddyfile_requires_client_certs_and_omits_secrets(tmp_path: Path) -> No
     assert "https://10.1.2.3:8443 {" not in text
     assert "protocols h1 h2" in text
     assert "strict_sni_host insecure_off" in text
+
+
+def test_enroll_listener_binds_the_home_address(tmp_path: Path) -> None:
+    plan = build_edge_plan(
+        listen="100.64.1.5",
+        data_dir=tmp_path,
+        also=("10.1.1.5",),
+    )
+    assert _enroll_bind_host(plan) == "10.1.1.5"
+    overlay_only = build_edge_plan(listen="100.64.1.5", data_dir=tmp_path)
+    assert _enroll_bind_host(overlay_only) == "100.64.1.5"
 
 
 def test_caddyfile_binds_the_overlay_and_the_home_address(tmp_path: Path) -> None:
