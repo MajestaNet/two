@@ -23,5 +23,7 @@ token_env: ECO_API_KEY
 robots:
   robot-a:
     nickname: Robot A
+    # Optional spoken ids. This is not the account nickname.
+    # aliases: [downstairs]
   robot-b:
     nickname: Robot B

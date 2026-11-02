@@ -38,6 +38,12 @@
 - `adrs/0036-closed-utterance-compile.md` compiles an obvious named
   climate, television, or vacuum command without the harness. Do not paste that
   ADR here.
+- `adrs/0045-spoken-appliance-aliases.md` gives every bound zone, set,
+  and robot a spoken alias and compiles one specific closed verb without
+  the harness. Do not paste that ADR here.
+- `adrs/0046-climate-comfort-defaults.md` matches a room name in either
+  word order and compiles heat at 22 degrees or cool at 18. Do not paste
+  that ADR here.
 - `adrs/0039-operator-install-profile.md` is the explicit `operator`
   harness profile: a redacted install snapshot, a guide allowlist, and
   approved shipped bindings or self-build tasks. An omitted profile does

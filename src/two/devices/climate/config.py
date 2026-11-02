@@ -29,6 +29,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from two.devices.alias import assign_aliases, claim_name, omit_empty_aliases
 from two.devices.climate.contract import (
     SANITY_MAX_CELSIUS,
     SANITY_MIN_CELSIUS,
@@ -107,6 +108,7 @@ def canonical_climate_document(raw: Mapping[str, object]) -> dict[str, object]:
     if document.enabled:
         _install(document)
     dumped: dict[str, object] = document.model_dump(mode="json")
+    omit_empty_aliases(dumped, "zones")
     return dumped
 
 
@@ -136,10 +138,17 @@ def _install(document: _Document) -> ClimateInstall:
     seen_units: set[tuple[str, int]] = set()
     seen_esphome: set[tuple[str, str]] = set()
     used: set[str] = set()
+    taken: set[str] = set()
+    for key in document.zones:
+        claim_name(taken, require_zone_id(key))
     for key, bounds in document.zones.items():
         zone = require_zone_id(key)
         transport = bounds.transport if bounds.transport is not None else document.transport
-        policy = _zone_policy(zone, bounds, transport)
+        try:
+            aliases = assign_aliases(zone, bounds.aliases, taken)
+        except ValueError as exc:
+            raise ClimateConfigError(str(exc)) from exc
+        policy = _zone_policy(zone, bounds, transport, aliases)
         if policy.entity_id in seen_entities:
             raise ClimateConfigError(f"{zone} repeats an entity id")
         seen_entities.add(policy.entity_id)
@@ -184,7 +193,12 @@ def _zone_band(zone: str, bounds: ZoneBounds) -> tuple[float, float, frozenset[s
     )
 
 
-def _zone_policy(zone: str, bounds: ZoneBounds, transport: str) -> ZonePolicy:
+def _zone_policy(
+    zone: str,
+    bounds: ZoneBounds,
+    transport: str,
+    aliases: tuple[str, ...],
+) -> ZonePolicy:
     minimum, maximum, modes = _zone_band(zone, bounds)
     entity_id = require_entity_id(bounds.entity_id)
     if transport == TRANSPORT_HOME_ASSISTANT:
@@ -196,6 +210,7 @@ def _zone_policy(zone: str, bounds: ZoneBounds, transport: str) -> ZonePolicy:
             max_celsius=maximum,
             modes=modes,
             transport=TRANSPORT_HOME_ASSISTANT,
+            aliases=aliases,
         )
     if transport == TRANSPORT_ECHONET:
         _reject_direct_fields(zone, bounds, allow_host=True, allow_esphome=False)
@@ -208,6 +223,7 @@ def _zone_policy(zone: str, bounds: ZoneBounds, transport: str) -> ZonePolicy:
             host=require_private_host(bounds.host),
             instance=bounds.instance,
             transport=TRANSPORT_ECHONET,
+            aliases=aliases,
         )
     if transport != TRANSPORT_ESPHOME:
         raise ClimateConfigError("climate transport is not allowed")
@@ -221,6 +237,7 @@ def _zone_policy(zone: str, bounds: ZoneBounds, transport: str) -> ZonePolicy:
         transport=TRANSPORT_ESPHOME,
         node=require_zone_id(bounds.node),
         entity=require_esphome_entity(bounds.entity),
+        aliases=aliases,
     )
 
 

@@ -488,6 +488,19 @@ def _box(request: Request) -> _StoreBox:
     return box
 
 
+def _edge_hosts(request: Request) -> list[str]:
+    data_dir = getattr(request.app.state, "data_dir", None)
+    if not isinstance(data_dir, Path):
+        return []
+    from two.edge_register import read_issued_bindings
+
+    found = read_issued_bindings(Path(data_dir) / "edge" / "Caddyfile")
+    if found is None:
+        return []
+    hosts, _port = found
+    return hosts
+
+
 async def _get_capabilities(request: Request) -> SystemCapabilities:
     principal = require_scope(request, Scope.SYSTEM_READ)
     edge_token = getattr(request.app.state, "edge_token", None)
@@ -495,6 +508,7 @@ async def _get_capabilities(request: Request) -> SystemCapabilities:
         principal=principal.id,
         scopes=sorted(principal.scopes),
         allowed_harness_profiles=sorted(principal.harness_profiles),
+        edge_hosts=_edge_hosts(request),
         auth=AuthCapabilities(
             method=principal.method,
             oidc_available=False,

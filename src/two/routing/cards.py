@@ -16,8 +16,10 @@
 
 """Route cards. One shipped device package fills one card.
 
-The card names the words a person uses and the bound target ids. It does
-not carry an address, a token, or an entity id.
+The card names the words a person uses and the bound target ids. ``spoken``
+is ``(alias, target id)`` for the appliance itself. ``aliases`` stays the
+television app targets. The card does not carry an address, a token, or an
+entity id.
 """
 
 from __future__ import annotations
@@ -60,6 +62,7 @@ class DeviceRouteCard:
     fanout_verbs: tuple[FanoutVerb, ...]
     aliases: tuple[str, ...] = ()
     closed_verbs: tuple[ClosedVerb, ...] = ()
+    spoken: tuple[tuple[str, str], ...] = ()
 
     def fanout_for(self, verb: str) -> FanoutVerb | None:
         for item in self.fanout_verbs:

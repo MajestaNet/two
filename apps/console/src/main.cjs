@@ -146,6 +146,9 @@ async function serverStatus() {
   } catch (_error) {
     // A missing uv binary still leaves the health line to answer.
   }
+  if (issued && children.caddy !== "running" && (await ourCaddyRunning())) {
+    children.caddy = "running";
+  }
   let ollama = "down";
   try {
     const model = parseJson(await runTwo(["model", "status"]), "model status failed");
@@ -179,14 +182,12 @@ async function startControlPlane() {
   prependExecutable(env, caddyBin);
   delete env.TWO_EDGE_TOKEN;
   const current = await serverStatus();
-  const running = ["api", "scheduler", "worker", "caddy"].some(
-    (name) => current.children[name] === "running",
-  );
+  const planeUp = ["api", "scheduler", "worker"].some((name) => current.children[name] === "running");
   const caddyUp = current.children.caddy === "running";
-  if (running && (!withCaddy || caddyUp)) {
+  if (planeUp && (!withCaddy || caddyUp)) {
     return { ok: !note, already: true, note: note };
   }
-  if (running) {
+  if (planeUp || caddyUp) {
     await serverStop();
   }
   try {
@@ -213,8 +214,168 @@ async function startControlPlane() {
 }
 
 async function serverStop() {
+  await stopSidecarCaddy();
   const result = await runTwo(["down"]);
   return { ok: result.code === 0, output: (result.stdout + "\n" + result.stderr).trim() };
+}
+
+function caddyMemoryPath() {
+  return ollamaMemoryPath("caddy.json");
+}
+
+function caddyRecord() {
+  const body = readJsonFile(caddyMemoryPath());
+  if (!body || !Number.isInteger(body.pid) || body.pid <= 1) return null;
+  return body;
+}
+
+function ourCaddyRunning() {
+  const record = caddyRecord();
+  if (!record) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    execFile("/bin/ps", ["-ww", "-p", String(record.pid), "-o", "command="], { timeout: 1500 }, (error, stdout) => {
+      if (error) {
+        resolve(false);
+        return;
+      }
+      const command = String(stdout || "");
+      resolve(command.includes("caddy") && command.includes("Caddyfile"));
+    });
+  });
+}
+
+function readEdgeToken(dataDir) {
+  let text = "";
+  try {
+    text = fs.readFileSync(path.join(dataDir, "edge", "edge.env"), "utf8");
+  } catch (_error) {
+    return "";
+  }
+  for (const raw of text.split(/\r?\n/)) {
+    let line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    if (line.startsWith("export ")) line = line.slice("export ".length).trim();
+    const eq = line.indexOf("=");
+    if (eq < 1) continue;
+    if (line.slice(0, eq).trim() !== "TWO_EDGE_TOKEN") continue;
+    return unquoteEnv(line.slice(eq + 1).trim());
+  }
+  return "";
+}
+
+function unquoteEnv(value) {
+  if (value.startsWith('"')) {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === "string" ? parsed : "";
+    } catch (_error) {
+      return "";
+    }
+  }
+  if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+async function stopSidecarCaddy() {
+  const record = caddyRecord();
+  if (record && (await ourCaddyRunning())) {
+    try {
+      process.kill(record.pid, "SIGTERM");
+    } catch (_error) {
+      // Already gone.
+    }
+    for (let i = 0; i < 15; i += 1) {
+      if (!(await ourCaddyRunning())) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  try {
+    fs.unlinkSync(caddyMemoryPath());
+  } catch (_error) {
+    // No sidecar record to clear.
+  }
+}
+
+let caddyStartTask = null;
+
+async function caddyStart() {
+  if (caddyStartTask) return caddyStartTask;
+  caddyStartTask = bringUpCaddy().finally(() => {
+    caddyStartTask = null;
+  });
+  return caddyStartTask;
+}
+
+async function bringUpCaddy() {
+  const env = controlPlaneEnv();
+  if (!edgeIsIssued(env)) {
+    return { ok: false, already: false, note: "Register the phone before starting Caddy." };
+  }
+  const bin = findCaddy(env);
+  if (!bin) {
+    return {
+      ok: false,
+      already: false,
+      note: "Caddy is not installed, so the phone cannot reach this Mac.",
+    };
+  }
+  const current = await serverStatus();
+  if (current.children.caddy === "running") {
+    return { ok: true, already: true, note: "Caddy is already running." };
+  }
+  const planeUp = ["api", "scheduler", "worker"].some((name) => current.children[name] === "running");
+  if (!planeUp) {
+    const started = await serverStart();
+    return {
+      ok: Boolean(started && started.ok),
+      already: Boolean(started && started.already),
+      note: (started && started.note) || "Caddy is listening for the phone.",
+    };
+  }
+  return startCaddySidecar(env, bin);
+}
+
+async function startCaddySidecar(env, bin) {
+  const token = readEdgeToken(env.TWO_DATA_DIR);
+  if (!token) {
+    return { ok: false, already: false, note: "The edge token is missing. Register the phone again." };
+  }
+  const config = policy.edgeMarkerPaths(env.TWO_DATA_DIR)[0];
+  let argv;
+  try {
+    argv = policy.caddyArgv(bin, config);
+  } catch (error) {
+    return { ok: false, already: false, note: error.message };
+  }
+  const childEnv = Object.assign({}, env);
+  childEnv.TWO_EDGE_TOKEN = token;
+  prependExecutable(childEnv, bin);
+  const child = spawn(argv[0], argv.slice(1), {
+    cwd: installRoot(),
+    shell: false,
+    detached: true,
+    stdio: "ignore",
+    env: childEnv,
+  });
+  const failure = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 800);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      resolve(error);
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      resolve(new Error("Caddy stopped (" + String(code) + ")."));
+    });
+  });
+  if (failure) {
+    return { ok: false, already: false, note: failure.message };
+  }
+  child.unref();
+  writeJsonFile(caddyMemoryPath(), { pid: child.pid });
+  return { ok: true, already: false, note: "Caddy is listening for the phone." };
 }
 
 async function harnessStatus() {
@@ -1386,6 +1547,7 @@ async function mobileRegister(payload) {
     mobileState.note = error.message;
     return { ok: false, phase: "error", host: host, note: error.message };
   }
+  if (caddy) await stopSidecarCaddy();
   const upArgv = policy.commandArgv(launcher(), policy.upArgs(caddy));
   const upEnv = controlPlaneEnv();
   if (caddy) prependExecutable(upEnv, findCaddy(upEnv));
@@ -1433,6 +1595,7 @@ const handlers = {
   "server:status": serverStatus,
   "server:start": serverStart,
   "server:stop": serverStop,
+  "caddy:start": caddyStart,
   "model:recommend": modelRecommend,
   "model:status": modelStatus,
   "model:pull": modelPull,

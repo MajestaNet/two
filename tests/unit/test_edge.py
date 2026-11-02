@@ -72,6 +72,20 @@ def test_caddyfile_requires_client_certs_and_omits_secrets(tmp_path: Path) -> No
     assert "strict_sni_host insecure_off" in text
 
 
+def test_caddyfile_binds_the_overlay_and_the_home_address(tmp_path: Path) -> None:
+    plan = build_edge_plan(
+        listen="100.64.1.5",
+        data_dir=tmp_path,
+        also=("10.1.1.5", "100.64.1.5"),
+    )
+    text = render_caddyfile(plan)
+    assert "bind 100.64.1.5 10.1.1.5" in text
+    assert plan.san == "IP:100.64.1.5,IP:10.1.1.5"
+    assert "https://100.64.1.5:8443" not in text
+    with pytest.raises(EdgeListenError):
+        build_edge_plan(listen="100.64.1.5", data_dir=tmp_path, also=("8.8.8.8",))
+
+
 def test_caddyfile_keeps_a_hostname_in_the_site_address(tmp_path: Path) -> None:
     plan = build_edge_plan(listen="mini.example.ts.net", data_dir=tmp_path)
     text = render_caddyfile(plan)
@@ -182,6 +196,7 @@ def test_sign_phone_csr_and_refuse_second_name(tmp_path: Path) -> None:
     )
     assert status == 200
     assert body["host"] == LISTEN
+    assert body["hosts"] == [LISTEN]
     assert body["port"] == 8443
     assert "BEGIN CERTIFICATE" in body["ca"]
     assert "BEGIN CERTIFICATE" in body["certificate"]

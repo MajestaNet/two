@@ -44,10 +44,11 @@
       <main>
         <section id="server" class="view">
           <h1>Server</h1>
-          <p class="lede">The control plane starts with this window and keeps running after you close it. When a phone edge is already issued, Start also brings up Caddy on the Tailscale address.</p>
+          <p class="lede">The control plane starts with this window and keeps running after you close it. When a phone edge is already issued, Start also brings up Caddy on the Tailscale address. Start Caddy does that on its own when the server is already running.</p>
           <div class="row">
             <button type="button" id="start">Start</button>
             <button type="button" id="stop" class="quiet">Stop</button>
+            <button type="button" id="caddy-start" class="hidden">Start Caddy</button>
           </div>
           <ul id="server-lines" class="facts"></ul>
           <p id="server-note" class="note"></p>
@@ -77,9 +78,9 @@
           </div>
           <pre id="harness-log" class="log"></pre>
           <h2>Mobile</h2>
-          <p class="lede">Register a simulator or a phone on this network. This issues the edge, restarts the API with its token, and can start Caddy for development.</p>
-          <label for="mobile-host">Private LAN host</label>
-          <input id="mobile-host" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="192.168.0.95" />
+          <p class="lede">Register a phone once. It keeps this Mac’s Tailscale address for cellular and the home Wi-Fi address for this network, and uses whichever it can reach.</p>
+          <label for="mobile-host">Tailscale address</label>
+          <input id="mobile-host" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="100.64.0.1" />
           <label class="check" for="mobile-caddy">
             <input id="mobile-caddy" type="checkbox" checked />
             Caddy for development

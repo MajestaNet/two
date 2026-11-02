@@ -25,7 +25,14 @@ import pytest
 
 from two.cli import main
 from two.edge import EdgeIssueError, EdgeListenError, EdgePlan, build_edge_plan, render_caddyfile
-from two.edge_register import detect_listen_host, is_two_api_command, prepare_edge, read_issued_site
+from two.edge_register import (
+    detect_listen_host,
+    extra_private_hosts,
+    is_two_api_command,
+    prepare_edge,
+    read_issued_bindings,
+    read_issued_site,
+)
 
 
 def _issued(edge: Path, host: str = "10.1.1.5") -> None:
@@ -43,6 +50,20 @@ def test_detect_accepts_a_private_address_and_refuses_a_public_one() -> None:
         detect_listen_host(probe=lambda: "127.0.0.1")
 
 
+def test_detect_prefers_an_overlay_address() -> None:
+    assert (
+        detect_listen_host(probe=lambda: "10.1.1.5", overlay=lambda: "100.64.1.5")
+        == "100.64.1.5"
+    )
+
+
+def test_detect_uses_the_lan_when_the_overlay_is_down() -> None:
+    assert detect_listen_host(probe=lambda: "10.1.1.5", overlay=lambda: None) == "10.1.1.5"
+    assert (
+        detect_listen_host(probe=lambda: "10.1.1.5", overlay=lambda: "8.8.8.8") == "10.1.1.5"
+    )
+
+
 def test_two_api_command_does_not_match_enroll() -> None:
     assert is_two_api_command("/usr/bin/python3 -m two api")
     assert is_two_api_command("python -m two api --port 8741")
@@ -51,9 +72,16 @@ def test_two_api_command_does_not_match_enroll() -> None:
 
 
 def test_read_issued_site_from_rendered_caddyfile(tmp_path: Path) -> None:
-    plan = build_edge_plan(listen="10.1.1.5", data_dir=tmp_path)
+    plan = build_edge_plan(listen="10.1.1.5", data_dir=tmp_path, also=("100.64.1.5",))
     (tmp_path / "Caddyfile").write_text(render_caddyfile(plan), encoding="utf-8")
     assert read_issued_site(tmp_path / "Caddyfile") == ("10.1.1.5", 8443)
+    assert read_issued_bindings(tmp_path / "Caddyfile") == (["10.1.1.5", "100.64.1.5"], 8443)
+
+
+def test_extra_private_hosts_keep_the_overlay_primary() -> None:
+    assert extra_private_hosts("100.64.1.5", overlay="100.64.1.5", lan="10.1.1.5") == ("10.1.1.5",)
+    assert extra_private_hosts("10.1.1.5", overlay=None, lan="10.1.1.5") == ()
+    assert extra_private_hosts("10.1.1.5", overlay="8.8.8.8", lan=None) == ()
 
 
 def test_prepare_json_hides_the_token(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

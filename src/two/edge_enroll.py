@@ -28,7 +28,7 @@ import shutil
 import ssl
 import subprocess
 import threading
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
@@ -38,6 +38,7 @@ from two.edge import (
     EdgeIssueError,
     EdgePlan,
     EdgeUsernameError,
+    is_overlay_host,
     sign_phone_csr,
 )
 
@@ -54,6 +55,7 @@ def enroll_phone(
     replace: bool,
     host: str,
     port: int,
+    hosts: Sequence[str] | None = None,
 ) -> tuple[int, dict[str, Any]]:
     """Sign one CSR. Returns ``(status, json body)``. Does not bind a socket."""
     extra = set(body) - _ALLOWED_FIELDS
@@ -72,10 +74,15 @@ def enroll_phone(
         status = 409 if "already exists" in text else 400
         return status, {"detail": text}
     ca = (root / "ca.crt").read_text(encoding="utf-8")
+    reach = [host]
+    for candidate in hosts or ():
+        if isinstance(candidate, str) and candidate not in reach:
+            reach.append(candidate)
     return 200, {
         "certificate": certificate,
         "ca": ca,
         "host": host,
+        "hosts": reach,
         "port": port,
     }
 
@@ -103,7 +110,7 @@ def serve_one_enroll(
     context.load_cert_chain(plan.data_dir / "server.crt", plan.data_dir / "server.key")
 
     server = _EnrollHTTPServer(
-        (plan.listen_host, enroll_port),
+        (_enroll_bind_host(plan), enroll_port),
         _EnrollHandler,
         plan=plan,
         replace=replace,
@@ -148,6 +155,15 @@ class _EnrollHTTPServer(HTTPServer):
     def handle_timeout(self) -> None:
         return
 
+    def get_request(self) -> tuple[Any, Any]:
+        try:
+            request, address = super().get_request()
+        except OSError as exc:
+            print(f"enrollment handshake failed: {exc}", flush=True)
+            raise
+        print(f"enrollment connection from {address[0]}", flush=True)
+        return request, address
+
 
 class _EnrollHandler(BaseHTTPRequestHandler):
     server: _EnrollHTTPServer
@@ -182,6 +198,7 @@ class _EnrollHandler(BaseHTTPRequestHandler):
             replace=self.server.replace,
             host=self.server.plan.listen_host,
             port=self.server.plan.listen_port,
+            hosts=self.server.plan.bind_hosts,
         )
         self._send(status, payload)
         if status == 200:
@@ -197,6 +214,14 @@ class _EnrollHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+
+def _enroll_bind_host(plan: EdgePlan) -> str:
+    """The phone enrolls on the home network. Prefer that address."""
+    for host in plan.bind_hosts:
+        if not is_overlay_host(host):
+            return host
+    return plan.listen_host
 
 
 def _advertise(host: str, port: int) -> subprocess.Popen[bytes] | None:

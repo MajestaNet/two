@@ -10,6 +10,8 @@ enabled: false
 transport: echonet
 zones:
   living:
+    # Optional spoken ids. "turn the lounge off" selects this zone.
+    # aliases: [lounge]
     entity_id: climate.living
     host: 192.168.1.50
     min_celsius: 18

@@ -24,6 +24,7 @@
     Object.freeze(["serverStatus", "server:status"]),
     Object.freeze(["serverStart", "server:start"]),
     Object.freeze(["serverStop", "server:stop"]),
+    Object.freeze(["caddyStart", "caddy:start"]),
     Object.freeze(["modelRecommend", "model:recommend"]),
     Object.freeze(["modelStatus", "model:status"]),
     Object.freeze(["modelPull", "model:pull"]),
@@ -554,6 +555,22 @@
     return caddy ? ["up", "--caddy"] : ["up"];
   }
 
+  function caddyArgv(binary, configPath) {
+    if (typeof binary !== "string" || !binary.startsWith("/") || /\s/.test(binary) || binary.includes("\0")) {
+      throw new Error("caddy binary is not usable");
+    }
+    if (
+      typeof configPath !== "string" ||
+      !configPath.startsWith("/") ||
+      /\s/.test(configPath) ||
+      configPath.includes("\0") ||
+      !configPath.endsWith("/edge/Caddyfile")
+    ) {
+      throw new Error("Caddyfile is not usable");
+    }
+    return [binary, "run", "--config", configPath];
+  }
+
   function knownCaddyPaths() {
     return ["/opt/homebrew/bin/caddy", "/usr/local/bin/caddy"];
   }
@@ -574,9 +591,9 @@
   function mobileWaitingNote(host) {
     const listen = privateLanHost(host);
     return (
-      "Enrollment is waiting. In the simulator, enter a username, set the host to " +
+      "Enrollment is waiting. On the iPhone, enter a username, set the host to " +
       listen +
-      ", and tap Enroll."
+      ", and tap Enroll. Use the Tailscale address when the phone is away from this Wi-Fi."
     );
   }
 
@@ -1031,6 +1048,7 @@
     edgePrepareArgs,
     edgeEnrollArgs,
     upArgs,
+    caddyArgv,
     knownCaddyPaths,
     edgeMarkerPaths,
     mobileWaitingNote,

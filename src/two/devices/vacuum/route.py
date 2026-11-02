@@ -36,6 +36,7 @@ _TERMS = ("vacuum", "robot", "deebot")
 def vacuum_route_card(install: VacuumInstall | None) -> DeviceRouteCard:
     """Robot ids come from the binding. A missing binding stays disabled."""
     targets = () if install is None else tuple(sorted(install.robots))
+    spoken = () if install is None else _spoken(install)
     return DeviceRouteCard(
         slot="vacuum",
         tool_prefix="vacuum",
@@ -50,4 +51,13 @@ def vacuum_route_card(install: VacuumInstall | None) -> DeviceRouteCard:
             FanoutVerb(verb="dock", tool="vacuum.dock", arguments=(("action", "start"),)),
         ),
         closed_verbs=_CLOSED,
+        spoken=spoken,
+    )
+
+
+def _spoken(install: VacuumInstall) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        (alias, robot_id)
+        for robot_id, policy in sorted(install.robots.items())
+        for alias in policy.aliases
     )

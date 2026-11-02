@@ -267,7 +267,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     edge_sub.add_parser(
         "detect",
-        help="Print this machine's private LAN address and write nothing",
+        help="Print the Tailscale address, or the private LAN address, and write nothing",
     )
     edge_prepare = edge_sub.add_parser(
         "prepare",

@@ -111,6 +111,8 @@ _TRUNCATION_NOTE = (
 DEVICE_CONNECT_HINTS = (
     "Reply in numbered steps. Do not paste YAML. Do not invent a secret, "
     "nickname, address, or token.\n"
+    "Each zone, set, and robot may include aliases: up to 8 spoken "
+    "lowercase ids. An alias is not a nickname, address, or token.\n"
     "vacuum: sign in at open.ecovacs.com with the same ECOVACS HOME "
     "account that already shows the robots (open.ecovacs.cn only for a "
     "mainland app login); that site is the Open Platform console, not a "
