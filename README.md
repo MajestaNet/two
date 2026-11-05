@@ -14,7 +14,8 @@ host. The default is the Mac mini (`topology: colocated`,
 `two setup --current` still prints the optional two-Mac path
 ([ADR 0013](docs/adrs/0013-streamline-default-lan-setup.md)).
 Compose remains the optional Linux packaging when that host stays on. Mobile and messaging clients
-are optional and not required.
+are optional and not required. The iOS companion (iPhone and Apple Watch) is
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile), under the same Apache License 2.0.
 
 **Private by default.** Prompts and repository excerpts remain on the private network unless a task explicitly permits a cloud route. The inference API and Majesta Two API must not be exposed to the public internet.
 
