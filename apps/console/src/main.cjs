@@ -1241,6 +1241,164 @@ async function mlxInstall() {
   return mlxStatus();
 }
 
+function spawnCaptured(argv, timeoutMs) {
+  return new Promise((resolve) => {
+    const child = spawn(argv[0], argv.slice(1), {
+      shell: false,
+      env: Object.assign({}, process.env, { OLLAMA_HOST: policy.LOOPBACK_OLLAMA_HOST }),
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      stdout = (stdout + chunk.toString("utf8")).slice(-20000);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString("utf8")).slice(-20000);
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ code: 1, stdout, stderr: error.message });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code: code === null ? 1 : code, stdout, stderr });
+    });
+  });
+}
+
+async function unloadOllamaModel(tag) {
+  const body = policy.preloadBody(tag);
+  body.keep_alive = 0;
+  try {
+    await fetch("http://" + policy.LOOPBACK_OLLAMA_HOST + "/api/generate", {
+      method: "POST",
+      redirect: "error",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (_error) {
+    // Removal still runs when the server is down.
+  }
+}
+
+function removeHubRepo(repo) {
+  const dir = policy.huggingfaceRepoDir(os.homedir(), repo);
+  let stat;
+  try {
+    stat = fs.lstatSync(dir);
+  } catch (error) {
+    if (error && error.code === "ENOENT") return false;
+    throw error;
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error("Refusing to delete " + repo + " because it is not a model directory.");
+  }
+  const hub = fs.realpathSync(policy.huggingfaceHubDir(os.homedir()));
+  const real = fs.realpathSync(dir);
+  if (real !== hub && !real.startsWith(hub + path.sep)) {
+    throw new Error("Refusing to delete " + repo + " outside the Hugging Face cache.");
+  }
+  fs.rmSync(real, { recursive: true, force: true });
+  return true;
+}
+
+async function serveOllama(bin) {
+  const argv = policy.ollamaArgv(bin, "serve");
+  const child = spawn(argv[0], argv.slice(1), {
+    shell: false,
+    detached: true,
+    stdio: "ignore",
+    env: Object.assign({}, process.env, policy.serveEnvironment(8192)),
+  });
+  const failure = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 400);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      resolve(error);
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      resolve(new Error("ollama serve stopped (" + String(code) + ")"));
+    });
+  });
+  if (failure) throw failure;
+  child.unref();
+  writeJsonFile(ollamaMemoryPath("ollama-serve.json"), { pid: child.pid, bin: bin });
+  await waitUntilOllamaAnswers();
+}
+
+async function clearLocalModels() {
+  const errors = [];
+  const removedOllama = [];
+  const removedMlx = [];
+  try {
+    if (await ourMlxRunning()) await mlxStop();
+  } catch (error) {
+    errors.push(error.message);
+  }
+  let located = { bin: "" };
+  try {
+    located = await locateOllama();
+  } catch (error) {
+    errors.push(error.message);
+  }
+  let startedForClear = false;
+  if (located.bin && !(await ollamaHttpUp())) {
+    try {
+      if (!(await ourServeRunning())) {
+        await serveOllama(located.bin);
+        startedForClear = true;
+      } else {
+        await waitUntilOllamaAnswers();
+      }
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  if (located.bin && (await ollamaHttpUp())) {
+    const status = await ollamaStatus();
+    for (const tag of status.models || []) {
+      try {
+        await unloadOllamaModel(tag);
+        const argv = policy.ollamaRmArgv(located.bin, tag);
+        const result = await spawnCaptured(argv, 180000);
+        if (result.code === 0) {
+          removedOllama.push(tag);
+        } else {
+          const detail = (result.stderr || result.stdout || "could not remove " + tag).trim();
+          errors.push(detail);
+        }
+      } catch (error) {
+        errors.push(error.message);
+      }
+    }
+  }
+  if (startedForClear) {
+    try {
+      await ollamaStop();
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  for (const repo of readHubModels()) {
+    try {
+      if (removeHubRepo(repo)) removedMlx.push(repo);
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  return {
+    ok: errors.length === 0,
+    ollama: removedOllama,
+    mlx: removedMlx,
+    output: errors.join("\n"),
+  };
+}
+
 async function mlxPull(payload) {
   const located = await locateMlx();
   if (!located.python) {
@@ -1652,6 +1810,7 @@ const handlers = {
   "mlx:stop": mlxStop,
   "mlx:install": mlxInstall,
   "mlx:pull": mlxPull,
+  "models:clear": clearLocalModels,
   "harness:status": harnessStatus,
   "harness:install": harnessInstall,
   "docs:list": docsList,

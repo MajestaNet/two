@@ -248,6 +248,78 @@ test("the model list groups tags and keeps context independent", () => {
   assert.equal(policy.preloadBody("batiai/qwen3.8-27b:q3").model, "batiai/qwen3.8-27b:q3");
 });
 
+test("the local catalog downloads three models and clear stays inside the caches", () => {
+  const profiles = [
+    {
+      id: "m16-qwen35-4b",
+      upstream_model: "qwen3.5:4b-mlx",
+      num_ctx: 8192,
+      num_ctx_options: [8192, 16384],
+      min_unified_memory_gb: 16,
+    },
+    {
+      id: "m24-qwen38-16k",
+      upstream_model: "qwen3.5:9b-mlx",
+      mlx_lm_model: "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+      num_ctx: 16384,
+      num_ctx_options: [8192, 16384, 32768],
+      min_unified_memory_gb: 24,
+      recommended: true,
+    },
+    {
+      id: "m24-qwen38-q3",
+      upstream_model: "batiai/qwen3.8-27b:q3",
+      num_ctx: 8192,
+      num_ctx_options: [8192],
+      min_unified_memory_gb: 24,
+    },
+    {
+      id: "m48-qwen38-64k",
+      upstream_model: "qwen3.8:27b-mlx",
+      num_ctx: 65536,
+      num_ctx_options: [8192, 65536],
+      min_unified_memory_gb: 48,
+    },
+    { id: "custom", upstream_model: "qwen3.8:27b-mlx", num_ctx: 16384 },
+  ];
+  const models = policy.localCatalogModels(profiles);
+  assert.deepEqual(
+    models.map((model) => model.display_name),
+    ["Qwen 3.5 4B", "Qwen 3.5 9B", "Qwen 3.8 27B Q4m"],
+  );
+  assert.deepEqual(
+    models.map((model) => model.ollama_model),
+    ["qwen3.5:4b-mlx", "qwen3.5:9b-mlx", "qwen3.8:27b-q4_K_M"],
+  );
+  assert.deepEqual(
+    models.map((model) => model.mlx_lm_model),
+    [
+      "mlx-community/Qwen3.5-4B-OptiQ-4bit",
+      "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+      "mlx-community/Qwen3.8-27B-OptiQ-4bit",
+    ],
+  );
+  assert.equal(models[1].recommended, true);
+  assert.equal(models.some((model) => model.ollama_model === "batiai/qwen3.8-27b:q3"), false);
+  assert.equal(policy.profileForCatalog(profiles, models[2].profile_ids, 65536).id, "m48-qwen38-64k");
+  assert.deepEqual(policy.ollamaRmArgv("/opt/homebrew/bin/ollama", "qwen3.8:27b-q4_K_M"), [
+    "/opt/homebrew/bin/ollama",
+    "rm",
+    "qwen3.8:27b-q4_K_M",
+  ]);
+  assert.throws(() => policy.ollamaRmArgv("/opt/homebrew/bin/ollama", "qwen;rm"));
+  assert.equal(
+    policy.huggingfaceRepoDir("/Users/ada", "mlx-community/Qwen3.5-4B-OptiQ-4bit"),
+    "/Users/ada/.cache/huggingface/hub/models--mlx-community--Qwen3.5-4B-OptiQ-4bit",
+  );
+  assert.throws(() => policy.huggingfaceRepoDir("/Users/ada", "mlx-community/../../etc"));
+  assert.throws(() => policy.huggingfaceRepoDir("ada", "mlx-community/Qwen3.5-4B-OptiQ-4bit"));
+  assert.equal(policy.rendererMethods.map((pair) => pair[0]).includes("clearLocalModels"), true);
+  assert.equal(mainSource.includes("models:clear"), true);
+  assert.equal(mainSource.includes("ollamaRmArgv"), true);
+  assert.equal(mainSource.includes("huggingfaceRepoDir"), true);
+});
+
 test("replace is only for a different catalog tag", () => {
   const profile = { upstream_model: "qwen3.5:9b-mlx", alias: "qwen3.5:9b-mlx" };
   assert.equal(policy.needsReplace(["qwen3.5:9b-mlx"], profile), false);
@@ -565,14 +637,29 @@ test("mlx-lm is a closed argv on loopback and catalog download sits with local m
   const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
   assert.equal(html.includes("Local Model Catalog"), true);
   assert.equal(/<h2>Catalog<\/h2>/.test(html), false);
-  const catalogAt = html.indexOf("Local Model Catalog");
-  const downloadAt = html.indexOf("id=\"download\"");
-  const openrouterAt = html.indexOf("<h2>OpenRouter</h2>");
-  assert.notEqual(catalogAt, -1);
-  assert.notEqual(downloadAt, -1);
-  assert.notEqual(openrouterAt, -1);
-  assert.equal(downloadAt > catalogAt, true);
-  assert.equal(downloadAt < openrouterAt, true);
+  const serverHtml = html.slice(html.indexOf('id="server"'), html.indexOf('id="model"'));
+  const modelHtml = html.slice(html.indexOf('id="model"'), html.indexOf('id="docs"'));
+  assert.equal(serverHtml.includes("id=\"ollama-start\""), false);
+  assert.equal(serverHtml.includes("id=\"mlx-start\""), false);
+  assert.equal(serverHtml.includes("harness-install"), false);
+  assert.equal(serverHtml.includes("id=\"server-lines\""), true);
+  assert.equal(modelHtml.includes("id=\"runtime-ollama\""), true);
+  assert.equal(modelHtml.includes("id=\"runtime-mlx\""), true);
+  assert.equal(modelHtml.includes("id=\"runtime-openrouter\""), true);
+  assert.equal(modelHtml.includes("id=\"ollama-start\""), true);
+  assert.equal(modelHtml.includes("id=\"mlx-start\""), true);
+  assert.equal(modelHtml.includes("Clear local models"), true);
+  assert.equal(modelHtml.includes("Install DeepSeek Harness"), true);
+  const serveAt = modelHtml.indexOf("runtime-openrouter");
+  const catalogAt = modelHtml.indexOf("Local Model Catalog");
+  const downloadAt = modelHtml.indexOf("id=\"download\"");
+  const clearAt = modelHtml.indexOf("Clear local models");
+  const modelsAt = modelHtml.indexOf("id=\"ollama-models\"");
+  assert.equal(serveAt < catalogAt, true);
+  assert.equal(catalogAt < downloadAt, true);
+  assert.equal(modelsAt < clearAt, true);
+  assert.equal(modelHtml.includes("id=\"openrouter-model\""), true);
+  assert.equal(modelHtml.indexOf("id=\"openrouter-model\"") < catalogAt, true);
   assert.equal(html.includes("mlx-lm"), true);
   assert.equal(mainSource.includes("mlx:start"), true);
   assert.equal(mainSource.includes("LOOPBACK_MLX_HOST"), true);

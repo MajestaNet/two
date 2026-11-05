@@ -40,6 +40,7 @@
     Object.freeze(["mlxStop", "mlx:stop"]),
     Object.freeze(["mlxInstall", "mlx:install"]),
     Object.freeze(["mlxPull", "mlx:pull"]),
+    Object.freeze(["clearLocalModels", "models:clear"]),
     Object.freeze(["harnessStatus", "harness:status"]),
     Object.freeze(["harnessInstall", "harness:install"]),
     Object.freeze(["docsList", "docs:list"]),
@@ -80,6 +81,37 @@
   const HF_MODEL_RE = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._+-]+$/;
   const OWN_NUM_CTX = 8192;
   const OWN_CONTEXT_OPTIONS = Object.freeze([8192, 16384, 32768, 65536, 131072, 262144]);
+  const LOCAL_CATALOG = Object.freeze([
+    Object.freeze({
+      catalog_key: "qwen35-4b",
+      display_name: "Qwen 3.5 4B",
+      ollama_model: "qwen3.5:4b-mlx",
+      mlx_lm_model: "mlx-community/Qwen3.5-4B-OptiQ-4bit",
+      profile_ids: Object.freeze(["m16-qwen35-4b"]),
+      source_upstream: "qwen3.5:4b-mlx",
+    }),
+    Object.freeze({
+      catalog_key: "qwen35-9b",
+      display_name: "Qwen 3.5 9B",
+      ollama_model: "qwen3.5:9b-mlx",
+      mlx_lm_model: "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+      profile_ids: Object.freeze(["m24-qwen38-16k"]),
+      source_upstream: "qwen3.5:9b-mlx",
+    }),
+    Object.freeze({
+      catalog_key: "qwen38-27b-q4m",
+      display_name: "Qwen 3.8 27B Q4m",
+      ollama_model: "qwen3.8:27b-q4_K_M",
+      mlx_lm_model: "mlx-community/Qwen3.8-27B-OptiQ-4bit",
+      profile_ids: Object.freeze([
+        "m24-qwen38-32k",
+        "m36-qwen38-32k",
+        "m48-qwen38-64k",
+        "m64-qwen38-plus",
+      ]),
+      source_upstream: "qwen3.8:27b-mlx",
+    }),
+  ]);
   const CTX_KILO = Object.freeze({
     8: 8192,
     16: 16384,
@@ -416,6 +448,34 @@
     return [acceptPythonPath(python), script, "download", normalizeHfRepo(repo)];
   }
 
+  function huggingfaceHubDir(home) {
+    if (!nodePath) {
+      throw new Error("model paths are resolved in the main process");
+    }
+    if (typeof home !== "string" || home.length < 1 || home.includes("\0") || !nodePath.isAbsolute(home)) {
+      throw new Error("home directory is required");
+    }
+    return nodePath.resolve(home, ".cache", "huggingface", "hub");
+  }
+
+  function huggingfaceRepoDir(home, repo) {
+    const root = huggingfaceHubDir(home);
+    const name = normalizeHfRepo(repo);
+    if (name.split("/").some((part) => part === "." || part === "..")) {
+      throw new Error("that model cache is not allowed");
+    }
+    const folder = "models--" + name.split("/").join("--");
+    if (!/^models--[A-Za-z0-9._-]+--[A-Za-z0-9._+-]+$/.test(folder)) {
+      throw new Error("that model cache is not allowed");
+    }
+    const full = nodePath.resolve(root, folder);
+    const relative = nodePath.relative(root, full);
+    if (relative.startsWith("..") || nodePath.isAbsolute(relative) || relative !== folder) {
+      throw new Error("that model cache is not allowed");
+    }
+    return full;
+  }
+
   function hubCacheName(relative) {
     if (typeof relative !== "string" || !relative.startsWith("models--")) return "";
     const body = relative.slice("models--".length);
@@ -482,6 +542,12 @@
     const executable = acceptOllamaPath(bin);
     const model = normalizeModelTag(tag);
     return [executable, "pull", model];
+  }
+
+  function ollamaRmArgv(bin, tag) {
+    const executable = acceptOllamaPath(bin);
+    const model = normalizeModelTag(tag);
+    return [executable, "rm", model];
   }
 
   function twoLauncher(pythonPath) {
@@ -797,6 +863,46 @@
     return exact || matches.find((profile) => profile.recommended) || matches[0];
   }
 
+  function profileForCatalog(profiles, profileIds, numCtx) {
+    const ids = Array.isArray(profileIds) ? profileIds : [];
+    const matches = (profiles || []).filter((profile) => profile && ids.indexOf(profile.id) !== -1);
+    if (!matches.length) return null;
+    const exact = matches.find((profile) => profile.num_ctx === numCtx);
+    return exact || matches.find((profile) => profile.recommended) || matches[0];
+  }
+
+  function localCatalogModels(profiles) {
+    const grouped = catalogModels(profiles);
+    return LOCAL_CATALOG.map((spec) => {
+      const source = grouped.find((row) => row.upstream_model === spec.source_upstream) || null;
+      const attached = (profiles || []).filter(
+        (profile) => profile && spec.profile_ids.indexOf(profile.id) !== -1,
+      );
+      const options =
+        source && source.num_ctx_options.length ? source.num_ctx_options.slice() : OWN_CONTEXT_OPTIONS.slice();
+      const defaults = attached.find((profile) => profile.recommended) || attached[0];
+      return {
+        catalog_key: spec.catalog_key,
+        display_name: spec.display_name,
+        upstream_model: spec.ollama_model,
+        ollama_model: spec.ollama_model,
+        mlx_lm_model: spec.mlx_lm_model,
+        profile_ids: spec.profile_ids.slice(),
+        min_unified_memory_gb: source
+          ? source.min_unified_memory_gb
+          : defaults
+            ? defaults.min_unified_memory_gb
+            : 0,
+        recommended: attached.some((profile) => profile.recommended),
+        notes: "",
+        advisory: "",
+        num_ctx_options: options,
+        default_num_ctx: defaults ? defaults.num_ctx : options[0],
+        profiles: attached,
+      };
+    });
+  }
+
   function resolveNumCtx(model, requested) {
     const options =
       model && Array.isArray(model.num_ctx_options) && model.num_ctx_options.length
@@ -1066,9 +1172,12 @@
     mlxHostFacts,
     mlxHostLine,
     hubCacheName,
+    huggingfaceHubDir,
+    huggingfaceRepoDir,
     ollamaInstallPlan,
     acceptOllamaDownloadUrl,
     ollamaPullArgv,
+    ollamaRmArgv,
     twoLauncher,
     commandArgv,
     twoArgv,
@@ -1097,7 +1206,9 @@
     contextLabel,
     contextOptions,
     catalogModels,
+    localCatalogModels,
     profileForModel,
+    profileForCatalog,
     resolveNumCtx,
     ownContextModel,
     manifestName,
