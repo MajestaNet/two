@@ -85,7 +85,7 @@ is an in-repo loopback window. It does not replace the CLI, and closing
 it does not stop `two up`. ADR 0030: a transcript can omit the
 profile and route to chat or an enabled device slot; `all` repeats one
 closed action; schema v10. ADR 0029: `home-action` can perform the
-closed Samsung television tools when `$TWO_DATA_DIR/devices/tv.yaml`
+closed television tools for a Samsung or LG set when `$TWO_DATA_DIR/devices/tv.yaml`
 enables them, schema v9. The television slot stays off. ADR 0028: home-action
 production uses the
 pinned `dsh --profile acp` client and still performs the climate tools
@@ -968,6 +968,51 @@ Do this before the first turn:
 A sentence that does not request one of the four tools is stored and
 does not change the television. Title search and account resume stay
 on `two chat`.
+
+## LG televisions on the LAN
+
+The closed tools stay `tv.read`, `tv.set_power`, `tv.open`, and
+`tv.set_volume` ([ADR 0029](adrs/0029-samsung-tv.md),
+[ADR 0047](adrs/0047-lg-webos-tv.md)). Nothing is installed on the
+television. `brand: lg` selects webOS SSAP. Omit `brand`, or set
+`samsung`, and the set stays on the Samsung API. One
+`$TWO_DATA_DIR/devices/tv.yaml` may contain both. Copy
+[config/devices/tv-lg.example.yaml](../config/devices/tv-lg.example.yaml)
+or add an LG set beside existing Samsung sets. The slot stays off
+until that file has `enabled: true`.
+
+An infrared LG air conditioner is an ESPHome zone, not this section.
+
+Do this before the first turn:
+
+1. Put the Mac mini and the set on the same private LAN. Turn off
+   client or AP isolation for those devices, and reserve a DHCP address.
+2. On the television, turn on LG Connect Apps (or Mobile TV On) and
+   network power-on. Copy the MAC address from the router's client list
+   into `mac`.
+3. Write the reserved address, `brand: lg`, and a distinct `token_env`.
+   `secure: false` tries `ws` port 3000 first. `secure: true` tries
+   `wss` port 3001 first. If that handshake fails, the worker tries the
+   other scheme once on the same address. Do not set `volume_url`.
+   Leave `enabled: true` only after the address is real.
+4. Restart `two up`. With the set on, run
+   `uv run two tv pair --set living-room` (or Pair on the Adapters page).
+   Accept the prompt on the screen. The command stores the client key
+   in `$TWO_DATA_DIR/env` and does not print it. Restart `two up`.
+5. Run `uv run two tv apps --set living-room` and copy a printed
+   application id into a target such as `netflix`. HDMI is an app id
+   such as `com.webos.app.hdmi1`, not `KEY_HDMI1`. An alias that is not
+   in the file is refused.
+6. Restart the worker after each binding edit. Then try, one at a time:
+   `two tv send --text "what is on the living room tv"`,
+   `two tv send --text "turn off the living room tv"`,
+   `two tv send --text "put netflix on the living room tv"`, and
+   `two tv send --text "set the living room tv to 12"`.
+   A level above `volume_max` waits; approve it with the printed digest.
+
+`two tv send` talks only to the control API. A set that does not speak
+webOS SSAP will not answer. Netcast and the ThinQ cloud are not this
+brand.
 
 ## Ecovacs vacuums
 

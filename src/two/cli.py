@@ -1013,7 +1013,7 @@ def _add_tv_parser(subparsers: Any) -> None:
         help="Send, show, approve, or reject one home-action television turn",
         description=(
             "send, show, approve, and reject talk only to the control API. "
-            "pair stores the Samsung token in $TWO_DATA_DIR/env. "
+            "pair stores the set token in $TWO_DATA_DIR/env. "
             "apps prints application ids and writes nothing. "
             "The turn runs only when the local television binding is enabled."
         ),
@@ -1052,7 +1052,7 @@ def _add_tv_parser(subparsers: Any) -> None:
     reject.add_argument("--digest", required=True, help="Exact action_digest")
     pair = tv_sub.add_parser(
         "pair",
-        help="Wait for the Samsung Allow prompt and store the token in $TWO_DATA_DIR/env",
+        help="Wait for the on-screen prompt and store the token in $TWO_DATA_DIR/env",
     )
     pair.add_argument("--set", required=True, help="Set id from the binding")
     pair.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")

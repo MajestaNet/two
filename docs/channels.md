@@ -56,8 +56,9 @@ API. The controller resumes a persisted DeepSeek Harness profile
 ([ADR 0019](adrs/0019-mini-resident-control-plane.md),
 architecture §5.4): `chat` has no tools, and `home-action` may request a
 typed device tool. Neither profile is `self-build`. Climate is
-[ADR 0022](adrs/0022-climate-device-protocol.md). Samsung televisions are
-[ADR 0029](adrs/0029-samsung-tv.md). Ecovacs vacuums are
+[ADR 0022](adrs/0022-climate-device-protocol.md). Televisions are
+[ADR 0029](adrs/0029-samsung-tv.md) (Samsung) and
+[ADR 0047](adrs/0047-lg-webos-tv.md) (LG webOS). Ecovacs vacuums are
 [ADR 0038](adrs/0038-ecovacs-vacuum.md). Connect steps are in
 [setup.md](setup.md).
 
@@ -79,7 +80,8 @@ stored and can run the closed climate tools when
 [ADR 0028](adrs/0028-home-action-acp-client.md),
 [B21](backlog/B21-climate-home-action.md)), and the closed television
 tools when `$TWO_DATA_DIR/devices/tv.yaml` enables them
-([ADR 0029](adrs/0029-samsung-tv.md)), and the closed vacuum tools when
+([ADR 0029](adrs/0029-samsung-tv.md),
+[ADR 0047](adrs/0047-lg-webos-tv.md)), and the closed vacuum tools when
 `$TWO_DATA_DIR/devices/vacuum.yaml` enables them
 ([ADR 0038](adrs/0038-ecovacs-vacuum.md)). The climate binding transport is
 Home Assistant REST, ECHONET Lite, or an ESPHome climate entity on a

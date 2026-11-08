@@ -148,7 +148,7 @@ make ci
 - The phone reaches Caddy on a private address only.
 - Do not commit `.env`, tokens, model weights, or a real LAN address.
 
-Climate, Samsung TV, Ecovacs, and ESPHome packages are in this
+Climate, Samsung and LG TV, Ecovacs, and ESPHome packages are in this
 repository and stay off until a binding under the data directory enables
 them. Those steps are in [setup.md](setup.md). The Adapters page can list
 vacuum robots and pair a television without putting a token in the model.

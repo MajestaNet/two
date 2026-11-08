@@ -38,7 +38,7 @@ Linux Compose are optional.
   `two route`, and the climate, television, and vacuum commands
 - Phone edge: `two edge prepare` and `two edge enroll`, or **Start
   enrollment** in the window. The apps are two-mobile
-- Climate, Samsung TV, Ecovacs, and ESPHome packages, each off until a
+- Climate, Samsung and LG TV, Ecovacs, and ESPHome packages, each off until a
   local binding enables it
 - Apache 2.0, ignore rules, AGENTS.md
 - Default inference profile `m24-qwen38-16k` (`qwen3.5:9b-mlx`) and the
