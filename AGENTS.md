@@ -5,18 +5,24 @@
 Majesta Two is a fully local, self-building system (ADR 0017). One local
 installation of this repository is the development client and the only
 development subject. DeepSeek Harness remains the pinned inner model/tool
-loop and is not reimplemented here. The Mac mini is the always-on host for Qwen 3.8, this scaffold, and
-DeepSeek Harness (ADR 0019). The installer selects the inference profile.
-A later wearable or device request resumes a persisted harness profile
+loop and is not reimplemented here. The Mac is the always-on host
+(ADR 0019). The default profile serves `qwen3.5:9b-mlx`. A 16 GB Mac
+uses `qwen3.5:4b-mlx`. Ollama is the default runtime. mlx-lm and
+OpenRouter are the other choices. The installer selects the inference
+profile.
+A wearable or device request resumes a persisted harness profile
 (`chat` or `home-action`), not the self-build profile. The local CLI
 and console may also resume `operator` explicitly (ADR 0039). A later
 operator send that is only `approved` or `rejected` applies the stored
 digest (ADR 0041). A wearable
 does not. One inference
 runs at a time. This repository is not a messenger product
-and it does not develop unrelated repositories. The CLI is the local surface
-today; ADR 0015/B14 plans a secure first-party mobile client over the same
-API. The climate device package is in-repo and default off (ADR 0022).
+and it does not develop unrelated repositories. The local surfaces are
+the CLI and the console (`apps/console`). The iPhone and Apple Watch
+apps are MajestaNet/two-mobile. They resume `chat` and `home-action`
+only. ADR 0015/B14 is a development-loop GUI and is not built. OIDC is
+not accepted (ADR 0016). The short run path is `docs/local.md`.
+The climate device package is in-repo and default off (ADR 0022).
 A binding may use Home Assistant REST, ECHONET Lite (ADR 0027), or an
 ESPHome climate entity on a shared node (ADR 0043).
 The television package is in-repo and default off (ADR 0029).
@@ -26,7 +32,8 @@ is the Ecovacs Open API on the two official hosts. Listing is GET
 matches those names and compiles one specific closed verb without the
 harness (ADR 0045). Operator first-run listing and television pairing stay in
 this process (ADR 0044).
-Speech remains specified and not implemented.
+Speech recognition runs in MajestaNet/two-mobile, on the device.
+This repository receives text. It does not record audio.
 The SQLite WAL store (`two.store`)
 persists tasks, events, leases, the work graph (schema v5),
 projects/config candidates (schema v6), and the chat harness session
@@ -41,9 +48,10 @@ ACP worker supervises a DeepSeek Harness child with an at-most-once ledger.
 The workflow controller owns stage policy, budgets, fresh review, the
 persisted work-graph walker, and terminal status. Messaging adapters are
 optional and not implemented. `two adapters` prints the install menu
-(ADR 0021). Only the CLI slot is enabled. Device and GitHub export paths
-are reserved and are not packages.
-GitHub export of task branches is post-MVP (ADR 0012) and is not implemented.
+(ADR 0021). Only the CLI slot is enabled. `climate`, `tv`, and `vacuum`
+are shipped packages and stay off until a local binding. The console is
+shipped and off until the window is opened. GitHub export is reserved
+and is not implemented (ADR 0012).
 
 ## Stack
 
@@ -211,8 +219,9 @@ the local operator window and is not part of that gate.
  `src/two/edge.py` is the watch edge plan (ADR 0020): private CA,
  Caddy mutual TLS, loopback upstream. `two edge plan` writes nothing.
  `two edge issue` writes under `$TWO_DATA_DIR/edge`. The watch principal
- `client:watch` cannot submit `self-build`. The native app spec is
- `docs/watch-client.md` and is not an Xcode project in this repo.
+ `client:watch` cannot submit `self-build`. The native apps are
+ MajestaNet/two-mobile. The contract is `docs/watch-client.md`. There
+ is no Xcode project in this repo.
  `src/two/projection.py` is the /v1 JSON contract (no FastAPI). CLI and
  adapters import it instead of inventing a second schema. It includes
  `SystemCapabilities`, additive `TaskProjection.revision`, and slice 2
@@ -259,7 +268,8 @@ the local operator window and is not part of that gate.
  `bootstrap-dev-host.sh` creates `TWO_DATA_DIR` / worktrees (mode 0700)
  and prints the Compose plan (`--dry-run` for CI).
 - `docs/` — architecture and ADRs. `docs/architecture.md` is canonical.
-  `docs/setup.md` is the living operator guide. `docs/local-16k.md` is
+  `docs/local.md` is the short local run path, including two-mobile.
+  `docs/setup.md` is the living operator reference. `docs/local-16k.md` is
   24 GB / 16K operator guidance. `docs/backlog/` is the implementation
   tracker (one item per file; agent prompts at the end).
 - `deploy/compose/` — Linux control-plane packaging (`api`, `scheduler`,
@@ -298,6 +308,7 @@ the local operator window and is not part of that gate.
   optional LSP; no embeddings).
 - Add or update deterministic tests for code you change.
 - Update this file in the same PR as command or layout changes.
+- Update `docs/local.md` when the short local run path changes.
 - Update `docs/setup.md` (and its status table) when install, topology,
   profiles, or ports change.
 - Keep `LICENSE` and `NOTICE` in the tree.

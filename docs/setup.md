@@ -1,6 +1,7 @@
 # Setup guide
 
-Living operator guide. **Update this file in the same PR** whenever install
+Living operator reference. The short path, including the phone, is
+[local.md](local.md). **Update this file in the same PR** whenever install
 commands, profiles, ports, or host topology change. Architecture remains
 in [architecture.md](architecture.md). Viability notes are in
 [viability.md](viability.md). 24 GB / 16K local quality and overnight
@@ -16,14 +17,14 @@ the spec.
 | List inference profiles | Works (`two profiles`) |
 | Serve Qwen on the Mac | Scripts exist (`bootstrap-mac.sh`, `health-check.sh`, `soak-inference.sh`); live path requires a Mac ([B01](backlog/B01-mac-inference-appliance.md)) |
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)). `two harness status` reports the checkout. `two harness install` downloads that tag only, builds host libraries with Node 22 and `pnpm@11.7.0`, and writes `$TWO_DATA_DIR/harness/bin/dsh`. The local window can run the same install ([ADR 0035](adrs/0035-console-harness-install.md)) |
-| Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
+| iPhone and Apple Watch | Built in [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile) (Apache-2.0). The phone enrolls. The watch is push-to-talk. Profiles are `chat` and `home-action`. Run steps are [local.md](local.md). The B14 development-loop GUI is not built, and OIDC is not accepted ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
 | Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md), [ADR 0034](adrs/0034-installable-console.md), [ADR 0035](adrs/0035-console-harness-install.md), [ADR 0037](adrs/0037-openrouter-inference-backend.md), [ADR 0038](adrs/0038-console-model-and-context.md), [ADR 0040](adrs/0040-mlx-lm-openai-adapter.md)). Default off. Opening it starts `two up` when needed. Closing the window hides it and leaves the control plane running; the menu bar opens it again. `npm run package` builds a desktop directory that includes this control plane. It can install official Ollama, locate an existing binary, list models, and serve `127.0.0.1:11434`. It can locate or install `mlx-lm` and serve `127.0.0.1:18080` through the OpenAI-compatible adapter. It can install the pinned DeepSeek Harness when `dsh` is missing. Local Model Catalog lists unique tags, including 16 GB rows and a Qwen 3.8 27B Q3 trial, with Download in that section and a separate context window. One typed Ollama tag or Hugging Face mlx-lm id can be pulled. The Model page can select OpenRouter (default `deepseek/deepseek-v4-flash`) and sign in with PKCE. Chat uses the control API. `npm test` in that directory is not part of `make ci` |
-| Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
+| Remote client | CLI works over a private overlay with `--url` / `--token`. The phone edge is the Server page (**Start enrollment**) or `two edge prepare` / `two edge enroll`: Caddy mutual TLS, API stays on loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The apps are [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile). The contract in this repo is [watch-client.md](watch-client.md). OIDC is still not implemented |
 | Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate`, `tv`, and `vacuum` are shipped and off until a local binding enables them. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
-| Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
+| Loopback supervisor | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`). The short path is [local.md](local.md). Optional two-host list: `two setup --current` ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
 | Mac mini default install | Specified ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). Catalog default is `colocated`. `two setup --plan` prints the mini path. The installer selects the inference profile and pulls that profile's one upstream tag ([ADR 0023](adrs/0023-single-upstream-model.md)). The default profile serves `qwen3.5:9b-mlx` and does not create a second tag ([ADR 0026](adrs/0026-default-qwen35-9b.md)). Device-profile preload is not implemented |
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
@@ -41,7 +42,12 @@ the spec.
 | Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. After a pending binding, a later operator send that is only `approved` or `rejected` applies the stored digest ([ADR 0041](adrs/0041-operator-chat-approval.md)). An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.list_account`, `install.pair_device`, `install.propose_binding`, and `install.propose_change`. `install.status` reports whether named env vars are present. `install.list_account` prints vacuum nicknames without an enabled binding. `install.pair_device` stores a television token in `$TWO_DATA_DIR/env` and does not print the token. The Adapters page runs those same steps. A binding write and a self-build task wait for a digest. Bindings are climate, television, vacuum, and ESPHome nodes ([ADR 0043](adrs/0043-esphome-nodes.md)). The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [ADR 0044](adrs/0044-operator-first-run-steps.md), [B26](backlog/B26-operator-install-profile.md), [B27](backlog/B27-operator-first-run-steps.md)) |
 | Harness profile `home-action` | Works when a local climate, television, or vacuum binding is enabled (`two climate`, `two tv`, or `two vacuum`). A climate zone may name an ESPHome entity (`two esphome entities`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. When `$TWO_DATA_DIR/devices/vacuum.yaml` is enabled, it performs `vacuum.read`, `vacuum.clean`, and `vacuum.dock` against the Ecovacs Open API. A known robot is pre-authorized. Without one of those bindings the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set; "turn heat on upstairs office" compiles `climate.set_mode` without the harness; "start the downstairs vacuum" compiles `vacuum.clean` the same way, and "dock all vacuums" repeats the dock ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [ADR 0036](adrs/0036-closed-utterance-compile.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [ADR 0043](adrs/0043-esphome-nodes.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
 
-Last updated: 29 October 2026 (ADR 0044: operator first-run list and
+Last updated: 8 November 2026. The short path is [local.md](local.md).
+The iPhone and Apple Watch apps are
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+The paragraphs below are the earlier record.
+
+29 October 2026 (ADR 0044: operator first-run list and
 pair. Vacuum listing does not need an enabled binding. Television
 pairing stores the token in `$TWO_DATA_DIR/env`.
 ADR 0043: a climate zone may name an
@@ -104,10 +110,12 @@ Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
 ## How to use this guide
 
-**CLI on the Mac mini is enough.** You do not need a mobile app,
-messenger, or public hostname. Remote clients are optional
-([channels.md](channels.md)). The local operator console is an optional
-window on the same machine ([ADR 0031](adrs/0031-local-operator-console.md),
+**Start with [local.md](local.md).** The operator window on this Mac is
+the usual way to run. The iPhone and Apple Watch apps are
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+You do not need a messenger or a public hostname. Remote clients are
+optional ([channels.md](channels.md)). The window is specified in
+[ADR 0031](adrs/0031-local-operator-console.md),
 [ADR 0032](adrs/0032-console-existing-ollama.md),
 [ADR 0034](adrs/0034-installable-console.md),
 [ADR 0035](adrs/0035-console-harness-install.md),
@@ -727,23 +735,29 @@ and pass `--token`. Never bind a public Ethernet/WAN address.
 > localhost. SSH forwarding is the simpler first option because the API
 > stays local-trust on the host.
 
-### 12. Future remote clients
+### 12. Phone and watch
 
-The watch path is [ADR 0020](adrs/0020-watch-edge-mtls.md). Print the
-plan, then issue a private CA and Caddyfile. Replace `PRIVATE-LAN-IP`
-with an address of the mini. Do not commit that address or the files
-under the data directory.
+The usual path is **Start enrollment** on the Server page, then Enroll
+in [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+See [local.md](local.md). The contract is
+[ADR 0020](adrs/0020-watch-edge-mtls.md).
+
+From the CLI, replace `PRIVATE-LAN-IP` with an address of this Mac.
+Do not commit that address or the files under the data directory.
+`two edge prepare` issues the edge when it is missing. `two edge enroll`
+is the one-shot listener the phone calls. `plan` writes nothing.
 
 ```bash
 uv run two edge plan --listen PRIVATE-LAN-IP
-uv run two edge issue --listen PRIVATE-LAN-IP
+uv run two edge prepare --listen PRIVATE-LAN-IP
+uv run two edge enroll --listen PRIVATE-LAN-IP
 ```
 
 Export `TWO_EDGE_TOKEN` from `$TWO_DATA_DIR/edge/edge.env` for both
 `caddy` and `two api`. Run Caddy with `$TWO_DATA_DIR/edge/Caddyfile`.
-Keep `TWO_API_BIND=127.0.0.1`. The native app is specified in
-[watch-client.md](watch-client.md) for a later Xcode agent. OIDC with
-PKCE is still not implemented
+Keep `TWO_API_BIND=127.0.0.1`. The apps are
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+OIDC with PKCE is still not implemented
 ([ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md)). Never open the API
 publicly. See [client-api-design.md](client-api-design.md).
 

@@ -1,9 +1,13 @@
 # Watch and iPhone voice client
 
-Design spec for a later agent on a Mac with Xcode. This repository
-does not contain the app. ADR 0015 places first-party client source
-outside this tree. Implement the app in its own directory or
-repository. Do not add an Xcode project here.
+Contract for the iPhone and Apple Watch apps. Those apps are
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile)
+(Apache License 2.0). This repository does not contain the Xcode
+project. ADR 0015 places first-party client source outside this tree.
+Do not add an Xcode project here.
+
+How to run this install and those apps on one Mac:
+[local.md](local.md).
 
 The server side this spec calls is implemented
 ([ADR 0020](adrs/0020-watch-edge-mtls.md)). Read that ADR,

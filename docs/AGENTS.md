@@ -90,8 +90,11 @@
 - `adrs/0043-esphome-nodes.md` is the shared ESPHome node client. A
   climate zone may name a climate entity on that node. There is no
   esphome catalog slot. Do not paste that ADR here.
-- `setup.md` is the living operator guide. Update its status table in the
-  same PR as setup, inference-profile, or deployment-topology changes.
+- `setup.md` is the living operator reference. `local.md` is the short
+  local run path, including [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+  Update `local.md` when that path changes, and update the setup status
+  table in the same PR as setup, inference-profile, or deployment-topology
+  changes.
 - `backlog/` holds dedicated implementation items (B01–B27). B20
   resumes harness profile `chat`. B21 executes climate on `home-action`
   and leaves that slot default off. B25 executes the closed vacuum
@@ -104,18 +107,22 @@
 - Thin siblings (`operations.md`, `unattended-operations.md`,
   `interaction-contract.md`, `task-manifest.md`, `channels.md`,
   `adapters.md`, `source-control-export.md`, `remote-access.md`,
-  `viability.md`, `local-16k.md`, `work-graph.md`, `watch-client.md`)
+  `viability.md`, `local.md`, `local-16k.md`, `work-graph.md`, `watch-client.md`)
   point at sections or operator decisions. Do not copy the spec into
-  those files. `adapters.md` is the install menu (ADR 0021): clients,
+  those files. `local.md` is how to run this checkout and two-mobile
+  on one Mac. `adapters.md` is the install menu (ADR 0021): clients,
   messengers, device slots, and export stay separate kinds, and only
   the CLI is enabled. `local-16k.md` is
   24 GB / 16K operator guidance (quality, manifests, overnight starter
   workflows). `work-graph.md` points at ADR 0014 (persisted nodes/edges
-  around DeepSeek Harness). This repo is the backend; B14 is a secure
-  first-party mobile client over the same API, not a second agent runtime.
+  around DeepSeek Harness). This repo is the control plane. The iPhone
+  and Apple Watch apps are MajestaNet/two-mobile (`chat` and
+  `home-action` only). B14 is a separate development-loop GUI over the
+  same API and is not built. Neither is a second agent runtime.
   The running installation is the development client
-  (ADR 0017); home and wearable adapters are a later in-repo slot, not a
-  second agent. The Mac mini is the default always-on host (ADR 0019).
+  (ADR 0017). Climate, television, and vacuum packages are in this repo
+  and default off. ESPHome is a shared node behind a climate zone.
+  The Mac is the default always-on host (ADR 0019).
   The optional two-Mac list remains ADR 0013 / B18 (`two setup --current`).
   Bootstrap pulls one upstream tag (ADR 0023).
 - Behavior changes that disagree with the spec need a new ADR in `adrs/`.

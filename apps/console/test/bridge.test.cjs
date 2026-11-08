@@ -456,7 +456,8 @@ test("the packaged window launches the bundled control plane and stays in the me
 });
 
 test("docs are an allowlist inside the repository", () => {
-  assert.deepEqual(policy.DOCS.map((item) => item.id), ["setup", "adapters", "local-16k"]);
+  assert.deepEqual(policy.DOCS.map((item) => item.id), ["local", "setup", "adapters", "local-16k"]);
+  assert.equal(policy.resolveDoc(root, "local"), path.join(root, "docs", "local.md"));
   assert.equal(policy.resolveDoc(root, "setup"), path.join(root, "docs", "setup.md"));
   assert.throws(() => policy.resolveDoc(root, "../package.json"));
   assert.throws(() => policy.resolveDoc(root, "architecture"));
