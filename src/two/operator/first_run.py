@@ -129,7 +129,12 @@ def pair_device(
     data_dir: Path | str | None = None,
     pair: PairSet | None = None,
 ) -> PairStored:
-    """Pair one bound Samsung set and store the token in the data-dir env file."""
+    """Pair one bound set and store the token in the data-dir env file.
+
+    The set's brand chooses the handshake. Samsung and LG both return a
+    token for ``token_env``. This method writes that token and does not
+    return it to the caller beyond the env name.
+    """
     if slot != "tv":
         raise AssistError(ErrorCode.INSTALL_PAIR_DENIED.value)
     from two.devices.tv.config import load_tv_config
@@ -140,7 +145,7 @@ def pair_device(
     policy = install.sets.get(set_id)
     if policy is None:
         raise AssistError(ErrorCode.TV_SET_DENIED.value)
-    pairer = pair if pair is not None else _samsung_pair
+    pairer = pair if pair is not None else _bound_pair
     try:
         token = pairer(policy)
     except TvUpstreamError as exc:
@@ -171,7 +176,7 @@ def list_tv_apps(
     policy = install.sets.get(set_id)
     if policy is None:
         raise AssistError(ErrorCode.TV_SET_DENIED.value)
-    lister = list_apps if list_apps is not None else _samsung_apps
+    lister = list_apps if list_apps is not None else _bound_apps
     try:
         rows = lister(policy)
     except TvUpstreamError as exc:
@@ -299,13 +304,20 @@ def _ecovacs_nicknames(api_host: str, token: str) -> tuple[str, ...]:
     return EcovacsCloud(api_host, token).list_nicknames()
 
 
-def _samsung_pair(policy: object) -> str:
-    from two.devices.tv.samsung import SamsungTv
+def _bound_pair(policy: object) -> str:
+    from two.devices.tv.broker import open_set_client
+    from two.devices.tv.contract import SetPolicy
 
-    return SamsungTv(policy, "").pair()  # type: ignore[arg-type]
+    if not isinstance(policy, SetPolicy):
+        raise TvUpstreamError("tv set is not bound")
+    return open_set_client(policy, "").pair()
 
 
-def _samsung_apps(policy: object) -> list[tuple[str, str]]:
-    from two.devices.tv.samsung import SamsungTv
+def _bound_apps(policy: object) -> list[tuple[str, str]]:
+    from two.devices.tv.broker import open_set_client
+    from two.devices.tv.contract import SetPolicy
 
-    return SamsungTv(policy, "").applications()  # type: ignore[arg-type]
+    if not isinstance(policy, SetPolicy):
+        raise TvUpstreamError("tv set is not bound")
+    token = os.environ.get(policy.token_env, "")
+    return open_set_client(policy, token).applications()

@@ -30,7 +30,10 @@
   for `home-action`. The session advertises the three climate tools and
   this process performs them. Do not paste that ADR here.
 - `adrs/0029-samsung-tv.md` is the closed television tool contract.
-  The slot stays off. The transport is the Samsung local API.
+  The slot stays off. The Samsung local API is the default brand.
+  Do not paste that ADR here.
+- `adrs/0047-lg-webos-tv.md` adds an LG webOS brand on those same tools.
+  One `tv.yaml` may mix brands. An omitted brand stays Samsung.
   Do not paste that ADR here.
 - `adrs/0030-utterance-routing-and-fanout.md` routes a transcript that
   omits the harness profile and repeats one closed action for `all`.

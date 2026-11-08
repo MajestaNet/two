@@ -46,6 +46,10 @@ TvPower = Literal["on", "off"]
 TvStep = Literal["up", "down"]
 TV_POWERS: frozenset[str] = frozenset({"on", "off"})
 TV_STEPS: frozenset[str] = frozenset({"up", "down"})
+BRAND_SAMSUNG: Literal["samsung"] = "samsung"
+BRAND_LG: Literal["lg"] = "lg"
+TvBrand = Literal["samsung", "lg"]
+TV_BRANDS: frozenset[str] = frozenset({BRAND_SAMSUNG, BRAND_LG})
 
 _SET_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 _TOKEN_ENV_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
@@ -107,7 +111,11 @@ class TargetPolicy:
 
 @dataclass(frozen=True, slots=True)
 class SetPolicy:
-    """One install-bound television. The address never reaches the model."""
+    """One install-bound television. The address never reaches the model.
+
+    ``brand`` chooses the transport. An omitted brand stays Samsung so an
+    existing binding does not change. The model does not see the brand.
+    """
 
     set_id: str
     address: str
@@ -119,6 +127,7 @@ class SetPolicy:
     volume_step: int
     volume_url: str
     targets: dict[str, TargetPolicy]
+    brand: str = BRAND_SAMSUNG
     aliases: tuple[str, ...] = ()
 
 
@@ -462,6 +471,7 @@ class SetBounds(BaseModel):
     address: str
     mac: str = ""
     token_env: str
+    brand: TvBrand | None = None
     secure: bool = True
     volume_min: int = Field(default=0, ge=0, le=100)
     volume_max: int = Field(default=30, ge=0, le=100)

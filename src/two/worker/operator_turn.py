@@ -102,7 +102,8 @@ def _operator_prompt(transcript: str, snapshot: str) -> str:
         [
             "install.status",
             "install.read_guide arguments: doc "
-            "(setup, adapters, climate, climate-echonet, esphome, climate-esphome, tv, vacuum)",
+            "(setup, adapters, climate, climate-echonet, esphome, climate-esphome, "
+            "tv, tv-lg, vacuum)",
             "install.list_account arguments: slot=vacuum, optional token_env, optional api_host",
             "install.pair_device arguments: slot=tv, set",
             "install.propose_binding arguments: slot (climate, tv, vacuum, esphome), document",

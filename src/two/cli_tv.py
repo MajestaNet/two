@@ -17,13 +17,15 @@
 """Television subcommand handlers.
 
 ``send``, ``show``, ``approve``, and ``reject`` talk only to the control
-API. ``pair`` stores the Samsung token in ``$TWO_DATA_DIR/env``. ``apps``
-prints application ids and writes nothing.
+API. ``pair`` stores the set's token in ``$TWO_DATA_DIR/env``. The set's
+brand chooses the handshake. ``apps`` prints application ids and writes
+nothing.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from typing import Any
 
@@ -103,13 +105,13 @@ def _pair(args: argparse.Namespace) -> int:
 
 
 def _apps(args: argparse.Namespace) -> int:
-    from two.devices.tv.samsung import SamsungTv
+    from two.devices.tv.broker import open_set_client
 
     policy = _policy(args)
     if policy is None:
         return 1
     try:
-        rows = SamsungTv(policy, "").applications()
+        rows = open_set_client(policy, os.environ.get(policy.token_env, "")).applications()
     except TvUpstreamError:
         print("error: the television did not list applications", file=sys.stderr)
         return 1

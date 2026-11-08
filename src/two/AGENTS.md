@@ -113,8 +113,9 @@ Python package for the Majesta Two control plane.
   is ADR 0022 and stays default off. The binding transport is Home
   Assistant REST, ECHONET Lite (ADR 0027), or an ESPHome climate entity
   on a shared node (ADR 0043). `devices/esphome/` is that node client
-  and is not a catalog slot. `devices/tv/` is ADR 0029
-  and stays default off. The transport is the Samsung local API.
+  and is not a catalog slot.   `devices/tv/` is ADR 0029
+  and stays default off. A set names `brand: samsung` (the local API)
+  or `brand: lg` (webOS SSAP, ADR 0047). An omitted brand stays Samsung.
   `devices/vacuum/` is ADR 0038 and stays default off. The transport is
   the Ecovacs Open API on the two official hosts. Listing is GET with
   `ak` on the query string (ADR 0042). Control stays POST JSON.

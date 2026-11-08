@@ -1,0 +1,30 @@
+# Copyright 2026 MajestaNet
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example LG webOS television binding (ADR 0029, ADR 0047). Copy to
+# $TWO_DATA_DIR/devices/tv.yaml and set enabled: true.
+# An install that already has Samsung sets can add a set with brand: lg
+# to that same file. Addresses are private IPv4. MAC values come from
+# the router. The client key is an environment variable, not this file.
+# Application ids come from `two tv apps`. HDMI is an app id, not KEY_.
+# See docs/setup.md.
+
+enabled: false
+brand: lg
+sets:
+  living-room:
+    # Optional spoken ids for this set. App names stay under targets.
+    # aliases: [big-tv]
+    address: 192.168.1.50
+    mac: "02:00:00:00:00:11"
+    token_env: LG_TV_LIVING_ROOM_TOKEN
+    # false tries ws port 3000 first. true tries wss port 3001 first.
+    secure: false
+    volume_min: 0
+    volume_max: 30
+    volume_step: 3
+    targets:
+      netflix:
+        app_id: netflix
+      hdmi-1:
+        app_id: com.webos.app.hdmi1

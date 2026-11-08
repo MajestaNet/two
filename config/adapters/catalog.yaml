@@ -104,10 +104,11 @@ slots:
     harness_profiles:
       - home-action
     notes: >
-      Closed television tools (ADR 0029). Default off. An install enables
-      it with $TWO_DATA_DIR/devices/tv.yaml. The transport is the Samsung
-      local API on the private LAN. The model does not call the set.
-      The control plane performs the read-back.
+      Closed television tools (ADR 0029, ADR 0047). Default off. An install
+      enables it with $TWO_DATA_DIR/devices/tv.yaml. A set names brand
+      samsung or lg. An omitted brand stays samsung. One file may mix
+      both. The model does not call the set. The control plane performs
+      the read-back.
 
   vacuum:
     kind: device

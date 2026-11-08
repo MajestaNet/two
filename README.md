@@ -45,7 +45,7 @@ The phone and watch are the other repository. Follow
 | --- | --- |
 | Control plane, CLI, operator window | This repository |
 | iPhone enrollment and Apple Watch push-to-talk | [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile) |
-| Climate, Samsung TV, Ecovacs, ESPHome | This repository, off until a binding on this machine |
+| Climate, Samsung and LG TV, Ecovacs, ESPHome | This repository, off until a binding on this machine |
 | Install reference, device steps, optional second host | [docs/setup.md](docs/setup.md) |
 | Specification | [docs/architecture.md](docs/architecture.md) |
 

@@ -39,7 +39,7 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
         "install_read_guide",
         "install.read_guide",
         "Read numbered connect steps for one allowlisted document. "
-        "vacuum is Ecovacs; climate is air-con; tv is Samsung. "
+        "vacuum is Ecovacs; climate is air-con; tv is Samsung; tv-lg is webOS. "
         "Call this only when the snapshot is not enough.",
         {
             "type": "object",
@@ -54,6 +54,7 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
                         "esphome",
                         "climate-esphome",
                         "tv",
+                        "tv-lg",
                         "vacuum",
                     ],
                 }
@@ -84,7 +85,8 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
     (
         "install_pair_device",
         "install.pair_device",
-        "Pair one bound Samsung set. Stores the token in the data-dir env file. "
+        "Pair one bound television. The set's brand chooses Samsung or LG. "
+        "Stores the token in the data-dir env file. "
         "Does not return the token.",
         {
             "type": "object",

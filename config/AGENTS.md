@@ -31,7 +31,9 @@ Configuration is data. Do not put Python here.
   Copy under `$TWO_DATA_DIR` before enabling. A climate file may mix
   ECHONET and ESPHome zones.
   `devices/tv.example.yaml` is the Samsung television binding (ADR 0029).
-  Copy it under `$TWO_DATA_DIR` before enabling it. Tokens stay in the
+  `devices/tv-lg.example.yaml` is the LG webOS binding (ADR 0047).
+  Copy one under `$TWO_DATA_DIR` before enabling it. A television file
+  may mix brands. An omitted brand stays Samsung. Tokens stay in the
   environment.   `devices/vacuum.example.yaml` is the Ecovacs vacuum
   binding (ADR 0038). Nicknames in that file are placeholders (`Robot A`,
   `Robot B`), not a live account. The API key stays in the environment.
