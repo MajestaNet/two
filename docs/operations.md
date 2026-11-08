@@ -3,6 +3,7 @@
 Operational startup, health, timeouts, and host services are specified in
 [architecture.md](architecture.md) section 12. The numbered operator
 walkthrough (config, privacy, network, CLI) is in [setup.md](setup.md).
+The short local path, including the phone, is [local.md](local.md).
 Remote clients are in [remote-access.md](remote-access.md).
 
 Use this page as an index, not a second spec:

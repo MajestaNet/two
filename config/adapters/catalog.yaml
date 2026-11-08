@@ -33,7 +33,8 @@ slots:
       Local operator window on this Mac (ADR 0031). Default off.
       Starts and stops the control plane, recommends one catalog model,
       and sends chat through the loopback API. Closing the window
-      leaves the server running. Not the mobile app or the watch app.
+      leaves the server running. The iPhone and Apple Watch apps are
+      MajestaNet/two-mobile.
 
   mobile:
     kind: client
@@ -44,8 +45,10 @@ slots:
     harness_profiles:
       - self-build
     notes: >
-      API slices for the first-party GUI live in this repo (ADR 0015, B14).
-      The native app does not. OIDC is not accepted (ADR 0016).
+      API slices for the B14 development-loop GUI live in this repo
+      (ADR 0015). That native GUI is not built. OIDC is not accepted
+      (ADR 0016). The iPhone and Apple Watch voice apps are
+      MajestaNet/two-mobile and use the watch slot, not this one.
 
   watch:
     kind: client
@@ -57,11 +60,12 @@ slots:
       - chat
       - home-action
     notes: >
-      First-party client, not a device adapter (ADR 0020).
-      two edge issue writes a private CA. The Xcode app is not in this
-      repo. chat is stored. home-action is stored only when the local
-      climate, television, or vacuum binding is enabled. An omitted profile is
-      routed (ADR 0030).
+      First-party voice client, not a device adapter (ADR 0020).
+      two edge issue writes a private CA. The iPhone and Apple Watch
+      apps are MajestaNet/two-mobile. They are not in this repo.
+      chat is stored. home-action is stored only when the local
+      climate, television, or vacuum binding is enabled. An omitted
+      profile is routed (ADR 0030).
 
   device:
     kind: device

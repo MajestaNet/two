@@ -15,6 +15,7 @@
   const nodePath = req ? req("path") : null;
 
   const DOCS = Object.freeze([
+    Object.freeze({ id: "local", title: "Run locally", path: "docs/local.md" }),
     Object.freeze({ id: "setup", title: "Setup", path: "docs/setup.md" }),
     Object.freeze({ id: "adapters", title: "Adapters", path: "docs/adapters.md" }),
     Object.freeze({ id: "local-16k", title: "24 GB / 16K", path: "docs/local-16k.md" }),
