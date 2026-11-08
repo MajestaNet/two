@@ -4,7 +4,7 @@
 
 Do **not** file secrets, tokens, private hostnames, or exploit details in a public GitHub issue.
 
-Email **steve.th.zinke@gmail.com** with:
+Email **hello@majesta.net** with:
 
 - a description of the issue
 - affected versions or commits if known
