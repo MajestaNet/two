@@ -18,8 +18,8 @@
 
 The harness may request only these tools. The control plane decides
 whether the call is pre-authorized, needs an approval digest, or is
-refused. The model sees set ids and target aliases. It does not see
-addresses, application ids, keys, or tokens.
+refused. The model sees set ids, spoken aliases, and app targets. It does
+not see addresses, application ids, keys, or tokens.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field
 
 from two.approvals.digest import compute_action_digest
+from two.devices.alias import alias_index, resolve_appliance_id
 
 TV_READ = "tv.read"
 TV_SET_POWER = "tv.set_power"
@@ -45,6 +46,10 @@ TvPower = Literal["on", "off"]
 TvStep = Literal["up", "down"]
 TV_POWERS: frozenset[str] = frozenset({"on", "off"})
 TV_STEPS: frozenset[str] = frozenset({"up", "down"})
+BRAND_SAMSUNG: Literal["samsung"] = "samsung"
+BRAND_LG: Literal["lg"] = "lg"
+TvBrand = Literal["samsung", "lg"]
+TV_BRANDS: frozenset[str] = frozenset({BRAND_SAMSUNG, BRAND_LG})
 
 _SET_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 _TOKEN_ENV_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
@@ -106,7 +111,11 @@ class TargetPolicy:
 
 @dataclass(frozen=True, slots=True)
 class SetPolicy:
-    """One install-bound television. The address never reaches the model."""
+    """One install-bound television. The address never reaches the model.
+
+    ``brand`` chooses the transport. An omitted brand stays Samsung so an
+    existing binding does not change. The model does not see the brand.
+    """
 
     set_id: str
     address: str
@@ -118,6 +127,8 @@ class SetPolicy:
     volume_step: int
     volume_url: str
     targets: dict[str, TargetPolicy]
+    brand: str = BRAND_SAMSUNG
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -319,10 +330,14 @@ def _staged_call(tool: str, arguments: dict[str, object], install: TvInstall) ->
     allowed = {"set", "power", "target", "level", "mute", "step"}
     if any(key not in allowed for key in arguments):
         raise _Refuse("profile_tool_denied")
-    try:
-        set_id = require_set_id(arguments.get("set"))
-    except ValueError as exc:
-        raise _Refuse("profile_tool_denied") from exc
+    aliases = alias_index({set_id: policy.aliases for set_id, policy in install.sets.items()})
+    set_id = resolve_appliance_id(arguments.get("set"), install.sets, aliases)
+    if set_id is None:
+        try:
+            require_set_id(arguments.get("set"))
+        except ValueError as exc:
+            raise _Refuse("profile_tool_denied") from exc
+        raise _Refuse("tv_set_denied")
     policy = install.sets.get(set_id)
     if policy is None:
         raise _Refuse("tv_set_denied")
@@ -456,9 +471,11 @@ class SetBounds(BaseModel):
     address: str
     mac: str = ""
     token_env: str
+    brand: TvBrand | None = None
     secure: bool = True
     volume_min: int = Field(default=0, ge=0, le=100)
     volume_max: int = Field(default=30, ge=0, le=100)
     volume_step: int = Field(default=3, ge=1, le=20)
     volume_url: str = ""
     targets: dict[str, TargetBounds] = Field(default_factory=dict)
+    aliases: list[str] = Field(default_factory=list, max_length=8)

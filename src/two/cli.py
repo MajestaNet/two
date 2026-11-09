@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -180,6 +181,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print pidfile status as JSON and do not start",
     )
     up_cmd.add_argument("--data-dir", default=None, help="TWO_DATA_DIR for the pidfile")
+    up_cmd.add_argument(
+        "--caddy",
+        action="store_true",
+        help="Development option: also run Caddy for the issued phone edge",
+    )
     down_cmd = subparsers.add_parser(
         "down",
         help="Stop a two up supervisor via its pidfile",
@@ -227,6 +233,76 @@ def build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="Replace an existing edge CA",
+    )
+    edge_enroll = edge_sub.add_parser(
+        "enroll",
+        help="Sign one phone CSR on a one-shot HTTPS listener (no client certificate)",
+    )
+    edge_enroll.add_argument(
+        "--listen",
+        required=True,
+        help="Private LAN address or overlay hostname already issued for Caddy",
+    )
+    edge_enroll.add_argument(
+        "--port",
+        type=int,
+        default=8443,
+        help="Caddy port returned to the phone after enroll",
+    )
+    edge_enroll.add_argument(
+        "--enroll-port",
+        type=int,
+        default=8444,
+        help="One-shot enrollment port (must differ from Caddy)",
+    )
+    edge_enroll.add_argument(
+        "--data-dir",
+        default=None,
+        help="Directory for the CA and Caddyfile (default: $TWO_DATA_DIR/edge)",
+    )
+    edge_enroll.add_argument(
+        "--replace",
+        action="store_true",
+        help="Replace an existing username certificate",
+    )
+    edge_sub.add_parser(
+        "detect",
+        help="Print the Tailscale address, or the private LAN address, and write nothing",
+    )
+    edge_prepare = edge_sub.add_parser(
+        "prepare",
+        help="Issue the phone edge if needed, and optionally stop the API for a token reload",
+    )
+    edge_prepare.add_argument(
+        "--listen",
+        default=None,
+        help="Private LAN address or overlay hostname. Detected when omitted.",
+    )
+    edge_prepare.add_argument("--port", type=int, default=8443, help="Caddy listen port")
+    edge_prepare.add_argument(
+        "--api",
+        default="127.0.0.1:8741",
+        help="Loopback control API upstream",
+    )
+    edge_prepare.add_argument(
+        "--data-dir",
+        default=None,
+        help="Directory for the CA and Caddyfile (default: $TWO_DATA_DIR/edge)",
+    )
+    edge_prepare.add_argument(
+        "--stop",
+        action="store_true",
+        help="Stop two up and a loopback two api so the next two up loads the edge token",
+    )
+    edge_prepare.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing edge CA",
+    )
+    edge_prepare.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the prepare result as JSON",
     )
     subparsers.add_parser(
         "scheduler",
@@ -330,11 +406,13 @@ def main(
 
         return run_climate(args, request=request)
     if args.command == "tv":
+        _apply_cli_data_dir(args)
         _load_host_env()
         from two.cli_tv import run_tv
 
         return run_tv(args, request=request)
     if args.command == "vacuum":
+        _apply_cli_data_dir(args)
         _load_host_env()
         from two.cli_vacuum import run_vacuum
 
@@ -349,6 +427,13 @@ def main(
         return 0
     parser.error(f"unknown command: {args.command}")
     return 2
+
+
+def _apply_cli_data_dir(args: argparse.Namespace) -> None:
+    """Pin TWO_DATA_DIR before loading env so --data-dir is this install."""
+    data_dir = getattr(args, "data_dir", None)
+    if isinstance(data_dir, str) and data_dir.strip():
+        os.environ["TWO_DATA_DIR"] = data_dir.strip()
 
 
 def _load_host_env() -> None:
@@ -372,12 +457,18 @@ def _run_edge(args: argparse.Namespace) -> int:
         resolve_edge_data_dir,
     )
 
+    if args.edge_command == "detect":
+        return _run_edge_detect()
+    if args.edge_command == "prepare":
+        return _run_edge_prepare(args)
+
     data_dir = resolve_edge_data_dir(args.data_dir, env=os.environ, home=Path.home())
+    api = getattr(args, "api", "127.0.0.1:8741")
     try:
         plan = build_edge_plan(
             listen=args.listen,
             port=args.port,
-            api=args.api,
+            api=api,
             data_dir=data_dir,
         )
     except EdgeListenError as exc:
@@ -385,6 +476,22 @@ def _run_edge(args: argparse.Namespace) -> int:
         return 1
     if args.edge_command == "plan":
         print(format_edge_plan(plan))
+        return 0
+    if args.edge_command == "enroll":
+        from two.edge_enroll import serve_one_enroll
+
+        try:
+            serve_one_enroll(
+                plan,
+                replace=bool(args.replace),
+                enroll_port=int(args.enroll_port),
+            )
+        except EdgeIssueError as exc:
+            print(f"two edge: {exc}", file=sys.stderr)
+            return 1
+        except OSError as exc:
+            print(f"two edge: {exc}", file=sys.stderr)
+            return 1
         return 0
     try:
         issue_edge(plan, force=bool(args.force))
@@ -394,9 +501,62 @@ def _run_edge(args: argparse.Namespace) -> int:
     print(format_edge_plan(plan))
     print(
         f"wrote {plan.data_dir} (mode 0700). "
-        f"Export TWO_EDGE_TOKEN from {plan.data_dir / 'edge.env'} "
-        "for both caddy and two api. The API process stays on loopback."
+        "two up reads TWO_EDGE_TOKEN from edge.env. "
+        "Development Caddy is two up --caddy. The API process stays on loopback."
     )
+    return 0
+
+
+def _run_edge_detect() -> int:
+    import json
+
+    from two.edge import EdgeListenError
+    from two.edge_register import detect_listen_host
+
+    try:
+        host = detect_listen_host()
+    except EdgeListenError as exc:
+        print(f"two edge: {exc}", file=sys.stderr)
+        return 1
+    from two.edge_register import private_edge_hosts
+
+    overlay, lan = private_edge_hosts()
+    print(json.dumps({"listen": host, "overlay": overlay, "lan": lan}))
+    return 0
+
+
+def _run_edge_prepare(args: argparse.Namespace) -> int:
+    import os
+    from pathlib import Path
+
+    from two.edge import EdgeIssueError, EdgeListenError, resolve_edge_data_dir
+    from two.edge_register import prepare_edge
+
+    data_dir = resolve_edge_data_dir(args.data_dir, env=os.environ, home=Path.home())
+    try:
+        prepared = prepare_edge(
+            listen=args.listen,
+            port=int(args.port),
+            api=str(args.api),
+            data_dir=data_dir,
+            stop=bool(args.stop),
+            force=bool(args.force),
+        )
+    except (EdgeIssueError, EdgeListenError) as exc:
+        print(f"two edge: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(prepared.model_dump_json())
+        return 0
+    state = "issued" if prepared.created else "ready"
+    print(f"edge {state} at {prepared.listen}:{prepared.port}")
+    if prepared.stopped:
+        print("stopped the control plane. Start it again with two up.")
+    if prepared.caddy:
+        print("Caddy for development: two up --caddy")
+    else:
+        print("caddy is not on PATH. Install it or start the API without --caddy.")
+    print(f"enrollment waits on {prepared.enroll_port} until one phone connects.")
     return 0
 
 
@@ -563,7 +723,7 @@ def _run_up(args: argparse.Namespace) -> int:
     if args.status:
         print(read_supervisor_status(data_dir=data).model_dump_json(indent=2))
         return 0
-    return run_up(dry_run=args.dry_run, data_dir=data)
+    return run_up(dry_run=args.dry_run, data_dir=data, caddy=bool(args.caddy))
 
 
 def _run_down(args: argparse.Namespace) -> int:
@@ -853,7 +1013,8 @@ def _add_tv_parser(subparsers: Any) -> None:
         help="Send, show, approve, or reject one home-action television turn",
         description=(
             "send, show, approve, and reject talk only to the control API. "
-            "pair and apps open the bound Samsung set and write nothing. "
+            "pair stores the set token in $TWO_DATA_DIR/env. "
+            "apps prints application ids and writes nothing. "
             "The turn runs only when the local television binding is enabled."
         ),
     )
@@ -891,7 +1052,7 @@ def _add_tv_parser(subparsers: Any) -> None:
     reject.add_argument("--digest", required=True, help="Exact action_digest")
     pair = tv_sub.add_parser(
         "pair",
-        help="Wait for the Samsung Allow prompt and print the token",
+        help="Wait for the on-screen prompt and store the token in $TWO_DATA_DIR/env",
     )
     pair.add_argument("--set", required=True, help="Set id from the binding")
     pair.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
@@ -910,7 +1071,7 @@ def _add_vacuum_parser(subparsers: Any) -> None:
         help="Send or show one home-action vacuum turn",
         description=(
             "send and show talk only to the control API. "
-            "robots lists account nicknames and writes nothing. "
+            "robots lists account nicknames without an enabled binding. "
             "The turn runs only when the local vacuum binding is enabled."
         ),
     )
@@ -937,6 +1098,16 @@ def _add_vacuum_parser(subparsers: Any) -> None:
         help="Print Ecovacs account nicknames and write nothing",
     )
     robots.add_argument("--data-dir", default=None, help="Data directory (default: $TWO_DATA_DIR)")
+    robots.add_argument(
+        "--token-env",
+        default=None,
+        help="Env name for the Access Key (default: ECO_API_KEY or the binding)",
+    )
+    robots.add_argument(
+        "--api-host",
+        default=None,
+        help="open.ecovacs.com or open.ecovacs.cn",
+    )
 
 
 def _add_esphome_parser(subparsers: Any) -> None:

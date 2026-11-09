@@ -119,10 +119,11 @@ def plan_home_session(
     zones: list[str],
     stored_session_id: str | None,
     session_is_valid: SessionValidator | None = None,
+    spoken: tuple[tuple[str, str], ...] = (),
 ) -> HomeSessionPlan:
     """Resume a valid session id. The prompt still names the closed tool list."""
     validator = session_is_valid or default_session_validator
-    prompt = home_prompt(transcript, zones)
+    prompt = home_prompt(transcript, zones, spoken=spoken)
     if stored_session_id and validator(stored_session_id):
         return HomeSessionPlan(
             mode=SessionMode.RESUME,
@@ -268,11 +269,13 @@ def run_home_action_turn(
     stored = None if session is None else session.session_id
     prompt_climate, _prompt_tv, _prompt_vacuum = _advertised(turn, loaded, loaded_tv, loaded_vacuum)
     zones = sorted(prompt_climate.zones) if prompt_climate is not None else []
+    spoken = _spoken_pairs(prompt_climate)
     plan = plan_home_session(
         transcript=turn.request_text,
         zones=zones,
         stored_session_id=stored,
         session_is_valid=session_is_valid,
+        spoken=spoken,
     )
     if argv_factory is not None:
         launched = list(argv_factory(plan))
@@ -553,6 +556,15 @@ def _prepare_route(
     if label is None or label not in slots:
         return turn
     return store.set_home_action_route_slots(turn.id, dump_slots((label,)) or label, now=now)
+
+
+def _spoken_pairs(climate: ClimateInstall | None) -> tuple[tuple[str, str], ...]:
+    """``(alias, zone id)`` for the harness prompt. Empty when the slot is off."""
+    if climate is None:
+        return ()
+    return tuple(
+        (alias, zone) for zone, policy in sorted(climate.zones.items()) for alias in policy.aliases
+    )
 
 
 def _advertised(

@@ -3,8 +3,9 @@
 ## Status
 
 Accepted (protocol and executor). The television slot stays off until
-an installation binds it. Title search, account resume, activities,
-and a second transport are not implemented by this ADR.
+an installation binds it. ADR 0047 adds an LG webOS brand on these
+same tools. Title search, account resume, and activities are not
+implemented by this ADR.
 
 ## Context
 

@@ -20,7 +20,7 @@ profiles:
     display_name: Qwen 3.5 4B
     upstream_model: qwen3.5:4b-mlx
     alias: qwen3.5:4b-mlx
-    mlx_lm_model: mlx-community/Qwen3.5-4B-MLX-4bit
+    mlx_lm_model: mlx-community/Qwen3.5-4B-OptiQ-4bit
     num_ctx: 8192
     num_ctx_options: *native_ctx
     kv_cache: q8_0

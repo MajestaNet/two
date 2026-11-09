@@ -35,6 +35,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from two.devices.alias import alias_index, resolve_appliance_id, spoken_prompt_lines
+
 CLIMATE_READ = "climate.read"
 CLIMATE_SET_SETPOINT = "climate.set_setpoint"
 CLIMATE_SET_MODE = "climate.set_mode"
@@ -104,6 +106,7 @@ class ZonePolicy:
     transport: str = TRANSPORT_HOME_ASSISTANT
     node: str = ""
     entity: str = ""
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,15 +270,22 @@ def readback_reply(readback: ClimateReadback) -> str:
     return f"{readback.zone}: {temp} C, setpoint {setpoint} C, {mode}, reachable {reached}"
 
 
-def home_prompt(transcript: str, zones: list[str]) -> str:
+def home_prompt(
+    transcript: str,
+    zones: list[str],
+    *,
+    spoken: tuple[tuple[str, str], ...] = (),
+) -> str:
     """Prompt the harness with the closed tool list and the install's zone ids."""
     listed = ", ".join(zones) if zones else "(none)"
-    return (
-        f"{transcript}\n"
-        "profile: home-action\n"
-        "tools: climate.read, climate.set_setpoint, climate.set_mode\n"
-        f"zones: {listed}\n"
-    )
+    lines = [
+        transcript,
+        "profile: home-action",
+        "tools: climate.read, climate.set_setpoint, climate.set_mode",
+        f"zones: {listed}",
+        *spoken_prompt_lines(spoken),
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def interpret_tool(
@@ -316,10 +326,14 @@ def _staged_call(tool: str, arguments: dict[str, object], install: ClimateInstal
     allowed = {"zone", "celsius", "mode"}
     if any(key not in allowed for key in arguments):
         raise _Refuse("profile_tool_denied")
-    try:
-        zone = require_zone_id(arguments.get("zone"))
-    except ValueError as exc:
-        raise _Refuse("profile_tool_denied") from exc
+    aliases = alias_index({zone_id: policy.aliases for zone_id, policy in install.zones.items()})
+    zone = resolve_appliance_id(arguments.get("zone"), install.zones, aliases)
+    if zone is None:
+        try:
+            require_zone_id(arguments.get("zone"))
+        except ValueError as exc:
+            raise _Refuse("profile_tool_denied") from exc
+        raise _Refuse("climate_zone_denied")
     policy = install.zones.get(zone)
     if policy is None:
         raise _Refuse("climate_zone_denied")
@@ -411,3 +425,4 @@ class ZoneBounds(BaseModel):
     transport: ClimateTransport | None = None
     node: str = ""
     entity: str = ""
+    aliases: list[str] = Field(default_factory=list, max_length=8)

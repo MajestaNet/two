@@ -17,13 +17,13 @@
 """Vacuum subcommand handlers.
 
 ``send`` and ``show`` talk only to the control API. ``robots`` lists
-account nicknames and writes nothing.
+account nicknames without requiring an enabled binding, and writes
+nothing.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from typing import Any
 
@@ -31,7 +31,6 @@ from pydantic import ValidationError
 
 from two.cli_chat import format_receipt
 from two.client import ControlApiError, ControlClient
-from two.devices.vacuum.contract import VacuumUpstreamError
 
 
 def run_vacuum(
@@ -79,19 +78,28 @@ def _dispatch(args: argparse.Namespace, client: ControlClient) -> int:
 
 
 def _robots(args: argparse.Namespace) -> int:
-    from two.devices.vacuum.config import load_vacuum_config
-    from two.devices.vacuum.ecovacs import EcovacsCloud
+    from two.operator.assist import AssistError
+    from two.operator.first_run import list_account
 
-    install = load_vacuum_config(getattr(args, "data_dir", None))
-    if install is None:
-        print("error: vacuum binding is not enabled", file=sys.stderr)
-        return 1
-    token = os.environ.get(install.token_env, "")
+    offered: dict[str, object] = {}
+    token_env = getattr(args, "token_env", None)
+    api_host = getattr(args, "api_host", None)
+    if isinstance(token_env, str) and token_env.strip():
+        offered["token_env"] = token_env.strip()
+    if isinstance(api_host, str) and api_host.strip():
+        offered["api_host"] = api_host.strip()
     try:
-        names = EcovacsCloud(install.api_host, token).list_nicknames()
-    except VacuumUpstreamError:
+        listing = list_account(
+            "vacuum",
+            offered,
+            data_dir=getattr(args, "data_dir", None),
+        )
+    except AssistError as exc:
+        print(f"error: {exc.code}", file=sys.stderr)
+        return 1
+    if not listing.nicknames:
         print("error: the account did not list robots", file=sys.stderr)
         return 1
-    for name in names:
+    for name in listing.nicknames:
         print(name)
     return 0

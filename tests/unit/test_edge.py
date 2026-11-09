@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import shutil
 import stat
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -29,10 +30,14 @@ from two.edge import (
     ENV_EDGE_TOKEN,
     EdgeIssueError,
     EdgeListenError,
+    EdgeUsernameError,
     build_edge_plan,
     issue_edge,
+    parse_edge_username,
     render_caddyfile,
+    sign_phone_csr,
 )
+from two.edge_enroll import _enroll_bind_host, enroll_phone
 
 LISTEN = "10.1.2.3"
 
@@ -60,6 +65,43 @@ def test_caddyfile_requires_client_certs_and_omits_secrets(tmp_path: Path) -> No
     assert 'header_up X-Two-Client-Id "watch"' in text
     assert "BEGIN" not in text
     assert "token" not in text.lower() or "TWO_EDGE_TOKEN" in text
+    assert "bind 10.1.2.3" in text
+    assert "https://:8443 {" in text
+    assert "https://10.1.2.3:8443 {" not in text
+    assert "protocols h1 h2" in text
+    assert "strict_sni_host insecure_off" in text
+
+
+def test_enroll_listener_binds_the_home_address(tmp_path: Path) -> None:
+    plan = build_edge_plan(
+        listen="100.64.1.5",
+        data_dir=tmp_path,
+        also=("10.1.1.5",),
+    )
+    assert _enroll_bind_host(plan) == "10.1.1.5"
+    overlay_only = build_edge_plan(listen="100.64.1.5", data_dir=tmp_path)
+    assert _enroll_bind_host(overlay_only) == "100.64.1.5"
+
+
+def test_caddyfile_binds_the_overlay_and_the_home_address(tmp_path: Path) -> None:
+    plan = build_edge_plan(
+        listen="100.64.1.5",
+        data_dir=tmp_path,
+        also=("10.1.1.5", "100.64.1.5"),
+    )
+    text = render_caddyfile(plan)
+    assert "bind 100.64.1.5 10.1.1.5" in text
+    assert plan.san == "IP:100.64.1.5,IP:10.1.1.5"
+    assert "https://100.64.1.5:8443" not in text
+    with pytest.raises(EdgeListenError):
+        build_edge_plan(listen="100.64.1.5", data_dir=tmp_path, also=("8.8.8.8",))
+
+
+def test_caddyfile_keeps_a_hostname_in_the_site_address(tmp_path: Path) -> None:
+    plan = build_edge_plan(listen="mini.example.ts.net", data_dir=tmp_path)
+    text = render_caddyfile(plan)
+    assert "https://mini.example.ts.net:8443 {" in text
+    assert "bind " not in text
 
 
 def test_cli_plan_writes_nothing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -95,3 +137,100 @@ def test_issue_writes_ca_and_client_cert(tmp_path: Path) -> None:
     assert env.split("=", 1)[1].strip() not in caddy
     with pytest.raises(EdgeIssueError):
         issue_edge(plan)
+
+
+def test_username_shape() -> None:
+    assert parse_edge_username("steve") == "steve"
+    assert parse_edge_username("A-1") == "A-1"
+    with pytest.raises(EdgeUsernameError):
+        parse_edge_username("")
+    with pytest.raises(EdgeUsernameError):
+        parse_edge_username("has space")
+    with pytest.raises(EdgeUsernameError):
+        parse_edge_username("a" * 33)
+
+
+def _csr_for(tmp_path: Path, name: str) -> str:
+    key = tmp_path / f"{name}.key"
+    csr = tmp_path / f"{name}.csr"
+    subprocess.run(
+        [
+            "openssl",
+            "req",
+            "-new",
+            "-newkey",
+            "rsa:2048",
+            "-nodes",
+            "-keyout",
+            str(key),
+            "-out",
+            str(csr),
+            "-subj",
+            f"/CN={name}",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return csr.read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl is not installed")
+def test_sign_phone_csr_and_refuse_second_name(tmp_path: Path) -> None:
+    plan = build_edge_plan(listen=LISTEN, data_dir=tmp_path)
+    issue_edge(plan)
+    csr = _csr_for(tmp_path, "steve")
+    pem = sign_phone_csr(tmp_path, "steve", csr)
+    assert "BEGIN CERTIFICATE" in pem
+    written = (tmp_path / "clients" / "steve.crt").read_text(encoding="utf-8")
+    assert pem == written
+    caddy = (tmp_path / "Caddyfile").read_text(encoding="utf-8")
+    assert "mode require_and_verify" in caddy
+    with pytest.raises(EdgeIssueError, match="already exists"):
+        sign_phone_csr(tmp_path, "steve", csr)
+    again = sign_phone_csr(tmp_path, "steve", csr, replace=True)
+    assert "BEGIN CERTIFICATE" in again
+    status, body = enroll_phone(
+        tmp_path,
+        {"username": "other", "csr": _csr_for(tmp_path, "other"), "token": "no"},
+        replace=False,
+        host=LISTEN,
+        port=8443,
+    )
+    assert status == 422
+    status, body = enroll_phone(
+        tmp_path,
+        {"username": "pat", "csr": _csr_for(tmp_path, "pat")},
+        replace=False,
+        host=LISTEN,
+        port=8443,
+    )
+    assert status == 200
+    assert body["host"] == LISTEN
+    assert body["hosts"] == [LISTEN]
+    assert body["port"] == 8443
+    assert "BEGIN CERTIFICATE" in body["ca"]
+    assert "BEGIN CERTIFICATE" in body["certificate"]
+    status, body = enroll_phone(
+        tmp_path,
+        {"username": "pat", "csr": _csr_for(tmp_path, "pat")},
+        replace=False,
+        host=LISTEN,
+        port=8443,
+    )
+    assert status == 409
+
+
+def test_cli_enroll_without_issue_fails(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    code = main(
+        [
+            "edge",
+            "enroll",
+            "--listen",
+            LISTEN,
+            "--data-dir",
+            str(tmp_path / "edge"),
+        ]
+    )
+    assert code == 1
+    assert "two edge issue" in capsys.readouterr().err

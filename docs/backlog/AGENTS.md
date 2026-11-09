@@ -23,6 +23,9 @@ Dedicated, agent-executable implementation items. One file per item.
   [B26](B26-operator-install-profile.md) resumes harness profile
   `operator` for questions, shipped bindings, and an approved self-build
   task (ADR 0039). An omitted profile does not route there.
+  [B27](B27-operator-first-run-steps.md) lists vacuum nicknames and
+  stores a television token without putting the secret in the model
+  (ADR 0044).
   Landing any of these items does not close architecture §21 item 20.
   Do not merge two items in one PR unless the item file says they may
   land together.

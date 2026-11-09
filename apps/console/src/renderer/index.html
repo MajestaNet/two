@@ -44,95 +44,111 @@
       <main>
         <section id="server" class="view">
           <h1>Server</h1>
-          <p class="lede">The control plane starts with this window and keeps running after you close it. Open the window again from the menu bar.</p>
+          <p class="lede">The control plane starts with this window and keeps running after you close it. When a phone edge is already issued, Start also brings up Caddy on the Tailscale address. Start Caddy does that on its own when the server is already running.</p>
           <div class="row">
             <button type="button" id="start">Start</button>
             <button type="button" id="stop" class="quiet">Stop</button>
+            <button type="button" id="caddy-start" class="hidden">Start Caddy</button>
           </div>
           <ul id="server-lines" class="facts"></ul>
           <p id="server-note" class="note"></p>
-          <h2>Ollama</h2>
-          <p id="ollama-path" class="note"></p>
+          <h2>Mobile</h2>
+          <p class="lede">Start enrollment on this Wi-Fi. The phone registers once, then uses Tailscale away from home and this address on the LAN. Stop enrollment when you are done. The API and Caddy stay up.</p>
+          <p id="mobile-addrs" class="note"></p>
           <div class="row">
-            <button type="button" id="ollama-start">Start Ollama</button>
-            <button type="button" id="ollama-stop" class="quiet">Stop Ollama</button>
-            <button type="button" id="ollama-install" class="hidden">Install Ollama</button>
-            <button type="button" id="ollama-choose" class="quiet">Choose binary…</button>
+            <button type="button" id="mobile-register">Start enrollment</button>
+            <button type="button" id="mobile-cancel" class="quiet" disabled>Stop enrollment</button>
           </div>
-          <p id="ollama-note" class="note"></p>
-          <h2>mlx-lm</h2>
-          <p id="mlx-host" class="note"></p>
-          <p id="mlx-path" class="note"></p>
-          <div class="row">
-            <button type="button" id="mlx-start">Start mlx-lm</button>
-            <button type="button" id="mlx-stop" class="quiet">Stop mlx-lm</button>
-            <button type="button" id="mlx-install" class="hidden">Install mlx-lm</button>
-            <button type="button" id="mlx-choose" class="quiet">Choose Python…</button>
-          </div>
-          <p id="mlx-note" class="note"></p>
-          <h2>DeepSeek Harness</h2>
-          <p id="harness-path" class="note"></p>
-          <div class="row">
-            <button type="button" id="harness-install" class="hidden">Install DeepSeek Harness</button>
-          </div>
-          <pre id="harness-log" class="log"></pre>
+          <p id="mobile-note" class="note"></p>
         </section>
         <section id="model" class="view hidden">
           <h1>Model</h1>
           <p id="model-reason" class="lede"></p>
-          <h2>Serve locally</h2>
+          <h2>Serve</h2>
           <div class="card own">
             <input type="radio" name="runtime" value="ollama" id="runtime-ollama" />
             <div>
               <strong>Ollama</strong>
-              <div class="meta">Default local server on 127.0.0.1:11434.</div>
+              <div class="meta">Local server on 127.0.0.1:11434.</div>
+              <div id="ollama-controls">
+                <p id="ollama-path" class="note"></p>
+                <div class="row">
+                  <button type="button" id="ollama-start">Start Ollama</button>
+                  <button type="button" id="ollama-stop" class="quiet">Stop Ollama</button>
+                  <button type="button" id="ollama-install" class="hidden">Install Ollama</button>
+                  <button type="button" id="ollama-choose" class="quiet">Choose binary…</button>
+                </div>
+                <p id="ollama-note" class="note"></p>
+              </div>
             </div>
           </div>
           <div class="card own">
             <input type="radio" name="runtime" value="mlx-lm" id="runtime-mlx" />
             <div>
               <strong>mlx-lm</strong>
-              <div class="meta">Raw MLX through the OpenAI-compatible local adapter on 127.0.0.1:18080.</div>
-            </div>
-          </div>
-          <h2>Installed</h2>
-          <p id="installed-note" class="note"></p>
-          <div class="row">
-            <button type="button" id="ollama-install-model" class="hidden">Install Ollama</button>
-            <button type="button" id="ollama-choose-model" class="quiet">Choose binary…</button>
-            <button type="button" id="mlx-install-model" class="hidden">Install mlx-lm</button>
-            <button type="button" id="mlx-choose-model" class="quiet hidden">Choose Python…</button>
-          </div>
-          <ul id="installed-models" class="facts"></ul>
-          <h2>Local Model Catalog</h2>
-          <ul id="model-list" class="cards"></ul>
-          <div class="card own">
-            <input type="radio" name="profile" value="own" id="own-radio" />
-            <div>
-              <strong>Choose your own</strong>
-              <div class="meta" id="own-meta">Type the Ollama tag to download and load. Other models stay installed.</div>
-              <input id="own-model" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="qwen3.5:4b" aria-label="Your local model" />
-              <div id="own-context" class="ctx"></div>
-            </div>
-          </div>
-          <div class="row">
-            <button type="button" id="download">Download</button>
-          </div>
-          <pre id="model-log" class="log"></pre>
-          <h2>OpenRouter</h2>
-          <div class="card own">
-            <input type="radio" name="profile" value="openrouter" id="openrouter-radio" />
-            <div>
-              <strong>OpenRouter</strong>
-              <div class="meta">Use a cloud model when this machine cannot run a local one. Default is DeepSeek V4 Flash.</div>
-              <input id="openrouter-model" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="deepseek/deepseek-v4-flash" aria-label="OpenRouter model" />
-              <p id="openrouter-note" class="note"></p>
-              <div class="row">
-                <button type="button" id="openrouter-login">Sign in with OpenRouter</button>
-                <button type="button" id="openrouter-logout" class="quiet">Sign out</button>
+              <div class="meta">OpenAI-compatible local adapter on 127.0.0.1:18080.</div>
+              <div id="mlx-controls" class="hidden">
+                <p id="mlx-host" class="note"></p>
+                <p id="mlx-path" class="note"></p>
+                <div class="row">
+                  <button type="button" id="mlx-start">Start mlx-lm</button>
+                  <button type="button" id="mlx-stop" class="quiet">Stop mlx-lm</button>
+                  <button type="button" id="mlx-install" class="hidden">Install mlx-lm</button>
+                  <button type="button" id="mlx-choose" class="quiet">Choose Python…</button>
+                </div>
+                <p id="mlx-note" class="note"></p>
               </div>
             </div>
           </div>
+          <div class="card own">
+            <input type="radio" name="runtime" value="openrouter" id="runtime-openrouter" />
+            <div>
+              <strong>OpenRouter</strong>
+              <div class="meta">Cloud model. Default is DeepSeek V4 Flash. This window never shows the key.</div>
+              <div id="openrouter-controls" class="hidden">
+                <input id="openrouter-model" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="deepseek/deepseek-v4-flash" aria-label="OpenRouter model" />
+                <p id="openrouter-note" class="note"></p>
+                <div class="row">
+                  <button type="button" id="openrouter-login">Sign in with OpenRouter</button>
+                  <button type="button" id="openrouter-logout" class="quiet">Sign out</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="local-catalog">
+            <h2>Local Model Catalog</h2>
+            <ul id="model-list" class="cards"></ul>
+            <div class="card own">
+              <input type="radio" name="profile" value="own" id="own-radio" />
+              <div>
+                <strong>Choose your own</strong>
+                <div class="meta" id="own-meta">Type the Ollama tag to download and load. Other models stay installed.</div>
+                <input id="own-model" class="field" type="text" spellcheck="false" autocomplete="off" placeholder="qwen3.5:4b-mlx" aria-label="Your local model" />
+                <div id="own-context" class="ctx"></div>
+              </div>
+            </div>
+            <div class="row">
+              <button type="button" id="download">Download</button>
+            </div>
+            <pre id="model-log" class="log"></pre>
+          </div>
+          <h2>On this Mac</h2>
+          <p class="meta">Ollama</p>
+          <ul id="ollama-models" class="facts"></ul>
+          <p id="ollama-models-note" class="note"></p>
+          <p class="meta">mlx-lm</p>
+          <ul id="mlx-models" class="facts"></ul>
+          <p id="mlx-models-note" class="note"></p>
+          <div class="row">
+            <button type="button" id="clear-models" class="quiet" disabled>Clear local models</button>
+          </div>
+          <p id="clear-note" class="note"></p>
+          <h2>DeepSeek Harness</h2>
+          <p id="harness-path" class="note"></p>
+          <div class="row">
+            <button type="button" id="harness-install" class="hidden">Install DeepSeek Harness</button>
+          </div>
+          <pre id="harness-log" class="log"></pre>
         </section>
         <section id="docs" class="view hidden">
           <h1>Docs</h1>
@@ -143,7 +159,19 @@
         </section>
         <section id="adapters" class="view hidden">
           <h1>Adapters</h1>
-          <p class="lede">Catalog slots, and the devices bound on this install.</p>
+          <p class="lede">Catalog slots stay off until you approve a binding in operator chat. List robots and pair a TV here so tokens never enter the model.</p>
+          <h2>Env names</h2>
+          <ul id="install-env" class="facts"></ul>
+          <p id="install-env-note" class="note"></p>
+          <h2>Vacuum</h2>
+          <div class="row">
+            <button type="button" id="vacuum-robots">List robots</button>
+          </div>
+          <p id="vacuum-robots-note" class="note"></p>
+          <h2>Television</h2>
+          <div id="tv-sets"></div>
+          <p id="tv-note" class="note"></p>
+          <h2>Install menu</h2>
           <div id="adapter-list"></div>
         </section>
         <section id="chat" class="view hidden">

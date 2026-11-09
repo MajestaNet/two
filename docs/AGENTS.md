@@ -30,7 +30,10 @@
   for `home-action`. The session advertises the three climate tools and
   this process performs them. Do not paste that ADR here.
 - `adrs/0029-samsung-tv.md` is the closed television tool contract.
-  The slot stays off. The transport is the Samsung local API.
+  The slot stays off. The Samsung local API is the default brand.
+  Do not paste that ADR here.
+- `adrs/0047-lg-webos-tv.md` adds an LG webOS brand on those same tools.
+  One `tv.yaml` may mix brands. An omitted brand stays Samsung.
   Do not paste that ADR here.
 - `adrs/0030-utterance-routing-and-fanout.md` routes a transcript that
   omits the harness profile and repeats one closed action for `all`.
@@ -38,10 +41,19 @@
 - `adrs/0036-closed-utterance-compile.md` compiles an obvious named
   climate, television, or vacuum command without the harness. Do not paste that
   ADR here.
+- `adrs/0045-spoken-appliance-aliases.md` gives every bound zone, set,
+  and robot a spoken alias and compiles one specific closed verb without
+  the harness. Do not paste that ADR here.
+- `adrs/0046-climate-comfort-defaults.md` matches a room name in either
+  word order and compiles heat at 22 degrees or cool at 18. Do not paste
+  that ADR here.
 - `adrs/0039-operator-install-profile.md` is the explicit `operator`
   harness profile: a redacted install snapshot, a guide allowlist, and
   approved shipped bindings or self-build tasks. An omitted profile does
   not route there. Do not paste that ADR here.
+- `adrs/0044-operator-first-run-steps.md` lists vacuum nicknames without
+  an enabled binding and stores a television token in the data-dir env
+  file. The model does not see the token. Do not paste that ADR here.
 - `adrs/0041-operator-chat-approval.md` lets a later operator transcript
   that is only `approved` or `rejected` apply the stored digest. Silence
   is still not approval. Do not paste that ADR here.
@@ -81,32 +93,39 @@
 - `adrs/0043-esphome-nodes.md` is the shared ESPHome node client. A
   climate zone may name a climate entity on that node. There is no
   esphome catalog slot. Do not paste that ADR here.
-- `setup.md` is the living operator guide. Update its status table in the
-  same PR as setup, inference-profile, or deployment-topology changes.
-- `backlog/` holds dedicated implementation items (B01–B26). B20
+- `setup.md` is the living operator reference. `local.md` is the short
+  local run path, including [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+  Update `local.md` when that path changes, and update the setup status
+  table in the same PR as setup, inference-profile, or deployment-topology
+  changes.
+- `backlog/` holds dedicated implementation items (B01–B27). B20
   resumes harness profile `chat`. B21 executes climate on `home-action`
   and leaves that slot default off. B25 executes the closed vacuum
   tools on the same profile (ADR 0038) and leaves that slot default off.
   B26 resumes harness profile `operator` (ADR 0039). An omitted profile
-  does not route there.
+  does not route there. B27 is first-run list and pair (ADR 0044).
   Status tables there are the tracker. Each item file ends with an
   agentic prompt. Do not copy the spec into those files; point at
   sections.
 - Thin siblings (`operations.md`, `unattended-operations.md`,
   `interaction-contract.md`, `task-manifest.md`, `channels.md`,
   `adapters.md`, `source-control-export.md`, `remote-access.md`,
-  `viability.md`, `local-16k.md`, `work-graph.md`, `watch-client.md`)
+  `viability.md`, `local.md`, `local-16k.md`, `work-graph.md`, `watch-client.md`)
   point at sections or operator decisions. Do not copy the spec into
-  those files. `adapters.md` is the install menu (ADR 0021): clients,
+  those files. `local.md` is how to run this checkout and two-mobile
+  on one Mac. `adapters.md` is the install menu (ADR 0021): clients,
   messengers, device slots, and export stay separate kinds, and only
   the CLI is enabled. `local-16k.md` is
   24 GB / 16K operator guidance (quality, manifests, overnight starter
   workflows). `work-graph.md` points at ADR 0014 (persisted nodes/edges
-  around DeepSeek Harness). This repo is the backend; B14 is a secure
-  first-party mobile client over the same API, not a second agent runtime.
+  around DeepSeek Harness). This repo is the control plane. The iPhone
+  and Apple Watch apps are MajestaNet/two-mobile (`chat` and
+  `home-action` only). B14 is a separate development-loop GUI over the
+  same API and is not built. Neither is a second agent runtime.
   The running installation is the development client
-  (ADR 0017); home and wearable adapters are a later in-repo slot, not a
-  second agent. The Mac mini is the default always-on host (ADR 0019).
+  (ADR 0017). Climate, television, and vacuum packages are in this repo
+  and default off. ESPHome is a shared node behind a climate zone.
+  The Mac is the default always-on host (ADR 0019).
   The optional two-Mac list remains ADR 0013 / B18 (`two setup --current`).
   Bootstrap pulls one upstream tag (ADR 0023).
 - Behavior changes that disagree with the spec need a new ADR in `adrs/`.

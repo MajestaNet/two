@@ -15,6 +15,7 @@
   const nodePath = req ? req("path") : null;
 
   const DOCS = Object.freeze([
+    Object.freeze({ id: "local", title: "Run locally", path: "docs/local.md" }),
     Object.freeze({ id: "setup", title: "Setup", path: "docs/setup.md" }),
     Object.freeze({ id: "adapters", title: "Adapters", path: "docs/adapters.md" }),
     Object.freeze({ id: "local-16k", title: "24 GB / 16K", path: "docs/local-16k.md" }),
@@ -24,6 +25,7 @@
     Object.freeze(["serverStatus", "server:status"]),
     Object.freeze(["serverStart", "server:start"]),
     Object.freeze(["serverStop", "server:stop"]),
+    Object.freeze(["caddyStart", "caddy:start"]),
     Object.freeze(["modelRecommend", "model:recommend"]),
     Object.freeze(["modelStatus", "model:status"]),
     Object.freeze(["modelPull", "model:pull"]),
@@ -39,18 +41,27 @@
     Object.freeze(["mlxStop", "mlx:stop"]),
     Object.freeze(["mlxInstall", "mlx:install"]),
     Object.freeze(["mlxPull", "mlx:pull"]),
+    Object.freeze(["clearLocalModels", "models:clear"]),
     Object.freeze(["harnessStatus", "harness:status"]),
     Object.freeze(["harnessInstall", "harness:install"]),
     Object.freeze(["docsList", "docs:list"]),
     Object.freeze(["docsRead", "docs:read"]),
     Object.freeze(["docsOpenExternal", "docs:openExternal"]),
     Object.freeze(["adapters", "adapters:list"]),
+    Object.freeze(["installEnv", "install:env"]),
+    Object.freeze(["installVacuumRobots", "install:vacuumRobots"]),
+    Object.freeze(["installTvPair", "install:tvPair"]),
+    Object.freeze(["installTvApps", "install:tvApps"]),
     Object.freeze(["chatSend", "chat:send"]),
     Object.freeze(["chatShow", "chat:show"]),
     Object.freeze(["openrouterStatus", "openrouter:status"]),
     Object.freeze(["openrouterSave", "openrouter:save"]),
     Object.freeze(["openrouterLogin", "openrouter:login"]),
     Object.freeze(["openrouterLogout", "openrouter:logout"]),
+    Object.freeze(["mobileDetect", "mobile:detect"]),
+    Object.freeze(["mobileRegister", "mobile:register"]),
+    Object.freeze(["mobileStatus", "mobile:status"]),
+    Object.freeze(["mobileCancel", "mobile:cancel"]),
   ]);
 
   const CHAT_NEEDS_SERVER = "Start the local server before chat.";
@@ -71,6 +82,37 @@
   const HF_MODEL_RE = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._+-]+$/;
   const OWN_NUM_CTX = 8192;
   const OWN_CONTEXT_OPTIONS = Object.freeze([8192, 16384, 32768, 65536, 131072, 262144]);
+  const LOCAL_CATALOG = Object.freeze([
+    Object.freeze({
+      catalog_key: "qwen35-4b",
+      display_name: "Qwen 3.5 4B",
+      ollama_model: "qwen3.5:4b-mlx",
+      mlx_lm_model: "mlx-community/Qwen3.5-4B-OptiQ-4bit",
+      profile_ids: Object.freeze(["m16-qwen35-4b"]),
+      source_upstream: "qwen3.5:4b-mlx",
+    }),
+    Object.freeze({
+      catalog_key: "qwen35-9b",
+      display_name: "Qwen 3.5 9B",
+      ollama_model: "qwen3.5:9b-mlx",
+      mlx_lm_model: "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+      profile_ids: Object.freeze(["m24-qwen38-16k"]),
+      source_upstream: "qwen3.5:9b-mlx",
+    }),
+    Object.freeze({
+      catalog_key: "qwen38-27b-q4m",
+      display_name: "Qwen 3.8 27B Q4m",
+      ollama_model: "qwen3.8:27b-q4_K_M",
+      mlx_lm_model: "mlx-community/Qwen3.8-27B-OptiQ-4bit",
+      profile_ids: Object.freeze([
+        "m24-qwen38-32k",
+        "m36-qwen38-32k",
+        "m48-qwen38-64k",
+        "m64-qwen38-plus",
+      ]),
+      source_upstream: "qwen3.8:27b-mlx",
+    }),
+  ]);
   const CTX_KILO = Object.freeze({
     8: 8192,
     16: 16384,
@@ -190,6 +232,32 @@
       throw new Error("turn id is not allowed");
     }
     return "/v1/voice/turns/" + turnId;
+  }
+
+  function installEnvPath() {
+    return "/v1/install/env";
+  }
+
+  function installVacuumRobotsPath() {
+    return "/v1/install/vacuum/robots";
+  }
+
+  function installTvPairPath() {
+    return "/v1/install/tv/pair";
+  }
+
+  function installTvAppsPath(setId) {
+    if (typeof setId !== "string" || !/^[a-z][a-z0-9_-]{0,31}$/.test(setId)) {
+      throw new Error("set id is not allowed");
+    }
+    return "/v1/install/tv/apps?set=" + encodeURIComponent(setId);
+  }
+
+  function operatorChatHint(profile) {
+    if (profile === "operator") {
+      return "Operator mode drafts a binding. List robots and pair a TV on the Adapters page so tokens never enter this chat.";
+    }
+    return "";
   }
 
   function apiOrigin(env) {
@@ -381,6 +449,34 @@
     return [acceptPythonPath(python), script, "download", normalizeHfRepo(repo)];
   }
 
+  function huggingfaceHubDir(home) {
+    if (!nodePath) {
+      throw new Error("model paths are resolved in the main process");
+    }
+    if (typeof home !== "string" || home.length < 1 || home.includes("\0") || !nodePath.isAbsolute(home)) {
+      throw new Error("home directory is required");
+    }
+    return nodePath.resolve(home, ".cache", "huggingface", "hub");
+  }
+
+  function huggingfaceRepoDir(home, repo) {
+    const root = huggingfaceHubDir(home);
+    const name = normalizeHfRepo(repo);
+    if (name.split("/").some((part) => part === "." || part === "..")) {
+      throw new Error("that model cache is not allowed");
+    }
+    const folder = "models--" + name.split("/").join("--");
+    if (!/^models--[A-Za-z0-9._-]+--[A-Za-z0-9._+-]+$/.test(folder)) {
+      throw new Error("that model cache is not allowed");
+    }
+    const full = nodePath.resolve(root, folder);
+    const relative = nodePath.relative(root, full);
+    if (relative.startsWith("..") || nodePath.isAbsolute(relative) || relative !== folder) {
+      throw new Error("that model cache is not allowed");
+    }
+    return full;
+  }
+
   function hubCacheName(relative) {
     if (typeof relative !== "string" || !relative.startsWith("models--")) return "";
     const body = relative.slice("models--".length);
@@ -449,6 +545,12 @@
     return [executable, "pull", model];
   }
 
+  function ollamaRmArgv(bin, tag) {
+    const executable = acceptOllamaPath(bin);
+    const model = normalizeModelTag(tag);
+    return [executable, "rm", model];
+  }
+
   function twoLauncher(pythonPath) {
     if (pythonPath) {
       if (typeof pythonPath !== "string" || pythonPath.length < 1 || /\s/.test(pythonPath)) {
@@ -486,6 +588,109 @@
 
   function twoArgv(args) {
     return commandArgv(twoLauncher(""), args);
+  }
+
+  function privateLanHost(host) {
+    if (typeof host !== "string") {
+      throw new Error("private LAN host is required");
+    }
+    const token = host.trim();
+    if (!/^[A-Za-z0-9.-]{1,253}$/.test(token)) {
+      throw new Error("private LAN host is not usable");
+    }
+    if (token === "localhost" || token === "0.0.0.0" || token.startsWith("127.")) {
+      throw new Error("the phone cannot use loopback");
+    }
+    return token;
+  }
+
+  function parseCliJson(text) {
+    const raw = String(text || "");
+    try {
+      return JSON.parse(raw);
+    } catch (_error) {
+      const objectStart = raw.indexOf("{");
+      const arrayStart = raw.indexOf("[");
+      const starts = [objectStart, arrayStart].filter((index) => index >= 0);
+      if (starts.length === 0) {
+        throw new Error("the command did not return JSON");
+      }
+      const start = Math.min(...starts);
+      const endChar = raw.charAt(start) === "{" ? "}" : "]";
+      const end = raw.lastIndexOf(endChar);
+      if (end < start) {
+        throw new Error("the command did not return JSON");
+      }
+      return JSON.parse(raw.slice(start, end + 1));
+    }
+  }
+
+  function edgeDetectArgs() {
+    return ["edge", "detect"];
+  }
+
+  function edgePrepareArgs(host, stop) {
+    const args = ["edge", "prepare", "--json"];
+    if (host) args.splice(2, 0, "--listen", privateLanHost(host));
+    if (stop) args.push("--stop");
+    return args;
+  }
+
+  function edgeEnrollArgs(host) {
+    return ["edge", "enroll", "--listen", privateLanHost(host)];
+  }
+
+  function upArgs(caddy) {
+    return caddy ? ["up", "--caddy"] : ["up"];
+  }
+
+  function caddyArgv(binary, configPath) {
+    if (typeof binary !== "string" || !binary.startsWith("/") || /\s/.test(binary) || binary.includes("\0")) {
+      throw new Error("caddy binary is not usable");
+    }
+    if (
+      typeof configPath !== "string" ||
+      !configPath.startsWith("/") ||
+      /\s/.test(configPath) ||
+      configPath.includes("\0") ||
+      !configPath.endsWith("/edge/Caddyfile")
+    ) {
+      throw new Error("Caddyfile is not usable");
+    }
+    return [binary, "run", "--config", configPath];
+  }
+
+  function knownCaddyPaths() {
+    return ["/opt/homebrew/bin/caddy", "/usr/local/bin/caddy"];
+  }
+
+  function edgeMarkerPaths(dataDir) {
+    if (!nodePath) {
+      throw new Error("edge paths are resolved in the main process");
+    }
+    if (typeof dataDir !== "string" || dataDir.length < 1) {
+      throw new Error("data directory is required");
+    }
+    return [
+      nodePath.join(dataDir, "edge", "Caddyfile"),
+      nodePath.join(dataDir, "edge", "edge.env"),
+    ];
+  }
+
+  function mobileWaitingNote(host) {
+    const listen = privateLanHost(host);
+    return (
+      "Enrollment is listening. On this Wi-Fi, open Two Phone, enter a username, set the host to " +
+      listen +
+      ", and tap Enroll. Stop enrollment when the phone is on the globe."
+    );
+  }
+
+  function mobileAddressLine(overlay, lan) {
+    const parts = [];
+    if (typeof lan === "string" && lan.trim()) parts.push("Home Wi-Fi " + lan.trim());
+    if (typeof overlay === "string" && overlay.trim()) parts.push("Tailscale " + overlay.trim());
+    return parts.join(". ");
   }
 
   function harnessArgs(action) {
@@ -657,6 +862,46 @@
     if (!matches.length) return null;
     const exact = matches.find((profile) => profile.num_ctx === numCtx);
     return exact || matches.find((profile) => profile.recommended) || matches[0];
+  }
+
+  function profileForCatalog(profiles, profileIds, numCtx) {
+    const ids = Array.isArray(profileIds) ? profileIds : [];
+    const matches = (profiles || []).filter((profile) => profile && ids.indexOf(profile.id) !== -1);
+    if (!matches.length) return null;
+    const exact = matches.find((profile) => profile.num_ctx === numCtx);
+    return exact || matches.find((profile) => profile.recommended) || matches[0];
+  }
+
+  function localCatalogModels(profiles) {
+    const grouped = catalogModels(profiles);
+    return LOCAL_CATALOG.map((spec) => {
+      const source = grouped.find((row) => row.upstream_model === spec.source_upstream) || null;
+      const attached = (profiles || []).filter(
+        (profile) => profile && spec.profile_ids.indexOf(profile.id) !== -1,
+      );
+      const options =
+        source && source.num_ctx_options.length ? source.num_ctx_options.slice() : OWN_CONTEXT_OPTIONS.slice();
+      const defaults = attached.find((profile) => profile.recommended) || attached[0];
+      return {
+        catalog_key: spec.catalog_key,
+        display_name: spec.display_name,
+        upstream_model: spec.ollama_model,
+        ollama_model: spec.ollama_model,
+        mlx_lm_model: spec.mlx_lm_model,
+        profile_ids: spec.profile_ids.slice(),
+        min_unified_memory_gb: source
+          ? source.min_unified_memory_gb
+          : defaults
+            ? defaults.min_unified_memory_gb
+            : 0,
+        recommended: attached.some((profile) => profile.recommended),
+        notes: "",
+        advisory: "",
+        num_ctx_options: options,
+        default_num_ctx: defaults ? defaults.num_ctx : options[0],
+        profiles: attached,
+      };
+    });
   }
 
   function resolveNumCtx(model, requested) {
@@ -904,6 +1149,11 @@
     receiptText,
     receiptErrorLine,
     chatShowPath,
+    installEnvPath,
+    installVacuumRobotsPath,
+    installTvPairPath,
+    installTvAppsPath,
+    operatorChatHint,
     apiOrigin,
     modelPullArgs,
     publicModelText,
@@ -923,12 +1173,26 @@
     mlxHostFacts,
     mlxHostLine,
     hubCacheName,
+    huggingfaceHubDir,
+    huggingfaceRepoDir,
     ollamaInstallPlan,
     acceptOllamaDownloadUrl,
     ollamaPullArgv,
+    ollamaRmArgv,
     twoLauncher,
     commandArgv,
     twoArgv,
+    privateLanHost,
+    parseCliJson,
+    edgeDetectArgs,
+    edgePrepareArgs,
+    edgeEnrollArgs,
+    upArgs,
+    caddyArgv,
+    knownCaddyPaths,
+    edgeMarkerPaths,
+    mobileWaitingNote,
+    mobileAddressLine,
     harnessArgs,
     dataDir,
     needsReplace,
@@ -943,7 +1207,9 @@
     contextLabel,
     contextOptions,
     catalogModels,
+    localCatalogModels,
     profileForModel,
+    profileForCatalog,
     resolveNumCtx,
     ownContextModel,
     manifestName,

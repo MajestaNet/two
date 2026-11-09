@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -85,9 +86,12 @@ def read_supervisor_status(
     found: dict[str, int] = {}
     if path.is_file():
         for name, pid in _read_pidfile(path):
-            if name in CHILD_NAMES and name not in found:
+            if name not in found and (name in CHILD_NAMES or name == "caddy"):
                 found[name] = pid
-    children = [SupervisorChild(name=name, pid=found.get(name)) for name in CHILD_NAMES]
+    names = list(CHILD_NAMES)
+    if "caddy" in found:
+        names.append("caddy")
+    children = [SupervisorChild(name=name, pid=found.get(name)) for name in names]
     return SupervisorStatus(pidfile=str(path), children=children)
 
 
@@ -96,7 +100,27 @@ def supervisor_commands(executable: str | None = None) -> list[tuple[str, list[s
     return [(name, [python, "-m", "two", name]) for name in CHILD_NAMES]
 
 
-def format_up_plan(*, data_dir: Path, executable: str | None = None) -> str:
+def apply_edge_token(env: dict[str, str], data_dir: Path) -> None:
+    """Copy TWO_EDGE_TOKEN from edge.env when the process does not already have it.
+
+    The value is placed only in the child environment. Callers must not print ``env``.
+    """
+
+    if env.get("TWO_EDGE_TOKEN", "").strip():
+        return
+    path = data_dir / "edge" / "edge.env"
+    if not path.is_file():
+        return
+    token = parse_env_file(path).get("TWO_EDGE_TOKEN", "").strip()
+    if token:
+        env["TWO_EDGE_TOKEN"] = token
+
+
+def caddy_command(data_dir: Path, *, binary: str = "caddy") -> list[str]:
+    return [binary, "run", "--config", str(data_dir / "edge" / "Caddyfile")]
+
+
+def format_up_plan(*, data_dir: Path, executable: str | None = None, caddy: bool = False) -> str:
     lines = [
         "two up (native supervisor; api + scheduler + worker)",
         "See docs/adrs/0013-streamline-default-lan-setup.md P5",
@@ -104,8 +128,11 @@ def format_up_plan(*, data_dir: Path, executable: str | None = None) -> str:
     ]
     for name, cmd in supervisor_commands(executable):
         lines.append(f"  {name}: {' '.join(cmd)}")
+    if caddy:
+        lines.append(f"  caddy: {' '.join(caddy_command(data_dir))}")
     lines.extend(
         [
+            "Loads TWO_EDGE_TOKEN from edge/edge.env when that file exists.",
             f"pidfile: {pidfile_path(data_dir)}",
             "",
             "Closing two task detaches and does not stop this supervisor.",
@@ -136,6 +163,16 @@ def resolve_supervisor_data_dir(
     return default_data_dir()
 
 
+def _caddy_problem(data_dir: Path, finder: Callable[[str], str | None]) -> str | None:
+    if not (data_dir / "edge" / "Caddyfile").is_file():
+        return "edge Caddyfile is missing; run two edge prepare"
+    if not (data_dir / "edge" / "edge.env").is_file():
+        return "edge token is missing; run two edge prepare"
+    if finder("caddy") is None:
+        return "caddy is not on PATH"
+    return None
+
+
 def run_up(
     *,
     dry_run: bool = False,
@@ -145,13 +182,22 @@ def run_up(
     should_stop: ShouldStop | None = None,
     sleep: SleepFn | None = None,
     executable: str | None = None,
+    caddy: bool = False,
+    which: Callable[[str], str | None] | None = None,
 ) -> int:
     env = dict(environ) if environ is not None else dict(os.environ)
     resolved = resolve_supervisor_data_dir(data_dir, environ=env)
+    finder = which if which is not None else shutil.which
+    if caddy:
+        problem = _caddy_problem(resolved, finder)
+        if problem is not None:
+            print(f"two up: {problem}", file=sys.stderr)
+            return 1
     if dry_run:
-        print(format_up_plan(data_dir=resolved, executable=executable))
+        print(format_up_plan(data_dir=resolved, executable=executable, caddy=caddy))
         return 0
 
+    apply_edge_token(env, resolved)
     spawn_fn = spawn if spawn is not None else _default_spawn
     nap = sleep if sleep is not None else time.sleep
     children: list[tuple[str, ChildProcess]] = []
@@ -171,7 +217,11 @@ def run_up(
         signal.signal(signal.SIGINT, handle_signal)
         signal.signal(signal.SIGTERM, handle_signal)
     try:
-        for name, cmd in supervisor_commands(executable):
+        commands = supervisor_commands(executable)
+        if caddy:
+            binary = finder("caddy") or "caddy"
+            commands.append(("caddy", caddy_command(resolved, binary=binary)))
+        for name, cmd in commands:
             child = spawn_fn(cmd, env)
             children.append((name, child))
             print(f"+ {name} pid={child.pid}", flush=True)
@@ -212,9 +262,9 @@ def run_down(
     for name, pid in rows:
         try:
             killer(pid, signal.SIGTERM)
-            print(f"+ sent SIGTERM to {name} pid={pid}")
+            print(f"+ sent SIGTERM to {name} pid={pid}", file=sys.stderr)
         except ProcessLookupError:
-            print(f"+ {name} pid={pid} already gone")
+            print(f"+ {name} pid={pid} already gone", file=sys.stderr)
     path.unlink(missing_ok=True)
     return 0
 

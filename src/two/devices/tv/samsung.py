@@ -103,7 +103,11 @@ class SamsungTv:
         return found
 
     def pair(self, *, timeout: float = 45.0) -> str:
-        """Wait for the on-screen Allow prompt and return the token. Writes nothing."""
+        """Wait for the on-screen Allow prompt and return the token.
+
+        The operator first-run helper stores that token in the data-dir env
+        file. This method itself writes nothing.
+        """
         frames = _exchange(
             self._policy.address,
             self._ws_port,

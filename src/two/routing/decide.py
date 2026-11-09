@@ -17,9 +17,10 @@
 """Lexical route from a transcript to chat or one or more device slots.
 
 No I/O. A confident kind or target match narrows the harness advertisement.
+A spoken alias is that appliance (ADR 0045). The longest name wins.
 ``all`` with a closed verb expands in the control plane. An obvious
-single-target command compiles the same way (ADR 0036). Anything less
-confident stays on ``home-action`` so the harness chooses the tool.
+single-target command, or one specific closed verb, compiles the same
+way (ADR 0036). Anything less confident stays on ``home-action``.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from two.routing.cards import DeviceRouteCard, FanoutVerb
-from two.routing.compile import compile_one, compile_scope
+from two.routing.compile import compile_one, compile_scope, preferred_cards, target_match_length
 
 _TOKEN = re.compile(r"[^a-z0-9]+")
 _DEVICE_VERBS = frozenset(
@@ -115,7 +116,7 @@ def decide_route(text: str, cards: Sequence[DeviceRouteCard]) -> RouteDecision:
     norm = _normalize(text)
     tokens = norm.split()
     kinds = [card for card in cards if _kind_hit(norm, card)]
-    targets = [card for card in cards if _target_hit(norm, card)]
+    targets = _longest_target_cards(norm, cards)
     quant_kinds = [card for card in kinds if _near_kind(norm, card)]
     all_devices = _phrase_hit(norm, _ALL_DEVICE_PHRASES)
     command = any(token in _DEVICE_VERBS for token in tokens) or _vacuum_command(norm, cards)
@@ -132,6 +133,10 @@ def decide_route(text: str, cards: Sequence[DeviceRouteCard]) -> RouteDecision:
         return _narrow(usable_kinds, norm)
     if disabled_kinds and command:
         return _unavailable()
+    if command:
+        preferred = preferred_cards(norm, cards)
+        if len(preferred) == 1:
+            return _narrow(preferred, norm)
     if command:
         usable = [card for card in cards if _usable(card)]
         if len(usable) == 1:
@@ -395,6 +400,9 @@ def _power_verb(norm: str, cards: Sequence[DeviceRouteCard]) -> str | None:
         for target in card.targets:
             filler.add(target)
             filler.update(target.replace("-", " ").replace("_", " ").split())
+        for alias, _target in card.spoken:
+            filler.add(alias)
+            filler.update(alias.replace("-", " ").replace("_", " ").split())
     if any(token not in filler for token in tokens):
         return None
     return "on"
@@ -405,15 +413,17 @@ def _kind_hit(norm: str, card: DeviceRouteCard) -> bool:
 
 
 def _target_hit(norm: str, card: DeviceRouteCard) -> bool:
-    for target in card.targets:
-        spaced = target.replace("-", " ").replace("_", " ")
-        if _term_hit(norm, target) or _term_hit(norm, spaced):
-            return True
-    for alias in card.aliases:
-        spaced = alias.replace("-", " ").replace("_", " ")
-        if _term_hit(norm, alias) or _term_hit(norm, spaced):
-            return True
-    return False
+    return target_match_length(norm, card) > 0
+
+
+def _longest_target_cards(norm: str, cards: Sequence[DeviceRouteCard]) -> list[DeviceRouteCard]:
+    """Cards whose longest name is tied for the longest name in the transcript."""
+    scored = [(card, target_match_length(norm, card)) for card in cards]
+    scored = [(card, length) for card, length in scored if length > 0]
+    if not scored:
+        return []
+    top = max(length for _card, length in scored)
+    return [card for card, length in scored if length == top]
 
 
 def _near_kind(norm: str, card: DeviceRouteCard) -> bool:
@@ -448,6 +458,11 @@ def _term_hit(norm: str, term: str) -> bool:
     if " " not in needle and f" {needle}s " in padded:
         return True
     return False
+
+
+def normalize_utterance(text: str) -> str:
+    """Lower case, and turn punctuation into spaces. Routing compares this form."""
+    return _normalize(text)
 
 
 def _normalize(text: str) -> str:

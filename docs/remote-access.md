@@ -11,34 +11,39 @@ slots an install can turn on is [adapters.md](adapters.md).
 | --- | --- | --- |
 | CLI on the same machine | Unix socket or `127.0.0.1` | No |
 | CLI on another network | Private overlay plus token auth | Only on the overlay |
-| Watch (edge in this repo; app is not) | Caddy mutual TLS on a private address; API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)) | Only that private address |
-| First-party mobile (API slices in this repo; app is not) | HTTPS on a private overlay plus trusted OIDC | Only on the overlay |
+| Watch and iPhone | Caddy mutual TLS on the home address and Tailscale. Apps are [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile). API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)) | Only those private addresses |
+| Development-loop GUI (not built) | API slices in this repo. The native B14 app and OIDC are not built | Only on a private overlay, when that client exists |
 | Optional future messenger | Adapter dials out where the vendor supports it | No |
 
 The inference API (Ollama) is never a remote-user endpoint. Only Majesta Two
 on the development host — or the same Mac, if `topology` is `colocated` —
 calls it. Colocation still binds Ollama to `127.0.0.1`.
 
-You do not need a messenger. CLI on the host is enough. Operator
-walkthrough (binds, tokens, `.env`): [setup.md](setup.md).
+You do not need a messenger. The operator window or the CLI on this
+Mac is enough. The phone is optional. Operator walkthrough:
+[local.md](local.md), then [setup.md](setup.md).
 
-## First-party mobile from a phone
+## iPhone and Apple Watch
 
-A planned first-party native client connects to the Majesta Two API over a
-Tailscale/WireGuard overlay. It uses HTTPS and OAuth 2.1 Authorization Code
-with PKCE against an operator-configured OIDC issuer. It never embeds the
-shared CLI token and never calls Ollama or DeepSeek Harness directly.
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile) enrolls
+over a one-shot listener, then talks to Caddy with a client certificate.
+The phone stores the home Wi-Fi address and the Tailscale address. It
+does not embed `TWO_API_TOKEN` or `TWO_EDGE_TOKEN`. It does not call
+Ollama or DeepSeek Harness. Profiles are `chat` and `home-action`.
 
-Do not “fix” phone access by opening the control API to the internet.
+The B14 development-loop GUI, with OAuth 2.1 and an operator-configured
+OIDC issuer, is not built. Do not open the control API to the internet
+to reach the phone.
 
-## Watch on the private LAN
+## Watch on the private network
 
-`two edge plan` writes nothing. `two edge issue` writes a private CA and
-Caddyfile under the data directory. Caddy listens on a private address
-and proxies to the loopback API. The watch principal is `client:watch`.
-It cannot submit `self-build`. Voice turns are not executed yet. The
-native app is specified in [watch-client.md](watch-client.md) and is not
-in this repository.
+`two edge plan` writes nothing. `two edge prepare` issues the private CA
+and Caddyfile when they are missing. `two edge enroll` is the one-shot
+listener. Caddy listens on the private addresses and proxies to the
+loopback API. The watch principal is `client:watch`. It cannot submit
+`self-build`. Voice turns are text from the phone or watch. The apps
+are two-mobile. The contract in this repo is
+[watch-client.md](watch-client.md).
 
 Installations without trusted remote authentication fail closed; local
 CLI/Unix access remains available. See
@@ -77,13 +82,12 @@ A naked `docker -p 8741:8741` on a public IP is forbidden.
 Compose packages the backend. It does not require a mobile or messenger
 service.
 
-## Checklist before enabling mobile access
+## Checklist before the phone can enroll
 
-- [ ] Development host stays powered on
-- [ ] Phone and host are members of the intended private overlay
-- [ ] API uses HTTPS and refuses public interfaces
-- [ ] Trusted OIDC issuer, audience, and client id are configured
-- [ ] Mobile identity has least-privilege scopes
-- [ ] Shared `TWO_API_TOKEN` is not stored in the app
-- [ ] Disclosure policy and minimal notification payloads remain enabled
-- [ ] Ollama still bound to the private overlay, LAN, or loopback only
+- [ ] This Mac stays powered on
+- [ ] Caddy is installed
+- [ ] The phone and this Mac share Wi-Fi for the first enrollment
+- [ ] Tailscale is up on this Mac if the phone should work away from home
+- [ ] The API stays on loopback. Caddy is the only private listener
+- [ ] The phone stores its own client certificate, not `TWO_API_TOKEN`
+- [ ] Ollama and mlx-lm stay on loopback

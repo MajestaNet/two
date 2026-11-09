@@ -1,6 +1,7 @@
 # Setup guide
 
-Living operator guide. **Update this file in the same PR** whenever install
+Living operator reference. The short path, including the phone, is
+[local.md](local.md). **Update this file in the same PR** whenever install
 commands, profiles, ports, or host topology change. Architecture remains
 in [architecture.md](architecture.md). Viability notes are in
 [viability.md](viability.md). 24 GB / 16K local quality and overnight
@@ -16,14 +17,14 @@ the spec.
 | List inference profiles | Works (`two profiles`) |
 | Serve Qwen on the Mac | Scripts exist (`bootstrap-mac.sh`, `health-check.sh`, `soak-inference.sh`); live path requires a Mac ([B01](backlog/B01-mac-inference-appliance.md)) |
 | DeepSeek Harness pin + provider contracts | Pinned `dsh-v0.1.2-alpha.1`; offline contracts ([B02](backlog/B02-harness-provider-contracts.md)). `two harness status` reports the checkout. `two harness install` downloads that tag only, builds host libraries with Node 22 and `pnpm@11.7.0`, and writes `$TWO_DATA_DIR/harness/bin/dsh`. The local window can run the same install ([ADR 0035](adrs/0035-console-harness-install.md)) |
-| Secure first-party mobile client | Slice 1–3 API in this repo (capabilities, conversation, SSE, health/queue, repo reads, persisted projects/config candidates); native app not implemented ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
+| iPhone and Apple Watch | Built in [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile) (Apache-2.0). The phone enrolls. The watch is push-to-talk. Profiles are `chat` and `home-action`. Run steps are [local.md](local.md). The B14 development-loop GUI is not built, and OIDC is not accepted ([ADR 0015](adrs/0015-first-party-client-api.md), [ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md), [B14](backlog/B14-secure-mobile-client.md)) |
 | CLI client | Works against the loopback/Unix control API (`two task submit/show/pause/report`). Closing the CLI detaches; it does not cancel the task ([B13](backlog/B13-cli-and-interaction.md)) |
 | Local operator console | In-repo Electron window at `apps/console` ([ADR 0031](adrs/0031-local-operator-console.md), [ADR 0032](adrs/0032-console-existing-ollama.md), [ADR 0034](adrs/0034-installable-console.md), [ADR 0035](adrs/0035-console-harness-install.md), [ADR 0037](adrs/0037-openrouter-inference-backend.md), [ADR 0038](adrs/0038-console-model-and-context.md), [ADR 0040](adrs/0040-mlx-lm-openai-adapter.md)). Default off. Opening it starts `two up` when needed. Closing the window hides it and leaves the control plane running; the menu bar opens it again. `npm run package` builds a desktop directory that includes this control plane. It can install official Ollama, locate an existing binary, list models, and serve `127.0.0.1:11434`. It can locate or install `mlx-lm` and serve `127.0.0.1:18080` through the OpenAI-compatible adapter. It can install the pinned DeepSeek Harness when `dsh` is missing. Local Model Catalog lists unique tags, including 16 GB rows and a Qwen 3.8 27B Q3 trial, with Download in that section and a separate context window. One typed Ollama tag or Hugging Face mlx-lm id can be pulled. The Model page can select OpenRouter (default `deepseek/deepseek-v4-flash`) and sign in with PKCE. Chat uses the control API. `npm test` in that directory is not part of `make ci` |
-| Remote client | CLI works over a private overlay with `--url` / `--token`. The watch edge is `two edge plan` / `two edge issue`: Caddy mutual TLS on a private address, API stays loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The native app is specified in [watch-client.md](watch-client.md) and is not built here. OIDC is still not implemented |
+| Remote client | CLI works over a private overlay with `--url` / `--token`. The phone edge is the Server page (**Start enrollment**) or `two edge prepare` / `two edge enroll`: Caddy mutual TLS, API stays on loopback ([ADR 0020](adrs/0020-watch-edge-mtls.md)). The apps are [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile). The contract in this repo is [watch-client.md](watch-client.md). OIDC is still not implemented |
 | Adapter install menu | `two adapters` prints `config/adapters/catalog.yaml`. Only `cli` is enabled. Watch and mobile are `contract`. `climate`, `tv`, and `vacuum` are shipped and off until a local binding enables them. The kind-level device slot and GitHub export stay reserved. No messenger is selected ([ADR 0021](adrs/0021-adapter-install-catalog.md), [ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [adapters.md](adapters.md)) |
 | Control-plane Compose | Works (`api`, `scheduler`, `worker`; host network, loopback API; no Ollama) ([B12](backlog/B12-dev-host-services.md)) |
 | List deployment topologies | Works (`two topology`) |
-| Default two-Mac LAN setup | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`) ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
+| Loopback supervisor | Works (`two setup --plan` / `--ollama-url`; `two up`; `two doctor`). The short path is [local.md](local.md). Optional two-host list: `two setup --current` ([ADR 0013](adrs/0013-streamline-default-lan-setup.md), [B18](backlog/B18-streamlined-lan-setup.md)) |
 | Mac mini default install | Specified ([ADR 0019](adrs/0019-mini-resident-control-plane.md)). Catalog default is `colocated`. `two setup --plan` prints the mini path. The installer selects the inference profile and pulls that profile's one upstream tag ([ADR 0023](adrs/0023-single-upstream-model.md)). The default profile serves `qwen3.5:9b-mlx` and does not create a second tag ([ADR 0026](adrs/0026-default-qwen35-9b.md)). Device-profile preload is not implemented |
 | Task worktrees | Works (`two.workspace`; controller/worker; CLI never opens git) ([B03](backlog/B03-worktree-workspace.md)) |
 | Independent validation gates | Works (`two.validation` in the worktree; CLI never runs gates) ([B04](backlog/B04-validation-engine.md)) |
@@ -38,10 +39,18 @@ the spec.
 | Evaluation corpus + promotion checklists | Works offline (`make eval-offline`; [evals/PROMOTION.md](../evals/PROMOTION.md)). Live Mac needs `TWO_LIVE_EVAL=1`. Soaks are operator-owned ([B15](backlog/B15-evaluation-corpus.md)) |
 | GitHub export (draft PR handoff) | Not implemented; local worktree + `agent/<task-id>` is the handoff ([ADR 0012](adrs/0012-github-export-adapter.md), [B17](backlog/B17-github-export.md)) |
 | Harness profile `chat` | Works through `two chat send` / `two chat show` and `POST`/`GET /v1/voice/turns`. A chat turn is admitted only when no coding lease is held, never takes a coding lease, and a running chat turn blocks coding dispatch. A queued chat turn is admitted before a queued operator turn, which is admitted before a queued home-action turn ([B20](backlog/B20-chat-profile-resume.md)) |
-| Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. After a pending binding, a later operator send that is only `approved` or `rejected` applies the stored digest ([ADR 0041](adrs/0041-operator-chat-approval.md)). An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.propose_binding`, and `install.propose_change`. A binding write and a self-build task wait for a digest. Bindings are climate, television, vacuum, and ESPHome nodes ([ADR 0043](adrs/0043-esphome-nodes.md)). The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [B26](backlog/B26-operator-install-profile.md)) |
+| Harness profile `operator` | Works through `two operator send`, `two operator show`, `two operator approve`, and `two operator reject`, and through an explicit `profile=operator` on `POST /v1/voice/turns`. After a pending binding, a later operator send that is only `approved` or `rejected` applies the stored digest ([ADR 0041](adrs/0041-operator-chat-approval.md)). An omitted profile does not route here. The watch principal cannot resume it. Closed tools are `install.status`, `install.read_guide`, `install.list_account`, `install.pair_device`, `install.propose_binding`, and `install.propose_change`. `install.status` reports whether named env vars are present. `install.list_account` prints vacuum nicknames without an enabled binding. `install.pair_device` stores a television token in `$TWO_DATA_DIR/env` and does not print the token. The Adapters page runs those same steps. A binding write and a self-build task wait for a digest. Bindings are climate, television, vacuum, and ESPHome nodes ([ADR 0043](adrs/0043-esphome-nodes.md)). The coding child remains the ADR 0011 placeholder ([ADR 0039](adrs/0039-operator-install-profile.md), [ADR 0044](adrs/0044-operator-first-run-steps.md), [B26](backlog/B26-operator-install-profile.md), [B27](backlog/B27-operator-first-run-steps.md)) |
 | Harness profile `home-action` | Works when a local climate, television, or vacuum binding is enabled (`two climate`, `two tv`, or `two vacuum`). A climate zone may name an ESPHome entity (`two esphome entities`). Production uses the pinned `dsh --profile acp` client. The control plane performs the closed climate tools and, when `$TWO_DATA_DIR/devices/tv.yaml` is enabled, `tv.read`, `tv.set_power`, `tv.open`, and `tv.set_volume`. A level above the bound band waits for a digest. When `$TWO_DATA_DIR/devices/vacuum.yaml` is enabled, it performs `vacuum.read`, `vacuum.clean`, and `vacuum.dock` against the Ecovacs Open API. A known robot is pre-authorized. Without one of those bindings the turn is refused and not stored. `two route send` omits the profile and routes the transcript; "turn all tvs off" repeats the closed power action on every bound set; "turn heat on upstairs office" compiles `climate.set_mode` without the harness; "start the downstairs vacuum" compiles `vacuum.clean` the same way, and "dock all vacuums" repeats the dock ([ADR 0022](adrs/0022-climate-device-protocol.md), [ADR 0027](adrs/0027-echonet-air-conditioner.md), [ADR 0028](adrs/0028-home-action-acp-client.md), [ADR 0029](adrs/0029-samsung-tv.md), [ADR 0030](adrs/0030-utterance-routing-and-fanout.md), [ADR 0036](adrs/0036-closed-utterance-compile.md), [ADR 0038](adrs/0038-ecovacs-vacuum.md), [ADR 0043](adrs/0043-esphome-nodes.md), [B21](backlog/B21-climate-home-action.md), [B22](backlog/B22-tv-home-action.md), [B23](backlog/B23-utterance-routing.md), [B25](backlog/B25-vacuum-home-action.md)) |
 
-Last updated: 29 October 2026 (ADR 0043: a climate zone may name an
+Last updated: 8 November 2026. The short path is [local.md](local.md).
+The iPhone and Apple Watch apps are
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+The paragraphs below are the earlier record.
+
+29 October 2026 (ADR 0044: operator first-run list and
+pair. Vacuum listing does not need an enabled binding. Television
+pairing stores the token in `$TWO_DATA_DIR/env`.
+ADR 0043: a climate zone may name an
 ESPHome climate entity on a shared node. `$TWO_DATA_DIR/devices/esphome.yaml`
 lists nodes. `two esphome entities` prints object ids. Infrared
 read-back is the node, not the air conditioner.
@@ -76,7 +85,7 @@ is an in-repo loopback window. It does not replace the CLI, and closing
 it does not stop `two up`. ADR 0030: a transcript can omit the
 profile and route to chat or an enabled device slot; `all` repeats one
 closed action; schema v10. ADR 0029: `home-action` can perform the
-closed Samsung television tools when `$TWO_DATA_DIR/devices/tv.yaml`
+closed television tools for a Samsung or LG set when `$TWO_DATA_DIR/devices/tv.yaml`
 enables them, schema v9. The television slot stays off. ADR 0028: home-action
 production uses the
 pinned `dsh --profile acp` client and still performs the climate tools
@@ -101,10 +110,12 @@ Executable remaining work is in [docs/backlog/README.md](backlog/README.md).
 
 ## How to use this guide
 
-**CLI on the Mac mini is enough.** You do not need a mobile app,
-messenger, or public hostname. Remote clients are optional
-([channels.md](channels.md)). The local operator console is an optional
-window on the same machine ([ADR 0031](adrs/0031-local-operator-console.md),
+**Start with [local.md](local.md).** The operator window on this Mac is
+the usual way to run. The iPhone and Apple Watch apps are
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+You do not need a messenger or a public hostname. Remote clients are
+optional ([channels.md](channels.md)). The window is specified in
+[ADR 0031](adrs/0031-local-operator-console.md),
 [ADR 0032](adrs/0032-console-existing-ollama.md),
 [ADR 0034](adrs/0034-installable-console.md),
 [ADR 0035](adrs/0035-console-harness-install.md),
@@ -146,6 +157,11 @@ Opening the window starts `two up` when the control plane is not already
 running. Closing the window hides it. The menu-bar icon opens it again.
 Quit of the window process does not stop the control plane. **Stop** does.
 The same is true of an Ollama serve or mlx-lm server this window started.
+After the phone edge is issued, **Start Caddy** runs Caddy against
+`$TWO_DATA_DIR/edge/Caddyfile` without restarting the API. **Stop** stops
+that process too. One phone registration stores the Tailscale address and
+the home Wi-Fi address. Caddy listens on both. The phone uses Tailscale on
+cellular and the home address on this Wi-Fi.
 
 The window looks for an existing `ollama` at the remembered path,
 Homebrew, `/usr/local/bin`, and `PATH`. If none run, **Install Ollama**
@@ -719,23 +735,29 @@ and pass `--token`. Never bind a public Ethernet/WAN address.
 > localhost. SSH forwarding is the simpler first option because the API
 > stays local-trust on the host.
 
-### 12. Future remote clients
+### 12. Phone and watch
 
-The watch path is [ADR 0020](adrs/0020-watch-edge-mtls.md). Print the
-plan, then issue a private CA and Caddyfile. Replace `PRIVATE-LAN-IP`
-with an address of the mini. Do not commit that address or the files
-under the data directory.
+The usual path is **Start enrollment** on the Server page, then Enroll
+in [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+See [local.md](local.md). The contract is
+[ADR 0020](adrs/0020-watch-edge-mtls.md).
+
+From the CLI, replace `PRIVATE-LAN-IP` with an address of this Mac.
+Do not commit that address or the files under the data directory.
+`two edge prepare` issues the edge when it is missing. `two edge enroll`
+is the one-shot listener the phone calls. `plan` writes nothing.
 
 ```bash
 uv run two edge plan --listen PRIVATE-LAN-IP
-uv run two edge issue --listen PRIVATE-LAN-IP
+uv run two edge prepare --listen PRIVATE-LAN-IP
+uv run two edge enroll --listen PRIVATE-LAN-IP
 ```
 
 Export `TWO_EDGE_TOKEN` from `$TWO_DATA_DIR/edge/edge.env` for both
 `caddy` and `two api`. Run Caddy with `$TWO_DATA_DIR/edge/Caddyfile`.
-Keep `TWO_API_BIND=127.0.0.1`. The native app is specified in
-[watch-client.md](watch-client.md) for a later Xcode agent. OIDC with
-PKCE is still not implemented
+Keep `TWO_API_BIND=127.0.0.1`. The apps are
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+OIDC with PKCE is still not implemented
 ([ADR 0016](adrs/0016-oidc-jwt-tls-dependencies.md)). Never open the API
 publicly. See [client-api-design.md](client-api-design.md).
 
@@ -810,6 +832,8 @@ controller plus validation gates, never a model self-report.
 
 The closed tools stay `climate.read`, `climate.set_setpoint`, and
 `climate.set_mode` ([ADR 0022](adrs/0022-climate-device-protocol.md)).
+Each zone may list `aliases`: up to eight spoken ids such as `lounge`.
+The router treats that word as the zone. An alias is not an address.
 The production child is pinned `dsh --profile acp`
 ([ADR 0028](adrs/0028-home-action-acp-client.md)). It can request those
 tools. This process performs them. Restart the control plane after
@@ -904,7 +928,9 @@ plaintext API are refused.
 
 The closed tools are `tv.read`, `tv.set_power`, `tv.open`, and
 `tv.set_volume` ([ADR 0029](adrs/0029-samsung-tv.md)). The set stays a
-target. Nothing is installed on the television. Copy
+target. Nothing is installed on the television. Each set may list
+`aliases` for the set itself, such as `big-tv`. App names stay under
+`targets`. Copy
 [config/devices/tv.example.yaml](../config/devices/tv.example.yaml) to
 `$TWO_DATA_DIR/devices/tv.yaml`. The slot stays off until that file has
 `enabled: true`.
@@ -921,14 +947,15 @@ Do this before the first turn:
    distinct name per set. Leave `enabled: true` only after the
    addresses are real.
 4. Restart `two up` so the worker loads the file. Then, with the set
-   on, run `uv run two tv pair --set living-room`. Accept the Allow
-   prompt on the screen. The command prints
-   `SAMSUNG_TV_LIVING_ROOM_TOKEN=...` and stores nothing. Add that line
-   to `$TWO_DATA_DIR/env` and restart `two up`. Repeat for the other set.
-5. Run `uv run two tv apps --set living-room` and copy the printed
-   application id into the `netflix` target. Add an `hdmi-1` target
-   with `key: KEY_HDMI1` when that input is the one you want. An alias
-   that is not in the file is refused.
+   on, run `uv run two tv pair --set living-room` (or Pair on the
+   Adapters page). Accept the Allow prompt on the screen. The command
+   stores `SAMSUNG_TV_LIVING_ROOM_TOKEN` in `$TWO_DATA_DIR/env` and does
+   not print the token. Restart `two up`. Repeat for each of your sets.
+5. Run `uv run two tv apps --set living-room` (or List apps on the
+   Adapters page) and copy the printed application id into a target
+   such as `netflix`. Add an `hdmi-1` target with `key: KEY_HDMI1` when
+   that input is the one you want. An alias that is not in the file is
+   refused. Set ids in the example file are examples. Use yours.
 6. Restart the worker after each binding edit. Then try, one at a time:
    `two tv send --text "what is on the living room tv"`,
    `two tv send --text "turn off the living room tv"`,
@@ -942,10 +969,58 @@ A sentence that does not request one of the four tools is stored and
 does not change the television. Title search and account resume stay
 on `two chat`.
 
+## LG televisions on the LAN
+
+The closed tools stay `tv.read`, `tv.set_power`, `tv.open`, and
+`tv.set_volume` ([ADR 0029](adrs/0029-samsung-tv.md),
+[ADR 0047](adrs/0047-lg-webos-tv.md)). Nothing is installed on the
+television. `brand: lg` selects webOS SSAP. Omit `brand`, or set
+`samsung`, and the set stays on the Samsung API. One
+`$TWO_DATA_DIR/devices/tv.yaml` may contain both. Copy
+[config/devices/tv-lg.example.yaml](../config/devices/tv-lg.example.yaml)
+or add an LG set beside existing Samsung sets. The slot stays off
+until that file has `enabled: true`.
+
+An infrared LG air conditioner is an ESPHome zone, not this section.
+
+Do this before the first turn:
+
+1. Put the Mac mini and the set on the same private LAN. Turn off
+   client or AP isolation for those devices, and reserve a DHCP address.
+2. On the television, turn on LG Connect Apps (or Mobile TV On) and
+   network power-on. Copy the MAC address from the router's client list
+   into `mac`.
+3. Write the reserved address, `brand: lg`, and a distinct `token_env`.
+   `secure: false` tries `ws` port 3000 first. `secure: true` tries
+   `wss` port 3001 first. If that handshake fails, the worker tries the
+   other scheme once on the same address. Do not set `volume_url`.
+   Leave `enabled: true` only after the address is real.
+4. Restart `two up`. With the set on, run
+   `uv run two tv pair --set living-room` (or Pair on the Adapters page).
+   Accept the prompt on the screen. The command stores the client key
+   in `$TWO_DATA_DIR/env` and does not print it. Restart `two up`.
+5. Run `uv run two tv apps --set living-room` and copy a printed
+   application id into a target such as `netflix`. HDMI is an app id
+   such as `com.webos.app.hdmi1`, not `KEY_HDMI1`. An alias that is not
+   in the file is refused.
+6. Restart the worker after each binding edit. Then try, one at a time:
+   `two tv send --text "what is on the living room tv"`,
+   `two tv send --text "turn off the living room tv"`,
+   `two tv send --text "put netflix on the living room tv"`, and
+   `two tv send --text "set the living room tv to 12"`.
+   A level above `volume_max` waits; approve it with the printed digest.
+
+`two tv send` talks only to the control API. A set that does not speak
+webOS SSAP will not answer. Netcast and the ThinQ cloud are not this
+brand.
+
 ## Ecovacs vacuums
 
 The closed tools are `vacuum.read`, `vacuum.clean`, and `vacuum.dock`
 ([ADR 0038](adrs/0038-ecovacs-vacuum.md)). The robot stays a target.
+Each robot may list `aliases`, such as `downstairs`. An alias is the
+spoken id. It is not the account nickname, and the nickname stays out
+of the model prompt.
 Nothing is installed on the robot, and this repository does not run the
 vendor MCP server. Copy
 [config/devices/vacuum.example.yaml](../config/devices/vacuum.example.yaml)
@@ -958,30 +1033,30 @@ string (ADR 0042). Control posts the key in the JSON body. Redirects are
 refused. Nicknames are exact. The API's fuzzy match is not used.
 
 Do this before the first turn. Harness profile `operator` should walk
-these steps and call `install.propose_binding` only after you confirm
-the nicknames. It must not paste the example YAML as the answer, and it
-must not invent a nickname or put the key in the document.
+these steps, call `install.list_account` after the key is in env, and
+call `install.propose_binding` only after you confirm the nicknames. It
+must not paste the example YAML as the answer, and it must not invent a
+nickname or put the key in the document.
 
-1. Open [open.ecovacs.com](https://open.ecovacs.com) (Australia and
-   other non-mainland accounts; use [open.ecovacs.cn](https://open.ecovacs.cn)
-   only if the ECOVACS HOME app is on the mainland host). Sign in with
-   the same ECOVACS HOME account that already shows both robots. That
-   site is the Open Platform console, not a second household. Create a
-   server Access Key (AK) under Service overview. Put that AK in
-   `$TWO_DATA_DIR/env` as `ECO_API_KEY=...`. Do not use the app
-   password. A new email on that site will not see these robots. The
-   key is not a file in this repository.
-2. Copy the example binding. Leave the two placeholder robots, set
-   `enabled: true`, and keep `api_host: open.ecovacs.com` unless the
-   account is on the mainland host.
-3. Restart `two up` so the worker loads the file. Run
-   `uv run two vacuum robots`. It prints the account nicknames and
-   writes nothing. Copy those exact names into `nickname`. Use operator
-   ids such as `downstairs` and `upstairs` for the keys. A nickname that
-   is not exact will not select that robot.
-4. Restart the worker after the nickname edit. Then try
-   `uv run two vacuum send --text "start the downstairs vacuum"` and
-   `uv run two vacuum send --text "dock all vacuums"`.
+1. Open [open.ecovacs.com](https://open.ecovacs.com) (or
+   [open.ecovacs.cn](https://open.ecovacs.cn) only if the ECOVACS HOME
+   app is on the mainland host). Sign in with the same ECOVACS HOME
+   account that already shows your robots. That site is the Open
+   Platform console, not a second household. Create a server Access Key
+   (AK) under Service overview. Put that AK in `$TWO_DATA_DIR/env` as
+   `ECO_API_KEY=...`. Do not use the app password. A new email on that
+   site will not see those robots. The key is not a file in this
+   repository.
+2. Run `uv run two vacuum robots` (or List robots on the Adapters
+   page). It does not need an enabled binding. It prints the account
+   nicknames and writes nothing. Confirm those names.
+3. In operator chat, approve a binding that uses those exact nicknames
+   and lowercase ids you chose. Keep `api_host: open.ecovacs.com`
+   unless the account is on the mainland host. Copying the example YAML
+   as-is leaves placeholder names that will not match your account.
+4. Restart the worker after the binding is written. Then try
+   `uv run two vacuum send --text "start the <your robot id> vacuum"`
+   and `uv run two vacuum send --text "dock all vacuums"`.
    `uv run two vacuum show TURN_ID` prints the read-back.
 
 `two vacuum send` and `two vacuum show` talk only to the control API.

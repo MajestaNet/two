@@ -48,7 +48,7 @@ def test_16gb_profiles_exist() -> None:
     small = catalog.require(InferenceProfileId.M16_QWEN35_SMALL)
     assert four.min_unified_memory_gb == 16
     assert four.upstream_model == "qwen3.5:4b-mlx"
-    assert four.mlx_lm_model == "mlx-community/Qwen3.5-4B-MLX-4bit"
+    assert four.mlx_lm_model == "mlx-community/Qwen3.5-4B-OptiQ-4bit"
     assert small.upstream_model == "qwen3.5:0.8b-mlx"
     assert "ADR" not in four.notes
     assert "ADR" not in small.notes

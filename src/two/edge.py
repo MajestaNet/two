@@ -24,6 +24,7 @@ import the store, or terminate TLS in Python.
 from __future__ import annotations
 
 import ipaddress
+import re
 import secrets
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -38,9 +39,12 @@ CLIENT_ID_HEADER = "X-Two-Client-Id"
 WATCH_CLIENT_ID = "watch"
 ENV_EDGE_TOKEN = "TWO_EDGE_TOKEN"
 DEFAULT_EDGE_PORT = 8443
+DEFAULT_ENROLL_PORT = 8444
 DEFAULT_API_UPSTREAM = "127.0.0.1:8741"
 _CA_DAYS = "825"
 _HOSTNAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
+_USERNAME = re.compile(r"^[A-Za-z0-9-]{1,32}$")
+_CSR_PEM_MARKERS = ("-----BEGIN CERTIFICATE REQUEST-----", "-----END CERTIFICATE REQUEST-----")
 
 
 class EdgeListenError(ValueError):
@@ -51,24 +55,37 @@ class EdgeIssueError(RuntimeError):
     """Certificate issuance failed, or the directory already holds a CA."""
 
 
+class EdgeUsernameError(ValueError):
+    """The phone username or CSR subject is not acceptable."""
+
+
 @dataclass(frozen=True, slots=True)
 class EdgePlan:
-    """Operator plan for the Caddy process in front of the loopback API."""
+    """Operator plan for the Caddy process in front of the loopback API.
+
+    ``listen_host`` is the address the phone keeps for cellular. ``also``
+    adds the home Wi-Fi address so the same registration works on both.
+    """
 
     listen_host: str
     listen_port: int
     api_host: str
     api_port: int
     data_dir: Path
+    also: tuple[str, ...] = ()
+
+    @property
+    def bind_hosts(self) -> tuple[str, ...]:
+        hosts = [self.listen_host]
+        for host in self.also:
+            if host not in hosts:
+                hosts.append(host)
+        return tuple(hosts)
 
     @property
     def san(self) -> str:
         """OpenSSL subjectAltName value for the server certificate."""
-        try:
-            ipaddress.ip_address(self.listen_host)
-        except ValueError:
-            return f"DNS:{self.listen_host}"
-        return f"IP:{self.listen_host}"
+        return ",".join(_san_token(host) for host in self.bind_hosts)
 
 
 def resolve_edge_data_dir(
@@ -128,40 +145,72 @@ def parse_api_upstream(value: str) -> tuple[str, int]:
     return host, port
 
 
+def _san_token(host: str) -> str:
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return f"DNS:{host}"
+    return f"IP:{host}"
+
+
+def _is_ip(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True
+
+
+def is_overlay_host(host: str) -> bool:
+    """True for a Tailscale IPv4 address or a hostname.
+
+    Tailscale uses 100.64.0.0/10. A hostname is the overlay name the
+    phone can resolve off the home network.
+    """
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return True
+    if not isinstance(address, ipaddress.IPv4Address):
+        return False
+    network = ipaddress.ip_network("100.64.0.0/10")
+    return address in network
+
+
 def build_edge_plan(
     *,
     listen: str,
     port: int = DEFAULT_EDGE_PORT,
     api: str = DEFAULT_API_UPSTREAM,
     data_dir: Path,
+    also: Sequence[str] = (),
 ) -> EdgePlan:
     """Validate addresses and return a plan. Does not write files."""
     listen_port = _parse_port(port, source="edge port")
     api_host, api_port = parse_api_upstream(api)
+    primary = validate_listen_host(listen)
+    extras: list[str] = []
+    for host in also:
+        chosen = validate_listen_host(host)
+        if chosen != primary and chosen not in extras:
+            extras.append(chosen)
     return EdgePlan(
-        listen_host=validate_listen_host(listen),
+        listen_host=primary,
         listen_port=listen_port,
         api_host=api_host,
         api_port=api_port,
         data_dir=data_dir,
+        also=tuple(extras),
     )
 
 
-def render_caddyfile(plan: EdgePlan) -> str:
-    """Render a Caddyfile that requires a client certificate.
-
-    The edge token is read from the environment at Caddy start. It is not
-    written into this file.
-    """
+def _site_block(plan: EdgePlan, *, address: str, bind: str | None) -> list[str]:
     root = plan.data_dir
-    return "\n".join(
+    lines = [f"{address} {{"]
+    if bind is not None:
+        lines.append(f"\tbind {bind}")
+    lines.extend(
         [
-            "{",
-            "\tadmin off",
-            "\tauto_https off",
-            "}",
-            "",
-            f"https://{plan.listen_host}:{plan.listen_port} {{",
             "\ttls "
             + _caddy_path(root / "server.crt")
             + " "
@@ -177,16 +226,70 @@ def render_caddyfile(plan: EdgePlan) -> str:
             f'\t\theader_up {CLIENT_ID_HEADER} "{WATCH_CLIENT_ID}"',
             "\t}",
             "}",
-            "",
         ]
     )
+    return lines
+
+
+def render_caddyfile(plan: EdgePlan) -> str:
+    """Render a Caddyfile that requires a client certificate.
+
+    The edge token is read from the environment at Caddy start. It is not
+    written into this file.
+
+    IP listeners are bound on those addresses only. Caddy otherwise treats
+    an IP as a TLS server name and listens on every interface, then skips
+    client certificates when the phone omits that name. IP URLs do not send
+    a server name. A hostname stays in the site address so the certificate
+    name still matches.
+    """
+    ips = [host for host in plan.bind_hosts if _is_ip(host)]
+    names = [host for host in plan.bind_hosts if not _is_ip(host)]
+    lines = ["{", "\tadmin off", "\tauto_https off"]
+    if ips:
+        # An IP URL does not send a server name. Strict name checks would
+        # reject the phone after a valid client certificate. Every handshake
+        # still requires that certificate.
+        lines.extend(
+            [
+                "\tservers {",
+                "\t\tprotocols h1 h2",
+                "\t\tstrict_sni_host insecure_off",
+                "\t}",
+            ]
+        )
+    lines.extend(["}", ""])
+    blocks: list[str] = []
+    if ips:
+        blocks.extend(
+            _site_block(
+                plan,
+                address=f"https://:{plan.listen_port}",
+                bind=" ".join(ips),
+            )
+        )
+    for name in names:
+        if blocks:
+            blocks.append("")
+        blocks.extend(
+            _site_block(
+                plan,
+                address=f"https://{name}:{plan.listen_port}",
+                bind=None,
+            )
+        )
+    lines.extend(blocks)
+    lines.append("")
+    return "\n".join(lines)
 
 
 def format_edge_plan(plan: EdgePlan) -> str:
     """Human-readable plan. Omits key material."""
+    binds = ", ".join(plan.bind_hosts)
     return "\n".join(
         [
             f"listen: https://{plan.listen_host}:{plan.listen_port}",
+            f"also: {binds}",
             f"upstream: http://{plan.api_host}:{plan.api_port}",
             f"data_dir: {plan.data_dir}",
             "api bind stays loopback. Caddy requires a client certificate.",
@@ -195,6 +298,21 @@ def format_edge_plan(plan: EdgePlan) -> str:
             render_caddyfile(plan),
         ]
     )
+
+
+def refresh_server_certificate(plan: EdgePlan, *, openssl: str = "openssl") -> None:
+    """Reissue the server certificate and Caddyfile for the current addresses.
+
+    The CA, the edge token, and phone certificates stay. The phone pins the
+    CA, so it does not enroll again when a home address is added.
+    """
+    root = plan.data_dir
+    if not (root / "ca.crt").is_file() or not (root / "ca.key").is_file():
+        raise EdgeIssueError("edge CA is missing; run two edge issue")
+    _issue_server(plan, openssl=openssl)
+    caddyfile = root / "Caddyfile"
+    caddyfile.write_text(render_caddyfile(plan), encoding="utf-8")
+    caddyfile.chmod(0o600)
 
 
 def issue_edge(
@@ -408,3 +526,144 @@ def _issue_client(root: Path, *, openssl: str) -> None:
     (root / "watch.key").chmod(0o600)
     (root / "watch.p12").chmod(0o600)
     (root / "watch.crt").chmod(0o644)
+
+
+def parse_edge_username(value: str) -> str:
+    """Accept one phone username. Letters, digits, and hyphens, 1 to 32 characters."""
+    token = value.strip()
+    if _USERNAME.fullmatch(token) is None:
+        raise EdgeUsernameError("username must be 1 to 32 letters, digits, or hyphens")
+    return token
+
+
+def clients_dir(root: Path) -> Path:
+    """Directory for phone certificates signed after ``two edge issue``."""
+    return root / "clients"
+
+
+def require_issued_edge(root: Path) -> None:
+    """Refuse enroll until the CA and server certificate exist."""
+    missing = [
+        name
+        for name in ("ca.crt", "ca.key", "server.crt", "server.key")
+        if not (root / name).is_file()
+    ]
+    if missing:
+        raise EdgeIssueError(
+            f"missing {', '.join(missing)}; run two edge issue before two edge enroll"
+        )
+
+
+def sign_phone_csr(
+    root: Path,
+    username: str,
+    csr_pem: str,
+    *,
+    replace: bool = False,
+    openssl: str = "openssl",
+) -> str:
+    """Sign a phone CSR with the edge CA. The certificate CN is the username.
+
+    The phone keeps the private key. This writes ``clients/<username>.crt``.
+    A second name is refused unless ``replace`` is set.
+    """
+    require_issued_edge(root)
+    name = parse_edge_username(username)
+    pem = csr_pem.strip()
+    if not pem.startswith(_CSR_PEM_MARKERS[0]) or _CSR_PEM_MARKERS[1] not in pem:
+        raise EdgeUsernameError("CSR must be a PEM certificate request")
+    destination = clients_dir(root) / f"{name}.crt"
+    if destination.is_file() and not replace:
+        raise EdgeIssueError(f"{destination} already exists; pass --replace")
+    csr_path = root / "phone.csr"
+    csr_path.write_text(pem + "\n", encoding="utf-8")
+    csr_path.chmod(0o600)
+    _verify_csr(csr_path, username=name, openssl=openssl)
+    ext = root / "phone.ext"
+    ext.write_text(
+        "\n".join(
+            [
+                "basicConstraints=CA:FALSE",
+                "extendedKeyUsage=clientAuth",
+                "keyUsage=digitalSignature",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    clients_dir(root).mkdir(parents=True, exist_ok=True)
+    clients_dir(root).chmod(0o700)
+    _run_openssl(
+        [
+            openssl,
+            "x509",
+            "-req",
+            "-in",
+            "phone.csr",
+            "-CA",
+            "ca.crt",
+            "-CAkey",
+            "ca.key",
+            "-CAcreateserial",
+            "-out",
+            str(Path("clients") / f"{name}.crt"),
+            "-days",
+            _CA_DAYS,
+            "-sha256",
+            "-extfile",
+            "phone.ext",
+        ],
+        cwd=root,
+    )
+    destination.chmod(0o644)
+    return destination.read_text(encoding="utf-8")
+
+
+def _verify_csr(path: Path, *, username: str, openssl: str) -> None:
+    _run_openssl([openssl, "req", "-verify", "-noout", "-in", path.name], cwd=path.parent)
+    completed = subprocess.run(
+        [
+            openssl,
+            "req",
+            "-in",
+            path.name,
+            "-noout",
+            "-subject",
+            "-nameopt",
+            "RFC2253",
+        ],
+        cwd=path.parent,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        completed = subprocess.run(
+            [openssl, "req", "-in", path.name, "-noout", "-subject"],
+            cwd=path.parent,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip()
+        raise EdgeIssueError(detail or "openssl could not read the CSR subject")
+    common = _csr_common_name(completed.stdout)
+    if common != username:
+        raise EdgeUsernameError("CSR subject must be the username")
+
+
+def _csr_common_name(subject: str) -> str | None:
+    text = subject.strip()
+    if text.startswith("subject="):
+        text = text[len("subject=") :].strip()
+    if text.startswith("/"):
+        for part in text.split("/"):
+            if part.startswith("CN="):
+                return part[3:]
+        return None
+    for part in text.split(","):
+        token = part.strip()
+        if token.startswith("CN=") or token.startswith("CN ="):
+            return token.split("=", 1)[1].strip().strip('"')
+    return None

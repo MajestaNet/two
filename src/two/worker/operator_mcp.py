@@ -39,7 +39,7 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
         "install_read_guide",
         "install.read_guide",
         "Read numbered connect steps for one allowlisted document. "
-        "vacuum is Ecovacs; climate is air-con; tv is Samsung. "
+        "vacuum is Ecovacs; climate is air-con; tv is Samsung; tv-lg is webOS. "
         "Call this only when the snapshot is not enough.",
         {
             "type": "object",
@@ -54,11 +54,47 @@ _RAW_TOOLS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
                         "esphome",
                         "climate-esphome",
                         "tv",
+                        "tv-lg",
                         "vacuum",
                     ],
                 }
             },
             "required": ["doc"],
+            "additionalProperties": False,
+        },
+    ),
+    (
+        "install_list_account",
+        "install.list_account",
+        "List Ecovacs account nicknames after the Access Key is in env. "
+        "Does not require an enabled binding. Returns nicknames only.",
+        {
+            "type": "object",
+            "properties": {
+                "slot": {"type": "string", "enum": ["vacuum"]},
+                "token_env": {"type": "string"},
+                "api_host": {
+                    "type": "string",
+                    "enum": ["open.ecovacs.com", "open.ecovacs.cn"],
+                },
+            },
+            "required": ["slot"],
+            "additionalProperties": False,
+        },
+    ),
+    (
+        "install_pair_device",
+        "install.pair_device",
+        "Pair one bound television. The set's brand chooses Samsung or LG. "
+        "Stores the token in the data-dir env file. "
+        "Does not return the token.",
+        {
+            "type": "object",
+            "properties": {
+                "slot": {"type": "string", "enum": ["tv"]},
+                "set": {"type": "string"},
+            },
+            "required": ["slot", "set"],
             "additionalProperties": False,
         },
     ),

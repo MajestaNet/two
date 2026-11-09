@@ -57,6 +57,35 @@ function controlPlaneEnv(overlay) {
   return env;
 }
 
+function edgeIsIssued(env) {
+  try {
+    return policy.edgeMarkerPaths(env.TWO_DATA_DIR).every((file) => fs.existsSync(file));
+  } catch (_error) {
+    return false;
+  }
+}
+
+function findCaddy(env) {
+  const names = policy.knownCaddyPaths();
+  const pathEnv = env && typeof env.PATH === "string" ? env.PATH : "";
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir || !path.isAbsolute(dir) || /\s/.test(dir)) continue;
+    names.push(path.join(dir, "caddy"));
+  }
+  for (const candidate of names) {
+    if (isExecutable(candidate)) return candidate;
+  }
+  return "";
+}
+
+function prependExecutable(env, file) {
+  if (!file) return env;
+  const directory = path.dirname(file);
+  if (!directory) return env;
+  env.PATH = directory + path.delimiter + (env.PATH || "");
+  return env;
+}
+
 function runTwo(args, envOverlay) {
   const argv = policy.commandArgv(launcher(), args);
   const env = controlPlaneEnv(envOverlay);
@@ -87,7 +116,7 @@ function parseJson(result, label) {
   if (result.code !== 0) {
     throw new Error((result.stderr || result.stdout || label).trim());
   }
-  return JSON.parse(result.stdout);
+  return policy.parseCliJson(result.stdout);
 }
 
 async function readHealth() {
@@ -105,15 +134,20 @@ async function readHealth() {
 
 async function serverStatus() {
   const children = { api: "stopped", scheduler: "stopped", worker: "stopped" };
+  const issued = edgeIsIssued(controlPlaneEnv());
+  if (issued) children.caddy = "stopped";
   try {
     const body = parseJson(await runTwo(["up", "--status"]), "status failed");
     for (const child of body.children) {
-      if (Object.prototype.hasOwnProperty.call(children, child.name)) {
+      if (child.name === "api" || child.name === "scheduler" || child.name === "worker" || child.name === "caddy") {
         children[child.name] = child.pid ? "running" : "stopped";
       }
     }
   } catch (_error) {
     // A missing uv binary still leaves the health line to answer.
+  }
+  if (issued && children.caddy !== "running" && (await ourCaddyRunning())) {
+    children.caddy = "running";
   }
   let ollama = "down";
   try {
@@ -126,25 +160,45 @@ async function serverStatus() {
   return { children, health: await readHealth(), ollama, mlx: mlxUp ? "up" : "down" };
 }
 
+let serverStartTask = null;
+
 async function serverStart() {
-  const current = await serverStatus();
-  const running = Object.values(current.children).some((state) => state === "running");
-  if (running) {
-    return { ok: true, already: true };
-  }
-  const argv = policy.commandArgv(launcher(), ["up"]);
+  if (serverStartTask) return serverStartTask;
+  serverStartTask = startControlPlane().finally(() => {
+    serverStartTask = null;
+  });
+  return serverStartTask;
+}
+
+async function startControlPlane() {
   const env = controlPlaneEnv();
+  const issued = edgeIsIssued(env);
+  const caddyBin = issued ? findCaddy(env) : "";
+  let note = "";
+  const withCaddy = issued && Boolean(caddyBin);
+  if (issued && !caddyBin) {
+    note = "Caddy is not installed, so the phone cannot reach this Mac. The local server can still start.";
+  }
+  prependExecutable(env, caddyBin);
+  delete env.TWO_EDGE_TOKEN;
+  const current = await serverStatus();
+  const planeUp = ["api", "scheduler", "worker"].some((name) => current.children[name] === "running");
+  const caddyUp = current.children.caddy === "running";
+  if (planeUp && (!withCaddy || caddyUp)) {
+    return { ok: !note, already: true, note: note };
+  }
+  if (planeUp || caddyUp) {
+    await serverStop();
+  }
   try {
     const harness = parseJson(await runTwo(policy.harnessArgs("status")), "harness status failed");
     if (harness && typeof harness.bin === "string" && harness.bin !== "") {
-      const directory = path.dirname(harness.bin);
-      if (directory) {
-        env.PATH = directory + path.delimiter + (env.PATH || "");
-      }
+      prependExecutable(env, harness.bin);
     }
   } catch (_error) {
     // The control plane can start before the harness is installed.
   }
+  const argv = policy.commandArgv(launcher(), policy.upArgs(withCaddy));
   const child = spawn(argv[0], argv.slice(1), {
     cwd: installRoot(),
     shell: false,
@@ -156,12 +210,172 @@ async function serverStart() {
     // A missing interpreter is reported by the next status read.
   });
   child.unref();
-  return { ok: true, already: false };
+  return { ok: !note, already: false, note: note };
 }
 
 async function serverStop() {
+  await stopSidecarCaddy();
   const result = await runTwo(["down"]);
   return { ok: result.code === 0, output: (result.stdout + "\n" + result.stderr).trim() };
+}
+
+function caddyMemoryPath() {
+  return ollamaMemoryPath("caddy.json");
+}
+
+function caddyRecord() {
+  const body = readJsonFile(caddyMemoryPath());
+  if (!body || !Number.isInteger(body.pid) || body.pid <= 1) return null;
+  return body;
+}
+
+function ourCaddyRunning() {
+  const record = caddyRecord();
+  if (!record) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    execFile("/bin/ps", ["-ww", "-p", String(record.pid), "-o", "command="], { timeout: 1500 }, (error, stdout) => {
+      if (error) {
+        resolve(false);
+        return;
+      }
+      const command = String(stdout || "");
+      resolve(command.includes("caddy") && command.includes("Caddyfile"));
+    });
+  });
+}
+
+function readEdgeToken(dataDir) {
+  let text = "";
+  try {
+    text = fs.readFileSync(path.join(dataDir, "edge", "edge.env"), "utf8");
+  } catch (_error) {
+    return "";
+  }
+  for (const raw of text.split(/\r?\n/)) {
+    let line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    if (line.startsWith("export ")) line = line.slice("export ".length).trim();
+    const eq = line.indexOf("=");
+    if (eq < 1) continue;
+    if (line.slice(0, eq).trim() !== "TWO_EDGE_TOKEN") continue;
+    return unquoteEnv(line.slice(eq + 1).trim());
+  }
+  return "";
+}
+
+function unquoteEnv(value) {
+  if (value.startsWith('"')) {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === "string" ? parsed : "";
+    } catch (_error) {
+      return "";
+    }
+  }
+  if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+async function stopSidecarCaddy() {
+  const record = caddyRecord();
+  if (record && (await ourCaddyRunning())) {
+    try {
+      process.kill(record.pid, "SIGTERM");
+    } catch (_error) {
+      // Already gone.
+    }
+    for (let i = 0; i < 15; i += 1) {
+      if (!(await ourCaddyRunning())) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  try {
+    fs.unlinkSync(caddyMemoryPath());
+  } catch (_error) {
+    // No sidecar record to clear.
+  }
+}
+
+let caddyStartTask = null;
+
+async function caddyStart() {
+  if (caddyStartTask) return caddyStartTask;
+  caddyStartTask = bringUpCaddy().finally(() => {
+    caddyStartTask = null;
+  });
+  return caddyStartTask;
+}
+
+async function bringUpCaddy() {
+  const env = controlPlaneEnv();
+  if (!edgeIsIssued(env)) {
+    return { ok: false, already: false, note: "Register the phone before starting Caddy." };
+  }
+  const bin = findCaddy(env);
+  if (!bin) {
+    return {
+      ok: false,
+      already: false,
+      note: "Caddy is not installed, so the phone cannot reach this Mac.",
+    };
+  }
+  const current = await serverStatus();
+  if (current.children.caddy === "running") {
+    return { ok: true, already: true, note: "Caddy is already running." };
+  }
+  const planeUp = ["api", "scheduler", "worker"].some((name) => current.children[name] === "running");
+  if (!planeUp) {
+    const started = await serverStart();
+    return {
+      ok: Boolean(started && started.ok),
+      already: Boolean(started && started.already),
+      note: (started && started.note) || "Caddy is listening for the phone.",
+    };
+  }
+  return startCaddySidecar(env, bin);
+}
+
+async function startCaddySidecar(env, bin) {
+  const token = readEdgeToken(env.TWO_DATA_DIR);
+  if (!token) {
+    return { ok: false, already: false, note: "The edge token is missing. Register the phone again." };
+  }
+  const config = policy.edgeMarkerPaths(env.TWO_DATA_DIR)[0];
+  let argv;
+  try {
+    argv = policy.caddyArgv(bin, config);
+  } catch (error) {
+    return { ok: false, already: false, note: error.message };
+  }
+  const childEnv = Object.assign({}, env);
+  childEnv.TWO_EDGE_TOKEN = token;
+  prependExecutable(childEnv, bin);
+  const child = spawn(argv[0], argv.slice(1), {
+    cwd: installRoot(),
+    shell: false,
+    detached: true,
+    stdio: "ignore",
+    env: childEnv,
+  });
+  const failure = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 800);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      resolve(error);
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      resolve(new Error("Caddy stopped (" + String(code) + ")."));
+    });
+  });
+  if (failure) {
+    return { ok: false, already: false, note: failure.message };
+  }
+  child.unref();
+  writeJsonFile(caddyMemoryPath(), { pid: child.pid });
+  return { ok: true, already: false, note: "Caddy is listening for the phone." };
 }
 
 async function harnessStatus() {
@@ -1027,6 +1241,164 @@ async function mlxInstall() {
   return mlxStatus();
 }
 
+function spawnCaptured(argv, timeoutMs) {
+  return new Promise((resolve) => {
+    const child = spawn(argv[0], argv.slice(1), {
+      shell: false,
+      env: Object.assign({}, process.env, { OLLAMA_HOST: policy.LOOPBACK_OLLAMA_HOST }),
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      stdout = (stdout + chunk.toString("utf8")).slice(-20000);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString("utf8")).slice(-20000);
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ code: 1, stdout, stderr: error.message });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code: code === null ? 1 : code, stdout, stderr });
+    });
+  });
+}
+
+async function unloadOllamaModel(tag) {
+  const body = policy.preloadBody(tag);
+  body.keep_alive = 0;
+  try {
+    await fetch("http://" + policy.LOOPBACK_OLLAMA_HOST + "/api/generate", {
+      method: "POST",
+      redirect: "error",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (_error) {
+    // Removal still runs when the server is down.
+  }
+}
+
+function removeHubRepo(repo) {
+  const dir = policy.huggingfaceRepoDir(os.homedir(), repo);
+  let stat;
+  try {
+    stat = fs.lstatSync(dir);
+  } catch (error) {
+    if (error && error.code === "ENOENT") return false;
+    throw error;
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error("Refusing to delete " + repo + " because it is not a model directory.");
+  }
+  const hub = fs.realpathSync(policy.huggingfaceHubDir(os.homedir()));
+  const real = fs.realpathSync(dir);
+  if (real !== hub && !real.startsWith(hub + path.sep)) {
+    throw new Error("Refusing to delete " + repo + " outside the Hugging Face cache.");
+  }
+  fs.rmSync(real, { recursive: true, force: true });
+  return true;
+}
+
+async function serveOllama(bin) {
+  const argv = policy.ollamaArgv(bin, "serve");
+  const child = spawn(argv[0], argv.slice(1), {
+    shell: false,
+    detached: true,
+    stdio: "ignore",
+    env: Object.assign({}, process.env, policy.serveEnvironment(8192)),
+  });
+  const failure = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 400);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      resolve(error);
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      resolve(new Error("ollama serve stopped (" + String(code) + ")"));
+    });
+  });
+  if (failure) throw failure;
+  child.unref();
+  writeJsonFile(ollamaMemoryPath("ollama-serve.json"), { pid: child.pid, bin: bin });
+  await waitUntilOllamaAnswers();
+}
+
+async function clearLocalModels() {
+  const errors = [];
+  const removedOllama = [];
+  const removedMlx = [];
+  try {
+    if (await ourMlxRunning()) await mlxStop();
+  } catch (error) {
+    errors.push(error.message);
+  }
+  let located = { bin: "" };
+  try {
+    located = await locateOllama();
+  } catch (error) {
+    errors.push(error.message);
+  }
+  let startedForClear = false;
+  if (located.bin && !(await ollamaHttpUp())) {
+    try {
+      if (!(await ourServeRunning())) {
+        await serveOllama(located.bin);
+        startedForClear = true;
+      } else {
+        await waitUntilOllamaAnswers();
+      }
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  if (located.bin && (await ollamaHttpUp())) {
+    const status = await ollamaStatus();
+    for (const tag of status.models || []) {
+      try {
+        await unloadOllamaModel(tag);
+        const argv = policy.ollamaRmArgv(located.bin, tag);
+        const result = await spawnCaptured(argv, 180000);
+        if (result.code === 0) {
+          removedOllama.push(tag);
+        } else {
+          const detail = (result.stderr || result.stdout || "could not remove " + tag).trim();
+          errors.push(detail);
+        }
+      } catch (error) {
+        errors.push(error.message);
+      }
+    }
+  }
+  if (startedForClear) {
+    try {
+      await ollamaStop();
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  for (const repo of readHubModels()) {
+    try {
+      if (removeHubRepo(repo)) removedMlx.push(repo);
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  return {
+    ok: errors.length === 0,
+    ollama: removedOllama,
+    mlx: removedMlx,
+    output: errors.join("\n"),
+  };
+}
+
 async function mlxPull(payload) {
   const located = await locateMlx();
   if (!located.python) {
@@ -1090,6 +1462,65 @@ async function adapters() {
     // The API is down. The CLI prints the same projection.
   }
   return parseJson(await runTwo(["adapters", "--json"]), "adapters failed");
+}
+
+async function installEnv() {
+  const response = await controlFetch(policy.apiOrigin(process.env) + policy.installEnvPath(), {
+    redirect: "error",
+    signal: AbortSignal.timeout(3000),
+  });
+  if (!response.ok) {
+    throw new Error("could not read install env names");
+  }
+  return response.json();
+}
+
+async function installVacuumRobots() {
+  const response = await controlFetch(
+    policy.apiOrigin(process.env) + policy.installVacuumRobotsPath(),
+    {
+      method: "POST",
+      redirect: "error",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error((body && body.detail) || "could not list vacuum nicknames");
+  }
+  return body;
+}
+
+async function installTvPair(setId) {
+  const response = await controlFetch(policy.apiOrigin(process.env) + policy.installTvPairPath(), {
+    method: "POST",
+    redirect: "error",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ set: setId }),
+    signal: AbortSignal.timeout(60000),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error((body && body.detail) || "could not pair the television");
+  }
+  return body;
+}
+
+async function installTvApps(setId) {
+  const response = await controlFetch(
+    policy.apiOrigin(process.env) + policy.installTvAppsPath(setId),
+    {
+      redirect: "error",
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error((body && body.detail) || "could not list television apps");
+  }
+  return body;
 }
 
 function controlPlaneError(error) {
@@ -1178,10 +1609,192 @@ function openrouterLogout() {
   return openrouterStatus();
 }
 
+const mobileState = { phase: "idle", host: "", note: "", child: null };
+
+async function mobileDetect() {
+  return parseJson(await runTwo(policy.edgeDetectArgs()), "detect failed");
+}
+
+async function detectedHosts() {
+  try {
+    const detected = await mobileDetect();
+    return {
+      overlay: typeof detected.overlay === "string" ? detected.overlay : "",
+      lan: typeof detected.lan === "string" ? detected.lan : "",
+      listen: typeof detected.listen === "string" ? detected.listen : "",
+    };
+  } catch (_error) {
+    return { overlay: "", lan: "", listen: "" };
+  }
+}
+
+function enrollHostFrom(detected) {
+  const lan = detected.lan || "";
+  const overlay = detected.overlay || "";
+  const listen = detected.listen || "";
+  if (lan) return policy.privateLanHost(lan);
+  if (listen) return policy.privateLanHost(listen);
+  if (overlay) return policy.privateLanHost(overlay);
+  throw new Error("No private address is available for enrollment.");
+}
+
+async function mobileStatus() {
+  const detected = await detectedHosts();
+  const host = mobileState.host || detected.lan || detected.listen || "";
+  return {
+    phase: mobileState.phase,
+    host: host,
+    overlay: detected.overlay,
+    lan: detected.lan,
+    note: mobileState.note,
+  };
+}
+
+function rememberEnroll(child, host) {
+  mobileState.child = child;
+  mobileState.phase = "waiting";
+  mobileState.host = host;
+  mobileState.note = policy.mobileWaitingNote(host);
+  let stderr = "";
+  const noteLine = (chunk) => {
+    const line = String(chunk || "")
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .pop();
+    if (line && mobileState.child === child) mobileState.note = line;
+  };
+  child.stderr.on("data", (chunk) => {
+    stderr = (stderr + chunk.toString("utf8")).slice(-4000);
+    noteLine(chunk);
+  });
+  child.stdout.on("data", noteLine);
+  child.on("close", (code) => {
+    if (mobileState.child !== child) return;
+    mobileState.child = null;
+    if (code === 0) {
+      mobileState.phase = "enrolled";
+      mobileState.note = "The phone is enrolled. The globe replaces the enroll screen. Hold it to speak.";
+      return;
+    }
+    mobileState.phase = "error";
+    mobileState.note = stderr.trim() || "Enrollment stopped.";
+  });
+}
+
+async function waitForHealth(tries) {
+  for (let i = 0; i < tries; i += 1) {
+    if ((await readHealth()) === "ok") return true;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return false;
+}
+
+async function mobileRegister(_payload) {
+  let host = "";
+  try {
+    host = enrollHostFrom(await detectedHosts());
+  } catch (error) {
+    mobileState.phase = "error";
+    mobileState.note = error.message;
+    return { ok: false, phase: "error", host: "", note: error.message };
+  }
+  await stopEnrollListener();
+  mobileState.phase = "working";
+  mobileState.host = host;
+  mobileState.note = "Starting enrollment…";
+  const env = controlPlaneEnv();
+  if (!edgeIsIssued(env)) {
+    try {
+      parseJson(await runTwo(policy.edgePrepareArgs("", false)), "prepare failed");
+    } catch (error) {
+      mobileState.phase = "error";
+      mobileState.note = error.message;
+      return { ok: false, phase: "error", host: host, note: error.message };
+    }
+  }
+  const started = await serverStart();
+  if (started && started.ok === false) {
+    const note = started.note || "The server could not start.";
+    mobileState.phase = "error";
+    mobileState.note = note;
+    return { ok: false, phase: "error", host: host, note: note };
+  }
+  if (edgeIsIssued(env)) {
+    const caddy = await caddyStart();
+    if (caddy && caddy.ok === false) {
+      mobileState.phase = "error";
+      mobileState.note = caddy.note;
+      return { ok: false, phase: "error", host: host, note: caddy.note };
+    }
+  }
+  if (!(await waitForHealth(30))) {
+    const note = "The API is not up. Start the server, then start enrollment again.";
+    mobileState.phase = "error";
+    mobileState.note = note;
+    return { ok: false, phase: "error", host: host, note: note };
+  }
+  const enrollArgv = policy.commandArgv(launcher(), policy.edgeEnrollArgs(host));
+  const enroll = spawn(enrollArgv[0], enrollArgv.slice(1), {
+    cwd: installRoot(),
+    shell: false,
+    env: controlPlaneEnv(),
+  });
+  enroll.on("error", (error) => {
+    mobileState.phase = "error";
+    mobileState.note = error.message;
+  });
+  rememberEnroll(enroll, host);
+  return { ok: true, phase: "waiting", host: host, note: mobileState.note };
+}
+
+function stopTrackedEnroll() {
+  if (!mobileState.child) return;
+  try {
+    mobileState.child.kill("SIGTERM");
+  } catch (_error) {
+    // Already gone.
+  }
+  mobileState.child = null;
+}
+
+function stopEnrollListener() {
+  stopTrackedEnroll();
+  return new Promise((resolve) => {
+    execFile(
+      "/usr/sbin/lsof",
+      ["-nP", "-iTCP:8444", "-sTCP:LISTEN", "-t"],
+      { timeout: 1500 },
+      (_error, stdout) => {
+        const pids = String(stdout || "")
+          .trim()
+          .split(/\s+/)
+          .filter((pid) => /^\d+$/.test(pid));
+        for (const pid of pids) {
+          try {
+            process.kill(Number(pid), "SIGTERM");
+          } catch (_error) {
+            // Already gone.
+          }
+        }
+        resolve();
+      },
+    );
+  });
+}
+
+async function mobileCancel() {
+  await stopEnrollListener();
+  mobileState.phase = "idle";
+  mobileState.note = "Enrollment is stopped. The API and Caddy are still running.";
+  return mobileStatus();
+}
+
 const handlers = {
   "server:status": serverStatus,
   "server:start": serverStart,
   "server:stop": serverStop,
+  "caddy:start": caddyStart,
   "model:recommend": modelRecommend,
   "model:status": modelStatus,
   "model:pull": modelPull,
@@ -1197,18 +1810,27 @@ const handlers = {
   "mlx:stop": mlxStop,
   "mlx:install": mlxInstall,
   "mlx:pull": mlxPull,
+  "models:clear": clearLocalModels,
   "harness:status": harnessStatus,
   "harness:install": harnessInstall,
   "docs:list": docsList,
   "docs:read": docsRead,
   "docs:openExternal": docsOpenExternal,
   "adapters:list": adapters,
+  "install:env": installEnv,
+  "install:vacuumRobots": installVacuumRobots,
+  "install:tvPair": installTvPair,
+  "install:tvApps": installTvApps,
   "chat:send": chatSend,
   "chat:show": chatShow,
   "openrouter:status": openrouterStatus,
   "openrouter:save": openrouterSave,
   "openrouter:login": openrouterLogin,
   "openrouter:logout": openrouterLogout,
+  "mobile:detect": mobileDetect,
+  "mobile:register": mobileRegister,
+  "mobile:status": mobileStatus,
+  "mobile:cancel": mobileCancel,
 };
 
 function registerHandlers() {

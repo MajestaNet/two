@@ -11,6 +11,10 @@ By contributing, you agree that your contribution is licensed to MajestaNet unde
 3. Run `uv sync --dev`.
 4. Run `make ci` before you open a pull request.
 
+To run the operator window and, optionally, the phone, follow
+[docs/local.md](docs/local.md). The iPhone and Apple Watch apps are
+[MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile).
+
 ## Pull requests
 
 - Use conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, `test:`).
