@@ -116,7 +116,7 @@ it.
 
 ### A2. Contact address is intentional
 
-Finding. `steve.th.zinke@gmail.com` appears only in `SECURITY.md` and
+Finding. `hello@majesta.net` appears only in `SECURITY.md` and
 `CODE_OF_CONDUCT.md` (five blobs in history, both paths). The unique-blob
 email set is otherwise `two-test@example.com`, `two-eval@example.com`,
 `two-agent@noreply.local`, and `i@izs.me`.
@@ -129,9 +129,8 @@ this project's contact.
 Risk. Publishing the Gmail address is a support and conduct contact,
 which those two files already ask for. It is also a personal inbox.
 
-Next step. Leave the address unless the maintainer wants a different
-public contact before visibility changes. Do not treat it as an
-accidental leak and do not scrub it from history.
+Next step. Keep hello@majesta.net as the public contact. Do not
+publish a personal mailbox.
 
 ### A3. No live credential in reachable blobs
 
