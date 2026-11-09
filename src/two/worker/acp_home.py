@@ -31,6 +31,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
+from two.devices.alias import spoken_prompt_lines
 from two.devices.climate.config import load_climate_config
 from two.devices.climate.contract import ClimateBroker, ClimateInstall
 from two.devices.tv.config import load_tv_config
@@ -39,6 +40,9 @@ from two.devices.vacuum.config import load_vacuum_config
 from two.devices.vacuum.contract import VacuumBroker, VacuumInstall
 from two.providers.backend import OpenRouterNotSignedIn, inference_child_env
 from two.providers.render import acp_route
+from two.routing.catalog import cards_for
+from two.routing.compile import obligation_lines
+from two.routing.decide import normalize_utterance
 from two.store.models import HomeActionTurnRecord, HomeActionTurnStatus
 from two.store.store import Store
 from two.types import ErrorCode
@@ -58,6 +62,7 @@ from two.worker.home_action import (
     HomeSessionPlan,
     _advertised,
     _handle_tool,
+    _spoken_pairs,
     ensure_home_action_profile_dir,
     home_child_env,
     plan_home_session,
@@ -137,8 +142,9 @@ def run_pinned_acp_home(
         zones=prompt_zones,
         stored_session_id=stored,
         session_is_valid=session_is_valid or default_session_validator,
+        spoken=_spoken_pairs(prompt_climate),
     )
-    prompt = _acp_prompt(turn.request_text, prompt_zones, prompt_tv, prompt_vacuum)
+    prompt = _acp_prompt(turn.request_text, prompt_climate, prompt_tv, prompt_vacuum)
     profile_dir = ensure_home_action_profile_dir(data_dir)
     ensure_harness_launcher(data_dir)
     try:
@@ -147,7 +153,7 @@ def run_pinned_acp_home(
         return store.fail_home_action_turn(
             turn_id, ErrorCode.OPENROUTER_NOT_SIGNED_IN.value, now=now
         )
-    home = _ensure_home_patch(data_dir, prompt_zones, prompt_tv, prompt_vacuum)
+    home = _ensure_home_patch(data_dir, prompt_climate, prompt_tv, prompt_vacuum)
     env = dict(child_env) if child_env is not None else home_child_env()
     env.update(_inference_env(home))
     env.update(overlay)
@@ -402,12 +408,13 @@ def _mcp_servers(*, climate: bool, television: bool, vacuum: bool) -> list[dict[
 
 def _acp_prompt(
     transcript: str,
-    zones: list[str],
+    climate: ClimateInstall | None,
     tv_install: TvInstall | None,
     vacuum_install: VacuumInstall | None,
 ) -> str:
     """Name the advertised tools. Addresses and tokens stay out of this text."""
     lines = [transcript, "profile: home-action", "Call one tool and stop."]
+    zones = sorted(climate.zones) if climate is not None else []
     if zones:
         listed = ", ".join(zones)
         lines.extend(
@@ -423,6 +430,13 @@ def _acp_prompt(
         lines.extend(_tv_prompt_lines(tv_install))
     if vacuum_install is not None:
         lines.extend(_vacuum_prompt_lines(vacuum_install))
+    lines.extend(_spoken_lines(climate, tv_install, vacuum_install))
+    lines.extend(
+        obligation_lines(
+            normalize_utterance(transcript),
+            cards_for(climate=climate, television=tv_install, vacuum=vacuum_install),
+        )
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -458,7 +472,7 @@ def _vacuum_prompt_lines(install: VacuumInstall) -> list[str]:
 
 def _ensure_home_patch(
     data_dir: Path | str | None,
-    zones: list[str],
+    climate: ClimateInstall | None,
     tv_install: TvInstall | None,
     vacuum_install: VacuumInstall | None,
 ) -> Path:
@@ -469,7 +483,7 @@ def _ensure_home_patch(
     patch.write_text(
         _home_patch(
             model_id,
-            zones,
+            climate,
             tv_install,
             vacuum_install,
             provider=provider,
@@ -498,7 +512,7 @@ def _inference_env(home: Path) -> dict[str, str]:
 
 def _home_patch(
     model_id: str,
-    zones: list[str],
+    climate: ClimateInstall | None,
     tv_install: TvInstall | None,
     vacuum_install: VacuumInstall | None,
     *,
@@ -508,7 +522,7 @@ def _home_patch(
         f"- id: {row_id}\n  name: '{name}'\n  disabled: true" for row_id, name in _DISABLED_TOOLS
     )
     persona = "\n".join(
-        f"      {line}" for line in _persona_lines(zones, tv_install, vacuum_install)
+        f"      {line}" for line in _persona_lines(climate, tv_install, vacuum_install)
     )
     return (
         "# Home-action patch. Provider and model come from the install backend.\n"
@@ -537,13 +551,13 @@ def _home_patch(
 
 
 def _persona_lines(
-    zones: list[str],
+    climate: ClimateInstall | None,
     tv_install: TvInstall | None,
     vacuum_install: VacuumInstall | None,
 ) -> list[str]:
     lines: list[str] = []
-    if zones:
-        listed = ", ".join(zones)
+    if climate is not None and climate.zones:
+        listed = ", ".join(sorted(climate.zones))
         lines.extend(
             [
                 "You control local air conditioners only by calling a tool.",
@@ -562,10 +576,38 @@ def _persona_lines(
     if vacuum_install is not None:
         lines.append("You control bound vacuum robots only by calling a tool.")
         lines.extend(_vacuum_prompt_lines(vacuum_install))
+    lines.extend(_spoken_lines(climate, tv_install, vacuum_install))
     if not lines:
         lines.append("You have no device tools. Reply briefly and do not call a tool.")
     lines.append("Do not use any other tool.")
     return lines
+
+
+def _spoken_lines(
+    climate: ClimateInstall | None,
+    tv_install: TvInstall | None,
+    vacuum_install: VacuumInstall | None,
+) -> tuple[str, ...]:
+    pairs: list[tuple[str, str]] = []
+    if climate is not None:
+        pairs.extend(
+            (alias, zone)
+            for zone, policy in sorted(climate.zones.items())
+            for alias in policy.aliases
+        )
+    if tv_install is not None:
+        pairs.extend(
+            (alias, set_id)
+            for set_id, policy in sorted(tv_install.sets.items())
+            for alias in policy.aliases
+        )
+    if vacuum_install is not None:
+        pairs.extend(
+            (alias, robot_id)
+            for robot_id, policy in sorted(vacuum_install.robots.items())
+            for alias in policy.aliases
+        )
+    return spoken_prompt_lines(tuple(pairs))
 
 
 def _stop(child: SupervisedChild) -> None:

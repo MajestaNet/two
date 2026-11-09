@@ -22,8 +22,13 @@ Python package for the Majesta Two control plane.
 - `topology.py` may read `config/deploy/topology.yaml`. No network.
 - `edge.py` plans the watch mTLS edge (ADR 0020). `build_edge_plan` does
   no I/O. `issue_edge` writes a private CA and Caddyfile under the data
-  directory and calls `openssl`. No store, no listen socket, no Python
-  TLS library. CLI lazy-imports it from `two edge`.
+  directory and calls `openssl`. `sign_phone_csr` signs a phone CSR
+  (CN = username) into `clients/`. No store, no listen socket, no Python
+  TLS library. CLI lazy-imports it from `two edge`. `edge_enroll.py` is
+  the one-shot HTTPS listener (`two edge enroll`) on a port other than
+  Caddy. It uses stdlib `ssl` only, does not require a client
+  certificate, and does not change the Caddyfile. Caddy on :8443 stays
+  `require_and_verify`.
 - `setup.py` is the Mac mini plan (ADR 0019). `two setup --current` prints the optional split list (ADR 0013). No I/O, no
   network, no store. `two setup --plan` prints it. Apply I/O lives in
   `operator/`. CLI lazy-imports `two.operator` (not `two.runtime`).
@@ -45,8 +50,10 @@ Python package for the Majesta Two control plane.
   (ADR 0039): redacted status, a guide allowlist, and shipped-slot
   binding checks. A device guide splices the matching `docs/setup.md`
   heading ahead of the example file. No model client and no network. No
-  store at import time. The API may call the menu. It does not call
-  Ollama.
+  store at import time. `operator/first_run.py` lists vacuum nicknames
+  and pairs a television (ADR 0044). That module may call the device
+  packages. Inject those calls in tests. The API may call the menu. It
+  does not call Ollama.
 - `providers/` renders DSH settings from profile + topology + env and
   records the OpenAI-compatible HTTP contract. No network on the default
   path. Do not reimplement the DSH agent loop. An OpenRouter backend
@@ -106,8 +113,9 @@ Python package for the Majesta Two control plane.
   is ADR 0022 and stays default off. The binding transport is Home
   Assistant REST, ECHONET Lite (ADR 0027), or an ESPHome climate entity
   on a shared node (ADR 0043). `devices/esphome/` is that node client
-  and is not a catalog slot. `devices/tv/` is ADR 0029
-  and stays default off. The transport is the Samsung local API.
+  and is not a catalog slot.   `devices/tv/` is ADR 0029
+  and stays default off. A set names `brand: samsung` (the local API)
+  or `brand: lg` (webOS SSAP, ADR 0047). An omitted brand stays Samsung.
   `devices/vacuum/` is ADR 0038 and stays default off. The transport is
   the Ecovacs Open API on the two official hosts. Listing is GET with
   `ak` on the query string (ADR 0042). Control stays POST JSON.
@@ -149,9 +157,10 @@ Python package for the Majesta Two control plane.
   enabled, the closed television and vacuum tools. The control plane
   performs them and does not send `execute` to the child (ADR 0022,
   ADR 0029, ADR 0038).   Profile `operator` may request
-  `install.status`, `install.read_guide`, `install.propose_binding`, and
+  `install.status`, `install.read_guide`, `install.list_account`,
+  `install.pair_device`, `install.propose_binding`, and
   `install.propose_change`. This process performs them and does not send
-  `execute` (ADR 0039). The session prompt injects a redacted snapshot
+  `execute` (ADR 0039, ADR 0044). The session prompt injects a redacted snapshot
   and connect hints so the model can walk a shipped adapter without
   dumping YAML. A binding write and a self-build task wait for
   an approval digest. A later operator transcript that is only

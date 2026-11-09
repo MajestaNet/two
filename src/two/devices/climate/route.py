@@ -44,6 +44,7 @@ _TERMS = (
 def climate_route_card(install: ClimateInstall | None) -> DeviceRouteCard:
     """Zone ids come from the binding. A missing binding stays disabled."""
     targets = () if install is None else tuple(sorted(install.zones))
+    spoken = () if install is None else _spoken(install)
     return DeviceRouteCard(
         slot="climate",
         tool_prefix="climate",
@@ -59,4 +60,11 @@ def climate_route_card(install: ClimateInstall | None) -> DeviceRouteCard:
             ),
         ),
         closed_verbs=_CLOSED,
+        spoken=spoken,
+    )
+
+
+def _spoken(install: ClimateInstall) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        (alias, zone) for zone, policy in sorted(install.zones.items()) for alias in policy.aliases
     )

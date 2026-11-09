@@ -8,10 +8,11 @@
 #    that already shows the robots. Create a server Access Key (AK).
 #    Do not open a second household and do not use the app password.
 # 2. Put ECO_API_KEY=<that AK> in $TWO_DATA_DIR/env. Never put the key here.
-# 3. Enable this binding, restart the worker, run `two vacuum robots`.
-# 4. Copy those exact account nicknames into nickname. Then restart again.
-# Nicknames are the exact names on the Ecovacs account.
-# `two vacuum robots` prints those names and writes nothing.
+# 3. Run `two vacuum robots` (or List robots on the Adapters page) before
+#    this file is enabled. Copy those exact account nicknames into nickname.
+# 4. Enable this binding and restart the worker.
+# Nicknames are the exact names on YOUR Ecovacs account.
+# `two vacuum robots` prints those names before this file is enabled.
 # The API key is the environment variable named by token_env.
 # api_host is open.ecovacs.com or open.ecovacs.cn. The default is
 # open.ecovacs.com. See docs/setup.md.
@@ -20,7 +21,9 @@ enabled: false
 api_host: open.ecovacs.com
 token_env: ECO_API_KEY
 robots:
-  downstairs:
-    nickname: Downstairs
-  upstairs:
-    nickname: Upstairs
+  robot-a:
+    nickname: Robot A
+    # Optional spoken ids. This is not the account nickname.
+    # aliases: [downstairs]
+  robot-b:
+    nickname: Robot B

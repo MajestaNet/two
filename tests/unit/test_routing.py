@@ -134,10 +134,15 @@ def test_all_acs_to_heat_repeats_set_mode() -> None:
         _cards(climate=_climate("living", "study"), television=_tv("lounge")),
     )
     assert decision.fanout_scope == "kind"
-    assert [item["target"] for item in decision.fanout] == ["living", "study"]
-    assert all(
-        item["arguments"] == {"mode": "heat", "zone": item["target"]} for item in decision.fanout
-    )
+    assert [item["target"] for item in decision.fanout] == ["living", "living", "study", "study"]
+    assert [item["tool"] for item in decision.fanout] == [
+        "climate.set_mode",
+        "climate.set_setpoint",
+        "climate.set_mode",
+        "climate.set_setpoint",
+    ]
+    assert decision.fanout[0]["arguments"] == {"mode": "heat", "zone": "living"}
+    assert decision.fanout[1]["arguments"] == {"celsius": 22, "zone": "living"}
 
 
 def test_all_on_skips_climate_because_on_is_not_one_mode() -> None:
@@ -215,18 +220,17 @@ def test_expand_replaces_only_the_target() -> None:
 def test_heat_on_a_named_zone_skips_the_harness() -> None:
     cards = _cards(climate=_climate("upstairs_office", "vida_bedroom"), television=_tv("lounge"))
     decision = decide_route("turn on heat upstairs office", cards)
-    assert decision.fanout == (
-        {
-            "slot": "climate",
-            "target": "upstairs_office",
-            "tool": "climate.set_mode",
-            "arguments": {"mode": "heat", "zone": "upstairs_office"},
-            "status": "pending",
-        },
-    )
-    both = decide_route("upstairs office heat 22", cards)
-    assert both.fanout == ()
-    assert both.slots == ("climate",)
+    assert [item["tool"] for item in decision.fanout] == [
+        "climate.set_mode",
+        "climate.set_setpoint",
+    ]
+    assert decision.fanout[0]["arguments"] == {"mode": "heat", "zone": "upstairs_office"}
+    assert decision.fanout[1]["arguments"] == {"celsius": 22, "zone": "upstairs_office"}
+    spoken = decide_route("upstairs office heat 21", cards)
+    assert spoken.fanout[1]["arguments"] == {"celsius": 21, "zone": "upstairs_office"}
+    reversed_name = decide_route("turn heat on office upstairs", cards)
+    assert reversed_name.fanout[0]["arguments"] == {"mode": "heat", "zone": "upstairs_office"}
+    assert reversed_name.fanout[1]["arguments"] == {"celsius": 22, "zone": "upstairs_office"}
 
 
 def test_named_tv_volume_and_mute_compile() -> None:

@@ -19,6 +19,9 @@
 A missing file, ``enabled: false``, or an invalid document means the
 install has not selected the television slot. This module does not create
 the file and does not read token values.
+
+``brand`` selects the transport for a set. Omitted, it stays ``samsung``.
+A set may override the document brand. One file may mix brands.
 """
 
 from __future__ import annotations
@@ -30,10 +33,14 @@ from urllib.parse import urlsplit
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from two.devices.alias import assign_aliases, claim_name, omit_empty_aliases
 from two.devices.tv.contract import (
+    BRAND_LG,
+    BRAND_SAMSUNG,
     SetBounds,
     SetPolicy,
     TargetPolicy,
+    TvBrand,
     TvInstall,
     require_app_id,
     require_key,
@@ -54,6 +61,7 @@ class _Document(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool
+    brand: TvBrand = BRAND_SAMSUNG
     sets: dict[str, SetBounds] = Field(default_factory=dict)
 
 
@@ -96,6 +104,8 @@ def canonical_tv_document(raw: Mapping[str, object]) -> dict[str, object]:
     if document.enabled:
         _install(document)
     dumped: dict[str, object] = document.model_dump(mode="json")
+    omit_empty_aliases(dumped, "sets")
+    _omit_null_brands(dumped)
     return dumped
 
 
@@ -104,6 +114,11 @@ def _install(document: _Document) -> TvInstall:
         raise TvConfigError("tv binding needs a set")
     sets: dict[str, SetPolicy] = {}
     seen_addresses: set[str] = set()
+    taken: set[str] = set()
+    for key, bounds in document.sets.items():
+        claim_name(taken, require_set_id(key))
+        for target in bounds.targets:
+            claim_name(taken, require_set_id(target))
     for key, bounds in document.sets.items():
         set_id = require_set_id(key)
         address = require_private_host(bounds.address)
@@ -114,8 +129,13 @@ def _install(document: _Document) -> TvInstall:
         token_env = require_token_env(bounds.token_env)
         if bounds.volume_min > bounds.volume_max:
             raise TvConfigError(f"{set_id} volume_min exceeds volume_max")
-        volume_url = _volume_url(set_id, address, bounds.volume_url)
-        targets = _targets(set_id, bounds)
+        brand = bounds.brand if bounds.brand is not None else document.brand
+        volume_url = _volume_url_for(set_id, address, bounds.volume_url, brand)
+        targets = _targets(set_id, bounds, brand)
+        try:
+            aliases = assign_aliases(set_id, bounds.aliases, taken)
+        except ValueError as exc:
+            raise TvConfigError(str(exc)) from exc
         sets[set_id] = SetPolicy(
             set_id=set_id,
             address=address,
@@ -127,8 +147,28 @@ def _install(document: _Document) -> TvInstall:
             volume_step=bounds.volume_step,
             volume_url=volume_url,
             targets=targets,
+            brand=brand,
+            aliases=aliases,
         )
     return TvInstall(sets=sets)
+
+
+def _omit_null_brands(dumped: dict[str, object]) -> None:
+    """A set that inherits the document brand does not repeat it."""
+    sets = dumped.get("sets")
+    if not isinstance(sets, dict):
+        return
+    for row in sets.values():
+        if isinstance(row, dict) and row.get("brand") is None:
+            del row["brand"]
+
+
+def _volume_url_for(set_id: str, address: str, raw: str, brand: str) -> str:
+    if brand == BRAND_LG:
+        if raw.strip():
+            raise TvConfigError(f"{set_id} volume_url is only valid for samsung")
+        return ""
+    return _volume_url(set_id, address, raw)
 
 
 def _volume_url(set_id: str, address: str, raw: str) -> str:
@@ -141,7 +181,7 @@ def _volume_url(set_id: str, address: str, raw: str) -> str:
     return url
 
 
-def _targets(set_id: str, bounds: SetBounds) -> dict[str, TargetPolicy]:
+def _targets(set_id: str, bounds: SetBounds, brand: str) -> dict[str, TargetPolicy]:
     targets: dict[str, TargetPolicy] = {}
     seen_apps: set[str] = set()
     seen_keys: set[str] = set()
@@ -151,6 +191,8 @@ def _targets(set_id: str, bounds: SetBounds) -> dict[str, TargetPolicy]:
         has_key = target.key.strip() != ""
         if has_app == has_key:
             raise TvConfigError(f"{set_id} target {alias} needs an app id or an input key")
+        if brand == BRAND_LG and has_key:
+            raise TvConfigError(f"{set_id} target {alias} needs an app id")
         app_id = require_app_id(target.app_id) if has_app else ""
         remote_key = require_key(target.key) if has_key else ""
         if app_id and app_id in seen_apps:

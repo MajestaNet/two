@@ -12,6 +12,7 @@
   root.TwoMarkdown = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const DOC_IDS = {
+    "local.md": "local",
     "setup.md": "setup",
     "adapters.md": "adapters",
     "local-16k.md": "local-16k",

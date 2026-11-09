@@ -78,6 +78,72 @@ test("model pull is an argument list for one profile", () => {
   assert.throws(() => policy.twoArgv(["model", "pull tag"]));
 });
 
+test("install paths stay on the control API and reject a bad set id", () => {
+  assert.equal(policy.installEnvPath(), "/v1/install/env");
+  assert.equal(policy.installVacuumRobotsPath(), "/v1/install/vacuum/robots");
+  assert.equal(policy.installTvPairPath(), "/v1/install/tv/pair");
+  assert.equal(policy.installTvAppsPath("living-room"), "/v1/install/tv/apps?set=living-room");
+  assert.throws(() => policy.installTvAppsPath("Living Room"));
+  assert.match(policy.operatorChatHint("operator"), /Adapters page/);
+  assert.equal(policy.operatorChatHint("chat"), "");
+  const names = policy.rendererMethods.map((pair) => pair[0]);
+  assert.equal(names.includes("installEnv"), true);
+  assert.equal(names.includes("installVacuumRobots"), true);
+  assert.equal(mainSource.includes("install:env"), true);
+});
+
+test("mobile registration stays an argument list and refuses loopback", () => {
+  assert.deepEqual(policy.edgePrepareArgs("10.1.1.5", true), [
+    "edge",
+    "prepare",
+    "--listen",
+    "10.1.1.5",
+    "--json",
+    "--stop",
+  ]);
+  assert.deepEqual(policy.edgePrepareArgs("", false), ["edge", "prepare", "--json"]);
+  assert.equal(policy.mobileAddressLine("100.64.1.5", "10.1.1.5"), "Home Wi-Fi 10.1.1.5. Tailscale 100.64.1.5");
+  assert.deepEqual(policy.upArgs(true), ["up", "--caddy"]);
+  assert.deepEqual(policy.upArgs(false), ["up"]);
+  assert.deepEqual(policy.caddyArgv("/opt/homebrew/bin/caddy", "/tmp/two/edge/Caddyfile"), [
+    "/opt/homebrew/bin/caddy",
+    "run",
+    "--config",
+    "/tmp/two/edge/Caddyfile",
+  ]);
+  assert.throws(() => policy.caddyArgv("caddy", "/tmp/two/edge/Caddyfile"));
+  assert.throws(() => policy.caddyArgv("/opt/homebrew/bin/caddy", "/tmp/two/Caddyfile"));
+  assert.deepEqual(policy.knownCaddyPaths(), ["/opt/homebrew/bin/caddy", "/usr/local/bin/caddy"]);
+  assert.deepEqual(policy.edgeMarkerPaths("/tmp/two"), [
+    "/tmp/two/edge/Caddyfile",
+    "/tmp/two/edge/edge.env",
+  ]);
+  assert.deepEqual(policy.edgeEnrollArgs("10.1.1.5"), ["edge", "enroll", "--listen", "10.1.1.5"]);
+  assert.deepEqual(policy.parseCliJson('{"listen":"10.1.1.5"}'), { listen: "10.1.1.5" });
+  assert.deepEqual(policy.parseCliJson('+ sent SIGTERM to api pid=12\n{"caddy":true,"listen":"10.1.1.5"}'), {
+    caddy: true,
+    listen: "10.1.1.5",
+  });
+  assert.equal(policy.edgeDetectArgs().join(" ").includes(" "), true);
+  assert.throws(() => policy.privateLanHost("127.0.0.1"));
+  assert.throws(() => policy.privateLanHost("10.1.1.5; rm"));
+  assert.match(policy.mobileWaitingNote("10.1.1.5"), /tap Enroll/);
+  assert.match(policy.mobileWaitingNote("10.1.1.5"), /this Wi-Fi/);
+  const names = policy.rendererMethods.map((pair) => pair[0]);
+  for (const name of ["mobileDetect", "mobileRegister", "mobileStatus", "mobileCancel", "caddyStart"]) {
+    assert.equal(names.includes(name), true);
+  }
+  assert.equal(mainSource.includes("mobile:register"), true);
+  assert.equal(mainSource.includes("caddy:start"), true);
+  assert.equal(mainSource.includes("readEdgeToken"), true);
+  assert.equal(appSource.includes("caddyStart"), true);
+  assert.equal(mainSource.includes("shell: true"), false);
+  const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
+  assert.equal(html.includes("Start enrollment"), true);
+  assert.equal(html.includes("Stop enrollment"), true);
+  assert.equal(html.includes("Start Caddy"), true);
+});
+
 test("the console refuses a public API bind", () => {
   assert.equal(policy.apiOrigin({}), "http://127.0.0.1:8741");
   assert.throws(() => policy.apiOrigin({ TWO_API_BIND: "0.0.0.0" }));
@@ -106,6 +172,7 @@ test("chat stays closed until the server, Ollama, and model are up", () => {
   );
   assert.match(policy.queuedNote("queued", false), /not loaded/);
   assert.doesNotMatch(policy.queuedNote("queued", false, "openrouter"), /not loaded/);
+  assert.throws(() => policy.preloadBody("mlx-community/Qwen3.5-9B-OptiQ-4bit"));
   assert.deepEqual(policy.preloadBody("qwen3.5:9b-mlx"), {
     model: "qwen3.5:9b-mlx",
     prompt: "",
@@ -179,6 +246,78 @@ test("the model list groups tags and keeps context independent", () => {
   assert.equal(policy.profileForModel(profiles, "qwen3.8:27b-mlx", 65536).id, "m48-qwen38-64k");
   assert.equal(policy.profileForModel(profiles, "batiai/qwen3.8-27b:q3", 16384).id, "m24-qwen38-q3");
   assert.equal(policy.preloadBody("batiai/qwen3.8-27b:q3").model, "batiai/qwen3.8-27b:q3");
+});
+
+test("the local catalog downloads three models and clear stays inside the caches", () => {
+  const profiles = [
+    {
+      id: "m16-qwen35-4b",
+      upstream_model: "qwen3.5:4b-mlx",
+      num_ctx: 8192,
+      num_ctx_options: [8192, 16384],
+      min_unified_memory_gb: 16,
+    },
+    {
+      id: "m24-qwen38-16k",
+      upstream_model: "qwen3.5:9b-mlx",
+      mlx_lm_model: "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+      num_ctx: 16384,
+      num_ctx_options: [8192, 16384, 32768],
+      min_unified_memory_gb: 24,
+      recommended: true,
+    },
+    {
+      id: "m24-qwen38-q3",
+      upstream_model: "batiai/qwen3.8-27b:q3",
+      num_ctx: 8192,
+      num_ctx_options: [8192],
+      min_unified_memory_gb: 24,
+    },
+    {
+      id: "m48-qwen38-64k",
+      upstream_model: "qwen3.8:27b-mlx",
+      num_ctx: 65536,
+      num_ctx_options: [8192, 65536],
+      min_unified_memory_gb: 48,
+    },
+    { id: "custom", upstream_model: "qwen3.8:27b-mlx", num_ctx: 16384 },
+  ];
+  const models = policy.localCatalogModels(profiles);
+  assert.deepEqual(
+    models.map((model) => model.display_name),
+    ["Qwen 3.5 4B", "Qwen 3.5 9B", "Qwen 3.8 27B Q4m"],
+  );
+  assert.deepEqual(
+    models.map((model) => model.ollama_model),
+    ["qwen3.5:4b-mlx", "qwen3.5:9b-mlx", "qwen3.8:27b-q4_K_M"],
+  );
+  assert.deepEqual(
+    models.map((model) => model.mlx_lm_model),
+    [
+      "mlx-community/Qwen3.5-4B-OptiQ-4bit",
+      "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+      "mlx-community/Qwen3.8-27B-OptiQ-4bit",
+    ],
+  );
+  assert.equal(models[1].recommended, true);
+  assert.equal(models.some((model) => model.ollama_model === "batiai/qwen3.8-27b:q3"), false);
+  assert.equal(policy.profileForCatalog(profiles, models[2].profile_ids, 65536).id, "m48-qwen38-64k");
+  assert.deepEqual(policy.ollamaRmArgv("/opt/homebrew/bin/ollama", "qwen3.8:27b-q4_K_M"), [
+    "/opt/homebrew/bin/ollama",
+    "rm",
+    "qwen3.8:27b-q4_K_M",
+  ]);
+  assert.throws(() => policy.ollamaRmArgv("/opt/homebrew/bin/ollama", "qwen;rm"));
+  assert.equal(
+    policy.huggingfaceRepoDir("/Users/ada", "mlx-community/Qwen3.5-4B-OptiQ-4bit"),
+    "/Users/ada/.cache/huggingface/hub/models--mlx-community--Qwen3.5-4B-OptiQ-4bit",
+  );
+  assert.throws(() => policy.huggingfaceRepoDir("/Users/ada", "mlx-community/../../etc"));
+  assert.throws(() => policy.huggingfaceRepoDir("ada", "mlx-community/Qwen3.5-4B-OptiQ-4bit"));
+  assert.equal(policy.rendererMethods.map((pair) => pair[0]).includes("clearLocalModels"), true);
+  assert.equal(mainSource.includes("models:clear"), true);
+  assert.equal(mainSource.includes("ollamaRmArgv"), true);
+  assert.equal(mainSource.includes("huggingfaceRepoDir"), true);
 });
 
 test("replace is only for a different catalog tag", () => {
@@ -286,6 +425,8 @@ test("the packaged window launches the bundled control plane and stays in the me
   assert.equal(mainSource.includes("event.preventDefault()"), true);
   assert.equal(mainSource.includes("requestSingleInstanceLock"), true);
   assert.equal(mainSource.includes("serverStart()"), true);
+  assert.equal(mainSource.includes("policy.upArgs(withCaddy)"), true);
+  assert.equal(mainSource.includes("edgeIsIssued"), true);
   assert.equal(/window-all-closed[\s\S]*two down/.test(mainSource), false);
   assert.equal(mainSource.includes("shell: true"), false);
   const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
@@ -315,7 +456,8 @@ test("the packaged window launches the bundled control plane and stays in the me
 });
 
 test("docs are an allowlist inside the repository", () => {
-  assert.deepEqual(policy.DOCS.map((item) => item.id), ["setup", "adapters", "local-16k"]);
+  assert.deepEqual(policy.DOCS.map((item) => item.id), ["local", "setup", "adapters", "local-16k"]);
+  assert.equal(policy.resolveDoc(root, "local"), path.join(root, "docs", "local.md"));
   assert.equal(policy.resolveDoc(root, "setup"), path.join(root, "docs", "setup.md"));
   assert.throws(() => policy.resolveDoc(root, "../package.json"));
   assert.throws(() => policy.resolveDoc(root, "architecture"));
@@ -496,14 +638,29 @@ test("mlx-lm is a closed argv on loopback and catalog download sits with local m
   const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
   assert.equal(html.includes("Local Model Catalog"), true);
   assert.equal(/<h2>Catalog<\/h2>/.test(html), false);
-  const catalogAt = html.indexOf("Local Model Catalog");
-  const downloadAt = html.indexOf("id=\"download\"");
-  const openrouterAt = html.indexOf("<h2>OpenRouter</h2>");
-  assert.notEqual(catalogAt, -1);
-  assert.notEqual(downloadAt, -1);
-  assert.notEqual(openrouterAt, -1);
-  assert.equal(downloadAt > catalogAt, true);
-  assert.equal(downloadAt < openrouterAt, true);
+  const serverHtml = html.slice(html.indexOf('id="server"'), html.indexOf('id="model"'));
+  const modelHtml = html.slice(html.indexOf('id="model"'), html.indexOf('id="docs"'));
+  assert.equal(serverHtml.includes("id=\"ollama-start\""), false);
+  assert.equal(serverHtml.includes("id=\"mlx-start\""), false);
+  assert.equal(serverHtml.includes("harness-install"), false);
+  assert.equal(serverHtml.includes("id=\"server-lines\""), true);
+  assert.equal(modelHtml.includes("id=\"runtime-ollama\""), true);
+  assert.equal(modelHtml.includes("id=\"runtime-mlx\""), true);
+  assert.equal(modelHtml.includes("id=\"runtime-openrouter\""), true);
+  assert.equal(modelHtml.includes("id=\"ollama-start\""), true);
+  assert.equal(modelHtml.includes("id=\"mlx-start\""), true);
+  assert.equal(modelHtml.includes("Clear local models"), true);
+  assert.equal(modelHtml.includes("Install DeepSeek Harness"), true);
+  const serveAt = modelHtml.indexOf("runtime-openrouter");
+  const catalogAt = modelHtml.indexOf("Local Model Catalog");
+  const downloadAt = modelHtml.indexOf("id=\"download\"");
+  const clearAt = modelHtml.indexOf("Clear local models");
+  const modelsAt = modelHtml.indexOf("id=\"ollama-models\"");
+  assert.equal(serveAt < catalogAt, true);
+  assert.equal(catalogAt < downloadAt, true);
+  assert.equal(modelsAt < clearAt, true);
+  assert.equal(modelHtml.includes("id=\"openrouter-model\""), true);
+  assert.equal(modelHtml.indexOf("id=\"openrouter-model\"") < catalogAt, true);
   assert.equal(html.includes("mlx-lm"), true);
   assert.equal(mainSource.includes("mlx:start"), true);
   assert.equal(mainSource.includes("LOOPBACK_MLX_HOST"), true);
@@ -534,6 +691,8 @@ test("mlx-lm is a closed argv on loopback and catalog download sits with local m
   assert.equal(html.includes("mlx-host"), true);
   assert.equal(mainSource.includes("sysctlArgv"), true);
   assert.equal(appSource.includes("mlxLoadTarget"), true);
+  assert.equal(appSource.includes("ollamaLoadTarget"), true);
+  assert.match(appSource, /state\.localRuntime = "ollama";\n  renderRuntime\(\);\n  const target = ollamaLoadTarget\(\);/);
   assert.match(
     appSource,
     /function modelPresent\(\) \{\n  if \(localRuntime\(\) === "mlx-lm"\) \{\n    const names = \(state\.mlx && state\.mlx\.models\) \|\| \[\];\n    const target = mlxLoadTarget\(\);/,

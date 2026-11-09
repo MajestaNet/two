@@ -10,7 +10,8 @@ copyright holder is MajestaNet. See [ADR 0008](adrs/0008-majesta-two-identity.md
 - `NOTICE` — MajestaNet attribution
 - `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`
 - `AGENTS.md` and nested agent files
-- `docs/setup.md` (living operator guide)
+- `docs/setup.md` (living operator reference)
+- `docs/local.md` (short local run path)
 - `uv.lock`
 
 ## Must never be published

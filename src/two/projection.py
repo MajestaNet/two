@@ -470,6 +470,7 @@ class SystemCapabilities(BaseModel):
     allowed_harness_profiles: list[str] = Field(default_factory=list)
     auth: AuthCapabilities
     features: ClientFeatures = Field(default_factory=ClientFeatures)
+    edge_hosts: list[str] = Field(default_factory=list)
 
 
 class VoiceTurnRequest(BaseModel):
@@ -1187,3 +1188,80 @@ class AdapterMenuView(BaseModel):
 
     schema_version: int = PROJECTION_SCHEMA_VERSION
     slots: list[AdapterSlotView]
+
+
+class InstallEnvNameView(BaseModel):
+    """Whether one env name is set. The value stays off this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=64)
+    present: bool
+
+
+class InstallEnvView(BaseModel):
+    """``GET /v1/install/env``. Names only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    names: list[InstallEnvNameView]
+
+
+class InstallAccountRequest(BaseModel):
+    """``POST /v1/install/vacuum/robots``. Env name, not a secret value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token_env: str | None = Field(default=None, max_length=64)
+    api_host: str | None = Field(default=None, max_length=64)
+
+
+class InstallAccountView(BaseModel):
+    """Account nicknames. The Access Key stays off this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    slot: Literal["vacuum"] = "vacuum"
+    token_env: str = Field(min_length=1, max_length=64)
+    nicknames: list[str]
+
+
+class InstallPairRequest(BaseModel):
+    """``POST /v1/install/tv/pair``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    set: str = Field(min_length=1, max_length=64)
+
+
+class InstallPairView(BaseModel):
+    """Proof the token was stored. The token stays off this body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    slot: Literal["tv"] = "tv"
+    set: str = Field(min_length=1, max_length=64)
+    token_env: str = Field(min_length=1, max_length=64)
+    stored: bool
+
+
+class TvAppRowView(BaseModel):
+    """One application id from a bound set. Window and CLI only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    app_id: str = Field(min_length=1, max_length=64)
+    name: str = Field(default="", max_length=128)
+
+
+class InstallTvAppsView(BaseModel):
+    """``GET /v1/install/tv/apps``. Not a model tool."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = PROJECTION_SCHEMA_VERSION
+    set: str = Field(min_length=1, max_length=64)
+    apps: list[TvAppRowView]

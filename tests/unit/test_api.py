@@ -465,16 +465,24 @@ def test_serve_requires_token_for_overlay(capsys: pytest.CaptureFixture[str]) ->
     assert "TWO_API_TOKEN" in capsys.readouterr().err
 
 
-def test_serve_loopback_does_not_bind_a_port() -> None:
+def test_serve_loopback_does_not_bind_a_port(tmp_path: Path) -> None:
     called: dict[str, object] = {}
 
-    def fake_run(_app: object, **kwargs: object) -> None:
+    def fake_run(app: object, **kwargs: object) -> None:
         called.update(kwargs)
+        called["data_dir"] = getattr(app, "state").data_dir
 
-    code = serve(bind="127.0.0.1", port=8741, env={}, policy={}, run=fake_run)
+    code = serve(
+        bind="127.0.0.1",
+        port=8741,
+        env={"TWO_DATA_DIR": str(tmp_path)},
+        policy={},
+        run=fake_run,
+    )
     assert code == 0
     assert called["host"] == "127.0.0.1"
     assert called["port"] == 8741
+    assert called["data_dir"] == tmp_path
 
 
 def test_access_yaml_defaults() -> None:

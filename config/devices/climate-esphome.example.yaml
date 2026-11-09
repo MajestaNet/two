@@ -13,6 +13,8 @@ enabled: false
 transport: esphome
 zones:
   office:
+    # Optional spoken ids. "set the study to 22" selects this zone.
+    # aliases: [study]
     entity_id: climate.office
     node: ir-bridge
     entity: lg_ac

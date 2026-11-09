@@ -24,6 +24,8 @@ close §21 item 20.
 B26 resumes harness profile `operator` for this install (ADR 0039).
 An omitted profile does not route there. B26 does not move the coding
 child onto pinned ACP and does not close §21 item 20.
+B27 adds operator first-run list and pair (ADR 0044). Device slots stay
+off. B27 does not close §21 item 20.
 
 Each item is one markdown file. **Status is the tracker.** Update the
 item file and this table in the same PR that lands the work. Do not
@@ -78,6 +80,7 @@ open a parallel GitHub-issue backlog unless a human asks for one.
 | [B24](B24-local-operator-console.md) | Local operator console | 6 | B20 | done |
 | [B25](B25-vacuum-home-action.md) | Vacuum tools on `home-action` | 6 | B22, B23 | done |
 | [B26](B26-operator-install-profile.md) | Operator profile for this install | 6 | B20, B21 | done |
+| [B27](B27-operator-first-run-steps.md) | Operator first-run list and pair | 6 | B26 | done |
 
 The skipped thin web UI in B13 is superseded by the first-party client
 direction in ADR 0015/B14.

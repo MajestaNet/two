@@ -64,7 +64,9 @@ STATUS_TOOL: Literal["install.status"] = "install.status"
 GUIDE_TOOL: Literal["install.read_guide"] = "install.read_guide"
 BINDING_TOOL: Literal["install.propose_binding"] = "install.propose_binding"
 CHANGE_TOOL: Literal["install.propose_change"] = "install.propose_change"
-CLOSED_TOOLS = frozenset({STATUS_TOOL, GUIDE_TOOL, BINDING_TOOL, CHANGE_TOOL})
+LIST_TOOL: Literal["install.list_account"] = "install.list_account"
+PAIR_TOOL: Literal["install.pair_device"] = "install.pair_device"
+CLOSED_TOOLS = frozenset({STATUS_TOOL, GUIDE_TOOL, BINDING_TOOL, CHANGE_TOOL, LIST_TOOL, PAIR_TOOL})
 PROPOSE_TOOLS = frozenset({BINDING_TOOL, CHANGE_TOOL})
 BINDING_SLOTS = frozenset({"climate", "tv", "vacuum", "esphome"})
 GUIDE_LIMIT = 3500
@@ -91,6 +93,7 @@ _GUIDES: dict[str, str] = {
     "esphome": "config/devices/esphome.example.yaml",
     "climate-esphome": "config/devices/climate-esphome.example.yaml",
     "tv": "config/devices/tv.example.yaml",
+    "tv-lg": "config/devices/tv-lg.example.yaml",
     "vacuum": "config/devices/vacuum.example.yaml",
 }
 _SETUP_RELPATH = "docs/setup.md"
@@ -100,25 +103,28 @@ _GUIDE_HEADINGS: dict[str, str] = {
     "esphome": "## ESPHome nodes",
     "climate-esphome": "## ESPHome nodes",
     "tv": "## Samsung televisions on the LAN",
+    "tv-lg": "## LG televisions on the LAN",
     "vacuum": "## Ecovacs vacuums",
 }
 _TRUNCATION_NOTE = (
     "\n[truncated] Device connect steps: read_guide climate, climate-echonet, "
-    "esphome, climate-esphome, tv, or vacuum."
+    "esphome, climate-esphome, tv, tv-lg, or vacuum."
 )
 DEVICE_CONNECT_HINTS = (
     "Reply in numbered steps. Do not paste YAML. Do not invent a secret, "
     "nickname, address, or token.\n"
+    "Each zone, set, and robot may include aliases: up to 8 spoken "
+    "lowercase ids. An alias is not a nickname, address, or token.\n"
     "vacuum: sign in at open.ecovacs.com with the same ECOVACS HOME "
     "account that already shows the robots (open.ecovacs.cn only for a "
     "mainland app login); that site is the Open Platform console, not a "
     "second household; create a server Access Key and put it in the env "
     "name (default ECO_API_KEY); never the app password and never in the "
     "binding; nicknames must match the Ecovacs account exactly; after the "
-    "key is in env, two vacuum robots prints those names; then "
+    "key is in env, install.list_account vacuum prints those names; then "
     "propose_binding with enabled true, api_host matching that portal, "
     "token_env that name, and robots as a map of lowercase ids "
-    "(bob, lynne) to {nickname}, not a list.\n"
+    "the operator chose to {nickname}, not a list.\n"
     "climate: Home Assistant REST, ECHONET Lite, or ESPHome; ask for zone ids "
     "and token_env or node id plus climate object_id.\n"
     "esphome: flash the vendor sample with climate_ir_lg and an api encryption "
@@ -126,9 +132,13 @@ DEVICE_CONNECT_HINTS = (
     "binding; propose_binding slot esphome with enabled true, nodes as a map of "
     "lowercase ids to {host, key_env}, then two esphome entities prints object "
     "ids; a climate proposal must repeat every zone already shown by status.\n"
-    "tv: private LAN; per-set token_env; pairing prints the token into env.\n"
+    "tv: brand samsung or lg on each set; omitted brand is samsung; private "
+    "LAN; per-set token_env; an LG target is an app id from two tv apps, "
+    "not KEY_; read_guide tv-lg for webOS; after the binding is approved, "
+    "install.pair_device stores the token in the data-dir env file.\n"
     "Ask for the missing fact. You may reply without a tool. Call at most "
-    "one closed tool, and only for a guide, a status refresh, a binding, or a change. "
+    "one closed tool, and only for a guide, a status refresh, an account "
+    "list, a television pair, a binding, or a change. "
     "After propose_binding, wait. The operator types approved or rejected.\n"
 )
 _PATH_PREFIXES = ("src/", "tests/", "config/", "scripts/", "docs/", "deploy/", "evals/")
@@ -199,7 +209,7 @@ def install_status(
     *,
     repo_root: Path | None = None,
 ) -> str:
-    """Redacted snapshot. Does not open a socket and does not read a key file."""
+    """Redacted snapshot. Does not open a socket. Env lines are present or missing."""
     lines = ["profile: operator", f"harness_pin: {DSH_PIN}"]
     backend = load_inference_backend(data_dir)
     lines.append(f"backend: {backend.kind}")
@@ -219,6 +229,12 @@ def install_status(
         devices = ", ".join(device.id for device in slot.devices) or "(none)"
         state = "on" if slot.install_enabled else "off"
         lines.append(f"  {slot.id}: {state} {devices}")
+    lines.append("env:")
+    from two.operator.first_run import env_presence
+
+    for env_name in env_presence(data_dir):
+        mark = "present" if env_name.present else "missing"
+        lines.append(f"  {env_name.name}: {mark}")
     return _fit("\n".join(lines))
 
 

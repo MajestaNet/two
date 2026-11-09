@@ -17,8 +17,8 @@
 """Closed vacuum tool contract. No I/O, no network, no secrets.
 
 The harness may request only these tools. The control plane performs a
-call on a known robot. The model sees robot ids. It does not see
-nicknames, the API host, or the key.
+call on a known robot. The model sees robot ids and spoken aliases. It
+does not see nicknames, the API host, or the key.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from typing import Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from two.approvals.digest import compute_action_digest
+from two.devices.alias import alias_index, resolve_appliance_id
 
 VACUUM_READ = "vacuum.read"
 VACUUM_CLEAN = "vacuum.clean"
@@ -87,6 +88,7 @@ class RobotPolicy:
 
     robot_id: str
     nickname: str
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,10 +221,14 @@ def _staged_call(tool: str, arguments: dict[str, object], install: VacuumInstall
     allowed = {"robot", "action"}
     if any(key not in allowed for key in arguments):
         raise _Refuse("profile_tool_denied")
-    try:
-        robot_id = require_robot_id(arguments.get("robot"))
-    except ValueError as exc:
-        raise _Refuse("profile_tool_denied") from exc
+    aliases = alias_index({robot_id: policy.aliases for robot_id, policy in install.robots.items()})
+    robot_id = resolve_appliance_id(arguments.get("robot"), install.robots, aliases)
+    if robot_id is None:
+        try:
+            require_robot_id(arguments.get("robot"))
+        except ValueError as exc:
+            raise _Refuse("profile_tool_denied") from exc
+        raise _Refuse("vacuum_robot_denied")
     policy = install.robots.get(robot_id)
     if policy is None:
         raise _Refuse("vacuum_robot_denied")
@@ -266,3 +272,4 @@ class RobotBounds(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     nickname: str = Field(min_length=1, max_length=_NICKNAME_MAX)
+    aliases: list[str] = Field(default_factory=list, max_length=8)
