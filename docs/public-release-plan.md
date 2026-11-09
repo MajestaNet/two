@@ -129,9 +129,8 @@ this project's contact.
 Risk. Publishing the contact address is a support and conduct contact,
 which those two files already ask for. It is also a personal inbox.
 
-Next step. Leave the address unless the maintainer wants a different
-public contact before visibility changes. Do not treat it as an
-accidental leak and do not scrub it from history.
+Next step. Keep hello@majesta.net as the public contact. Do not
+publish a personal mailbox.
 
 ### A3. No live credential in reachable blobs
 
