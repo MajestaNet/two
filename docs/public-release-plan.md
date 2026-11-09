@@ -126,8 +126,8 @@ Evidence. `SECURITY.md` line 7 and `CODE_OF_CONDUCT.md` line 59.
 `apps/console/package-lock.json`, a third-party maintainer address, not
 this project's contact.
 
-Risk. Publishing the contact address is a support and conduct contact,
-which those two files already ask for. It is also a personal inbox.
+Risk. The published contact is a shared Majesta mailbox, not a
+personal inbox.
 
 Next step. Keep hello@majesta.net as the public contact. Do not
 publish a personal mailbox.
