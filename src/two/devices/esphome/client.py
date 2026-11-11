@@ -43,8 +43,13 @@ ESPHOME_FROM_CLOSED: dict[str, str] = {
     "off": "OFF",
     "cool": "COOL",
     "heat": "HEAT",
-    "auto": "AUTO",
+    # climate_ir_lg treats HEAT_COOL as auto. AUTO is not one of its modes,
+    # and the default branch of that component transmits power off.
+    "auto": "HEAT_COOL",
 }
+# The LG component sends the power-on frame only after an off frame.
+# The following frame has to wait out the unit's chirp.
+_POWER_ON_GAP_SECONDS = 0.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +100,20 @@ def esphome_mode_name(mode: str) -> str:
         return ESPHOME_FROM_CLOSED[mode]
     except KeyError as exc:
         raise EsphomeUpstreamError("climate mode is not allowed") from exc
+
+
+def mode_command_names(mode: str) -> tuple[str, ...]:
+    """ESPHome modes to transmit, in order.
+
+    ``climate_ir_lg`` emits the power-on code only when the mode it last
+    transmitted was off. Heat, cool, and auto while it still remembers a
+    running mode are the "already on" codes. An older LG chirps for those
+    and stays off. Off, then the requested mode, is the power-on code.
+    """
+    name = esphome_mode_name(mode)
+    if name == "OFF":
+        return (name,)
+    return ("OFF", name)
 
 
 def finite_or_none(value: object) -> float | None:
@@ -157,7 +176,7 @@ class NativeEsphomeSession:
         return _run(self._climate(object_id, command=None))
 
     def set_climate_mode(self, object_id: str, mode: str) -> EsphomeClimateReading:
-        return _run(self._climate(object_id, command=("mode", esphome_mode_name(mode))))
+        return _run(self._climate_modes(object_id, mode_command_names(mode)))
 
     def set_climate_temperature(self, object_id: str, celsius: float) -> EsphomeClimateReading:
         return _run(self._climate(object_id, command=("temperature", celsius)))
@@ -186,30 +205,35 @@ class NativeEsphomeSession:
             )
         return rows
 
+    async def _climate_modes(
+        self, object_id: str, mode_names: tuple[str, ...]
+    ) -> EsphomeClimateReading:
+        if not mode_names:
+            raise EsphomeUpstreamError("climate mode is not allowed")
+        client = await self._connect()
+        try:
+            climate = await _find_climate(client, object_id)
+            state: object | None = None
+            for index, mode_name in enumerate(mode_names):
+                client.climate_command(climate.key, mode=_enum_member("ClimateMode", mode_name))
+                state = await _wait_climate_state(client, climate.key)
+                if index + 1 < len(mode_names):
+                    await asyncio.sleep(_POWER_ON_GAP_SECONDS)
+            if state is None:
+                raise EsphomeUpstreamError("esphome node failed")
+            return _reading(object_id, state)
+        finally:
+            await _disconnect(client)
+
     async def _climate(
         self,
         object_id: str,
         *,
         command: tuple[str, object] | None,
     ) -> EsphomeClimateReading:
-        from aioesphomeapi import ClimateInfo
-
         client = await self._connect()
         try:
-            infos, _services = await asyncio.wait_for(
-                client.list_entities_services(),
-                timeout=TIMEOUT_SECONDS,
-            )
-            climate = next(
-                (
-                    info
-                    for info in infos
-                    if isinstance(info, ClimateInfo) and info.object_id == object_id
-                ),
-                None,
-            )
-            if climate is None:
-                raise EsphomeUpstreamError("entity is not climate")
+            climate = await _find_climate(client, object_id)
             if command is not None:
                 kind, value = command
                 if kind == "mode":
@@ -219,12 +243,7 @@ class NativeEsphomeSession:
                 else:
                     raise EsphomeUpstreamError("climate command is not allowed")
             state = await _wait_climate_state(client, climate.key)
-            return EsphomeClimateReading(
-                object_id=object_id,
-                mode=closed_mode_from_esphome(getattr(state, "mode", None)),
-                current_temperature=finite_or_none(getattr(state, "current_temperature", None)),
-                target_temperature=finite_or_none(getattr(state, "target_temperature", None)),
-            )
+            return _reading(object_id, state)
         finally:
             await _disconnect(client)
 
@@ -249,6 +268,31 @@ class NativeEsphomeSession:
             await _disconnect(client)
             raise EsphomeUpstreamError("esphome node failed") from exc
         return client
+
+
+async def _find_climate(client: Any, object_id: str) -> Any:
+    from aioesphomeapi import ClimateInfo
+
+    infos, _services = await asyncio.wait_for(
+        client.list_entities_services(),
+        timeout=TIMEOUT_SECONDS,
+    )
+    climate = next(
+        (info for info in infos if isinstance(info, ClimateInfo) and info.object_id == object_id),
+        None,
+    )
+    if climate is None:
+        raise EsphomeUpstreamError("entity is not climate")
+    return climate
+
+
+def _reading(object_id: str, state: object) -> EsphomeClimateReading:
+    return EsphomeClimateReading(
+        object_id=object_id,
+        mode=closed_mode_from_esphome(getattr(state, "mode", None)),
+        current_temperature=finite_or_none(getattr(state, "current_temperature", None)),
+        target_temperature=finite_or_none(getattr(state, "target_temperature", None)),
+    )
 
 
 def _enum_member(enum_name: str, member_name: object) -> object:

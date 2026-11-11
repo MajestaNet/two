@@ -36,6 +36,7 @@ from two.devices.esphome.client import (
     closed_mode_from_esphome,
     domain_for,
     esphome_mode_name,
+    mode_command_names,
 )
 from two.devices.esphome.config import canonical_esphome_document, load_esphome_config
 from two.devices.esphome.contract import EsphomeNode, EsphomeUpstreamError
@@ -308,7 +309,11 @@ def test_dry_mode_is_not_a_closed_mode() -> None:
     assert closed_mode_from_esphome("DRY") is None
     assert closed_mode_from_esphome("FAN_ONLY") is None
     assert closed_mode_from_esphome("HEAT_COOL") == "auto"
-    assert esphome_mode_name("auto") == "AUTO"
+    assert esphome_mode_name("auto") == "HEAT_COOL"
+    assert mode_command_names("off") == ("OFF",)
+    assert mode_command_names("heat") == ("OFF", "HEAT")
+    assert mode_command_names("cool") == ("OFF", "COOL")
+    assert mode_command_names("auto") == ("OFF", "HEAT_COOL")
     session = _session(mode=None)
     broker = EsphomeClimate(
         {"office": _office_policy()},
