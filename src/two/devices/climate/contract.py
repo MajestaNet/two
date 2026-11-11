@@ -48,6 +48,18 @@ TRANSPORT_HOME_ASSISTANT: Literal["home_assistant"] = "home_assistant"
 TRANSPORT_ECHONET: Literal["echonet"] = "echonet"
 TRANSPORT_ESPHOME: Literal["esphome"] = "esphome"
 ClimateTransport = Literal["home_assistant", "echonet", "esphome"]
+MANUFACTURER_MITSUBISHI: Literal["mitsubishi"] = "mitsubishi"
+ECHONET_MANUFACTURERS: frozenset[str] = frozenset(
+    {
+        "mitsubishi",
+        "daikin",
+        "panasonic",
+        "hitachi",
+        "toshiba",
+        "fujitsu",
+        "sharp",
+    }
+)
 
 # A requested number outside this band is not a setpoint. It is refused
 # rather than offered for approval.
@@ -107,6 +119,7 @@ class ZonePolicy:
     node: str = ""
     entity: str = ""
     aliases: tuple[str, ...] = ()
+    manufacturer: str = MANUFACTURER_MITSUBISHI
 
 
 @dataclass(frozen=True, slots=True)
@@ -426,3 +439,4 @@ class ZoneBounds(BaseModel):
     node: str = ""
     entity: str = ""
     aliases: list[str] = Field(default_factory=list, max_length=8)
+    manufacturer: str = ""

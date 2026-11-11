@@ -21,7 +21,7 @@ install has not selected the television slot. This module does not create
 the file and does not read token values.
 
 ``brand`` selects the transport for a set. Omitted, it stays ``samsung``.
-A set may override the document brand. One file may mix brands.
+A set may override the document brand. One file may mix samsung, lg, and tcl.
 """
 
 from __future__ import annotations
@@ -37,12 +37,14 @@ from two.devices.alias import assign_aliases, claim_name, omit_empty_aliases
 from two.devices.tv.contract import (
     BRAND_LG,
     BRAND_SAMSUNG,
+    BRAND_TCL,
     SetBounds,
     SetPolicy,
     TargetPolicy,
     TvBrand,
     TvInstall,
     require_app_id,
+    require_channel_id,
     require_key,
     require_mac,
     require_private_host,
@@ -125,11 +127,16 @@ def _install(document: _Document) -> TvInstall:
         if address in seen_addresses:
             raise TvConfigError(f"{set_id} repeats an address")
         seen_addresses.add(address)
-        mac = require_mac(bounds.mac) if bounds.mac.strip() else ""
-        token_env = require_token_env(bounds.token_env)
         if bounds.volume_min > bounds.volume_max:
             raise TvConfigError(f"{set_id} volume_min exceeds volume_max")
         brand = bounds.brand if bounds.brand is not None else document.brand
+        if brand == BRAND_TCL:
+            _reject_tcl_credentials(set_id, bounds)
+            mac = ""
+            token_env = ""
+        else:
+            mac = require_mac(bounds.mac) if bounds.mac.strip() else ""
+            token_env = require_token_env(bounds.token_env)
         volume_url = _volume_url_for(set_id, address, bounds.volume_url, brand)
         targets = _targets(set_id, bounds, brand)
         try:
@@ -163,8 +170,17 @@ def _omit_null_brands(dumped: dict[str, object]) -> None:
             del row["brand"]
 
 
+def _reject_tcl_credentials(set_id: str, bounds: SetBounds) -> None:
+    if bounds.token_env.strip():
+        raise TvConfigError(f"{set_id} token_env is only valid for samsung or lg")
+    if bounds.mac.strip():
+        raise TvConfigError(f"{set_id} mac is only valid for samsung or lg")
+    if bounds.secure:
+        raise TvConfigError(f"{set_id} secure must be false for tcl")
+
+
 def _volume_url_for(set_id: str, address: str, raw: str, brand: str) -> str:
-    if brand == BRAND_LG:
+    if brand in {BRAND_LG, BRAND_TCL}:
         if raw.strip():
             raise TvConfigError(f"{set_id} volume_url is only valid for samsung")
         return ""
@@ -191,9 +207,12 @@ def _targets(set_id: str, bounds: SetBounds, brand: str) -> dict[str, TargetPoli
         has_key = target.key.strip() != ""
         if has_app == has_key:
             raise TvConfigError(f"{set_id} target {alias} needs an app id or an input key")
-        if brand == BRAND_LG and has_key:
+        if brand in {BRAND_LG, BRAND_TCL} and has_key:
             raise TvConfigError(f"{set_id} target {alias} needs an app id")
-        app_id = require_app_id(target.app_id) if has_app else ""
+        if brand == BRAND_TCL and has_app:
+            app_id = require_channel_id(target.app_id)
+        else:
+            app_id = require_app_id(target.app_id) if has_app else ""
         remote_key = require_key(target.key) if has_key else ""
         if app_id and app_id in seen_apps:
             raise TvConfigError(f"{set_id} target {alias} repeats an app id")

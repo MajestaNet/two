@@ -5,7 +5,9 @@
 Accepted. The climate slot stays off until an installation binds it.
 Speech, MQTT, Matter commissioning, and other Wi-Fi dialects are not
 implemented by this ADR. ADR 0043 amends decision 2: a zone may select
-ESPHome while other zones keep this transport.
+ESPHome while other zones keep this transport. ADR 0048 names the other
+Japan home-air-conditioner makers on this transport and the dialects
+that are not it.
 
 ## Context
 

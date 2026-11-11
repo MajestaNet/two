@@ -114,11 +114,13 @@ Python package for the Majesta Two control plane.
   Assistant REST, ECHONET Lite (ADR 0027), or an ESPHome climate entity
   on a shared node (ADR 0043). `devices/esphome/` is that node client
   and is not a catalog slot.   `devices/tv/` is ADR 0029
-  and stays default off. A set names `brand: samsung` (the local API)
-  or `brand: lg` (webOS SSAP, ADR 0047). An omitted brand stays Samsung.
+  and stays default off. A set names `brand: samsung` (the local API),
+  `brand: lg` (webOS SSAP, ADR 0047), or `brand: tcl` (Roku ECP, ADR 0049).
+  An omitted brand stays Samsung.
   `devices/vacuum/` is ADR 0038 and stays default off. The transport is
   the Ecovacs Open API on the two official hosts. Listing is GET with
   `ak` on the query string (ADR 0042). Control stays POST JSON.
+  No second brand is implemented (ADR 0050).
 - `routing/` classifies a transcript onto `chat` or an enabled device
   slot and plans a fan-out (ADR 0030). An obvious named-target command
   compiles the closed climate, television, or vacuum tool without the

@@ -14,13 +14,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Television device package (ADR 0029, ADR 0047). Importing it does not enable the slot."""
+"""Television device package (ADR 0029, ADR 0047, ADR 0049).
+
+Importing it does not enable the slot.
+"""
 
 from two.devices.tv.broker import open_tv_broker
 from two.devices.tv.config import load_tv_config, tv_config_path
 from two.devices.tv.contract import (
     BRAND_LG,
     BRAND_SAMSUNG,
+    BRAND_TCL,
     TV_TOOLS,
     TvInstall,
     TvReadback,
@@ -28,13 +32,16 @@ from two.devices.tv.contract import (
 )
 from two.devices.tv.lg import LgTv
 from two.devices.tv.samsung import SamsungTv
+from two.devices.tv.tcl import TclTv
 
 __all__ = [
     "BRAND_LG",
     "BRAND_SAMSUNG",
+    "BRAND_TCL",
     "TV_TOOLS",
     "LgTv",
     "SamsungTv",
+    "TclTv",
     "TvInstall",
     "TvReadback",
     "interpret_tv_tool",

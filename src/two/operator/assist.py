@@ -94,6 +94,7 @@ _GUIDES: dict[str, str] = {
     "climate-esphome": "config/devices/climate-esphome.example.yaml",
     "tv": "config/devices/tv.example.yaml",
     "tv-lg": "config/devices/tv-lg.example.yaml",
+    "tv-tcl": "config/devices/tv-tcl.example.yaml",
     "vacuum": "config/devices/vacuum.example.yaml",
 }
 _SETUP_RELPATH = "docs/setup.md"
@@ -104,11 +105,12 @@ _GUIDE_HEADINGS: dict[str, str] = {
     "climate-esphome": "## ESPHome nodes",
     "tv": "## Samsung televisions on the LAN",
     "tv-lg": "## LG televisions on the LAN",
+    "tv-tcl": "## TCL Roku televisions on the LAN",
     "vacuum": "## Ecovacs vacuums",
 }
 _TRUNCATION_NOTE = (
     "\n[truncated] Device connect steps: read_guide climate, climate-echonet, "
-    "esphome, climate-esphome, tv, tv-lg, or vacuum."
+    "esphome, climate-esphome, tv, tv-lg, tv-tcl, or vacuum."
 )
 DEVICE_CONNECT_HINTS = (
     "Reply in numbered steps. Do not paste YAML. Do not invent a secret, "
@@ -132,10 +134,13 @@ DEVICE_CONNECT_HINTS = (
     "binding; propose_binding slot esphome with enabled true, nodes as a map of "
     "lowercase ids to {host, key_env}, then two esphome entities prints object "
     "ids; a climate proposal must repeat every zone already shown by status.\n"
-    "tv: brand samsung or lg on each set; omitted brand is samsung; private "
-    "LAN; per-set token_env; an LG target is an app id from two tv apps, "
-    "not KEY_; read_guide tv-lg for webOS; after the binding is approved, "
-    "install.pair_device stores the token in the data-dir env file.\n"
+    "tv: brand samsung, lg, or tcl on each set; omitted brand is samsung; "
+    "private LAN; Samsung and LG use a per-set token_env; TCL has no token; "
+    "an LG target is an app id from two tv apps, and a TCL target is a "
+    "channel id from two tv apps, not KEY_; read_guide tv-lg for webOS and "
+    "tv-tcl for a TCL Roku set; after the binding is approved, "
+    "install.pair_device stores a Samsung or LG token and stores nothing "
+    "for TCL.\n"
     "Ask for the missing fact. You may reply without a tool. Call at most "
     "one closed tool, and only for a guide, a status refresh, an account "
     "list, a television pair, a binding, or a change. "

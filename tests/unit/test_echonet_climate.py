@@ -20,8 +20,12 @@ import pytest
 import yaml
 
 from two.devices.climate.broker import open_climate_broker
-from two.devices.climate.config import load_climate_config
-from two.devices.climate.contract import TRANSPORT_ECHONET, ClimateUpstreamError
+from two.devices.climate.config import canonical_climate_document, load_climate_config
+from two.devices.climate.contract import (
+    ECHONET_MANUFACTURERS,
+    TRANSPORT_ECHONET,
+    ClimateUpstreamError,
+)
 from two.devices.climate.echonet import (
     ECHONET_PORT,
     EchonetClimate,
@@ -328,3 +332,137 @@ def test_echonet_example_enables_as_a_private_binding(tmp_path: Path) -> None:
     assert install is not None
     assert install.zones["living"].host == "192.168.1.50"
     assert install.zones["bedroom"].host == "192.168.1.51"
+    assert "manufacturer" not in raw["zones"]["living"]
+    assert install.zones["living"].manufacturer == "mitsubishi"
+    assert raw["zones"]["bedroom"]["manufacturer"] == "daikin"
+    assert install.zones["bedroom"].manufacturer == "daikin"
+
+
+def test_setpoint_undefined_stays_unknown() -> None:
+    unit = _Unit()
+    unit.state[0xB3] = bytes((0xFD,))
+    readback = _client(unit).read("climate.living", zone="living")
+    assert readback.setpoint_celsius is None
+    assert readback.mode == "cool"
+    assert readback.reachable is True
+
+
+def test_room_unmeasurable_stays_unknown() -> None:
+    unit = _Unit()
+    unit.state[0xBB] = bytes((0x7E,))
+    readback = _client(unit).read("climate.living", zone="living")
+    assert readback.celsius is None
+    assert readback.mode == "cool"
+
+
+def test_signed_room_temperature() -> None:
+    unit = _Unit()
+    unit.state[0xBB] = bytes((0xF6,))
+    readback = _client(unit).read("climate.living", zone="living")
+    assert readback.celsius == -10.0
+
+
+def test_wide_temperature_is_not_scaled() -> None:
+    unit = _Unit()
+    unit.state[0xBB] = bytes((0x00, 22))
+    unit.state[0xB3] = bytes((0x00, 20))
+    readback = _client(unit).read("climate.living", zone="living")
+    assert readback.celsius is None
+    assert readback.setpoint_celsius is None
+    assert readback.mode == "cool"
+
+
+def test_mode_setc_sna_does_not_send_a_second_frame() -> None:
+    sent: list[bytes] = []
+
+    def exchange(host: str, payload: bytes, timeout: float) -> bytes:
+        del host, timeout
+        sent.append(payload)
+        props = _request_props(payload)
+        return _response(payload[2:4], payload[9], 0x51, [(epc, b"") for epc, _edt in props])
+
+    client = EchonetClimate({"climate.living": (HOST, 1)}, exchange=exchange, timeout=0.2)
+    with pytest.raises(ClimateUpstreamError):
+        client.set_mode("climate.living", "heat", zone="living")
+    assert len(sent) == 1
+
+
+def test_mitsubishi_binding_without_manufacturer_is_unchanged(tmp_path: Path) -> None:
+    _write(tmp_path, _zone_text(None))
+    install = load_climate_config(tmp_path)
+    assert install is not None
+    assert install.zones["living"].manufacturer == "mitsubishi"
+    assert install.zones["living"].instance == 1
+    document = canonical_climate_document(yaml.safe_load(_zone_text(None)))
+    zones = document["zones"]
+    assert isinstance(zones, dict)
+    living = zones["living"]
+    assert isinstance(living, dict)
+    assert "manufacturer" not in living
+    unit = _Unit()
+    client = _client(unit)
+    client.set_mode("climate.living", "heat", zone="living")
+    assert unit.sent[0][12:18] == bytes((0x80, 0x01, 0x30, 0xB0, 0x01, 0x43))
+
+
+@pytest.mark.parametrize("name", sorted(ECHONET_MANUFACTURERS))
+def test_named_japan_maker_keeps_the_same_frames(tmp_path: Path, name: str) -> None:
+    _write(tmp_path, _zone_text(name))
+    install = load_climate_config(tmp_path)
+    assert install is not None
+    assert install.zones["living"].manufacturer == name
+    assert isinstance(open_climate_broker(install), EchonetClimate)
+    unit = _Unit()
+    readback = _client(unit).set_setpoint("climate.living", 21, zone="living")
+    assert unit.sent[0][10] == 0x61
+    assert unit.sent[0][12:15] == bytes((0xB3, 0x01, 21))
+    assert readback.setpoint_celsius == 21.0
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["fglair", "comfort_cloud", "aircloud", "melcloud", "brp069", "mitsubishi_heavy"],
+)
+def test_non_echonet_maker_name_is_refused(tmp_path: Path, name: str) -> None:
+    _write(tmp_path, _zone_text(name))
+    assert load_climate_config(tmp_path) is None
+
+
+def test_home_assistant_zone_rejects_manufacturer(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "\n".join(
+            [
+                "enabled: true",
+                "upstream: http://192.168.1.10:8123",
+                "token_env: TWO_CLIMATE_TOKEN",
+                "zones:",
+                "  living:",
+                "    entity_id: climate.living",
+                "    manufacturer: daikin",
+                "    min_celsius: 18",
+                "    max_celsius: 26",
+                "    modes: [cool]",
+                "",
+            ]
+        ),
+    )
+    assert load_climate_config(tmp_path) is None
+
+
+def _zone_text(manufacturer: str | None) -> str:
+    maker = [] if manufacturer is None else [f"    manufacturer: {manufacturer}"]
+    lines = [
+        "enabled: true",
+        "transport: echonet",
+        "zones:",
+        "  living:",
+        *maker,
+        "    entity_id: climate.living",
+        "    host: 192.168.1.50",
+        "    min_celsius: 18",
+        "    max_celsius: 26",
+        "    modes: [cool, heat, auto, off]",
+        "",
+    ]
+    return "\n".join(lines)

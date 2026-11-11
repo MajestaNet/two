@@ -35,7 +35,7 @@ It is not a television.
 2. **The binding selects the brand.** `brand: samsung` remains the
    default when the field is omitted, on the document or on a set. A
    set may set `brand: lg` and override the document. One
-   `$TWO_DATA_DIR/devices/tv.yaml` may mix both. There is no second
+   `$TWO_DATA_DIR/devices/tv.yaml` may mix brands. There is no second
    catalog slot. Landing this code does not enable the slot.
 3. **The client is stdlib WebSocket.** The package stays
    `two.devices.tv`. `secure: false` tries `ws://` port 3000 first.

@@ -32,9 +32,10 @@ Configuration is data. Do not put Python here.
   ECHONET and ESPHome zones.
   `devices/tv.example.yaml` is the Samsung television binding (ADR 0029).
   `devices/tv-lg.example.yaml` is the LG webOS binding (ADR 0047).
+  `devices/tv-tcl.example.yaml` is the TCL Roku binding (ADR 0049).
   Copy one under `$TWO_DATA_DIR` before enabling it. A television file
-  may mix brands. An omitted brand stays Samsung. Tokens stay in the
-  environment.   `devices/vacuum.example.yaml` is the Ecovacs vacuum
+  may mix brands. An omitted brand stays Samsung. Samsung and LG tokens
+  stay in the environment. A TCL set has no token.   `devices/vacuum.example.yaml` is the Ecovacs vacuum
   binding (ADR 0038). Nicknames in that file are placeholders (`Robot A`,
   `Robot B`), not a live account. The API key stays in the environment.
 - GitHub App credentials, when they exist, are env-only. Do not add a

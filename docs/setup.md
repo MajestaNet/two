@@ -840,7 +840,10 @@ tools. This process performs them. Restart the control plane after
 upgrading the worker so the running process loads that client.
 A Mitsubishi Electric unit with a MAC-568IF-E, MAC-578IF-E, or
 MAC-588IF-E interface can skip Home Assistant and use ECHONET Lite
-([ADR 0027](adrs/0027-echonet-air-conditioner.md)). Copy
+([ADR 0027](adrs/0027-echonet-air-conditioner.md)). The same file also
+covers a Japan class `0x0130` adapter from Daikin, Panasonic, Hitachi,
+Toshiba, Fujitsu General, or Sharp after ECHONET Lite is enabled
+([ADR 0048](adrs/0048-echonet-air-conditioner-makers.md)). Copy
 [config/devices/climate-echonet.example.yaml](../config/devices/climate-echonet.example.yaml)
 to `$TWO_DATA_DIR/devices/climate.yaml`, set each unit's private IPv4
 address, then set `enabled: true`. Restart `two worker`. The slot stays
@@ -850,7 +853,12 @@ control API.
 Do this on the unit before expecting a reply:
 
 1. Read the Wi-Fi interface model on the indoor unit or the adapter.
-   This transport answers only the three interface models above.
+   A Mitsubishi Electric MAC-568IF-E, MAC-578IF-E, or MAC-588IF-E
+   answers after ECHONET Lite is enabled. A Japan room adapter from
+   Daikin, Panasonic, Hitachi, Toshiba, Fujitsu General, or Sharp
+   answers when it implements class `0x0130`. Set `manufacturer` to
+   that name. Omit it and the zone stays Mitsubishi Electric. The
+   name does not change the bytes.
 2. In the Mitsubishi Wi-Fi Control app, open Edit Unit and enable
    ECHONET Lite. It ships off. The app is the only switch. This
    repository cannot turn it on.
@@ -875,6 +883,12 @@ These units will not answer this transport:
 - MAC-577IF-2E and MAC-587. They speak a different local HTTP dialect.
   That dialect is not implemented. Do not enable telnet on the adapter
   and do not use a debug password to reach it.
+- Daikin ONECTA and the BRP069 local HTTP adapters, Panasonic Comfort
+  Cloud, Hitachi airCloud, Toshiba Home AC Control, Fujitsu General
+  FGLair, a Sharp unit that only has COCORO AIR, and Mitsubishi Heavy
+  Industries Smart M-Air. Those are a vendor account or another local
+  API. Naming one of them `manufacturer` does not make this client
+  speak it.
 
 Home Assistant remains the other binding
 ([config/devices/climate.example.yaml](../config/devices/climate.example.yaml)).
@@ -1014,10 +1028,48 @@ Do this before the first turn:
 webOS SSAP will not answer. Netcast and the ThinQ cloud are not this
 brand.
 
+## TCL Roku televisions on the LAN
+
+The closed tools stay `tv.read`, `tv.set_power`, `tv.open`, and
+`tv.set_volume` ([ADR 0029](adrs/0029-samsung-tv.md),
+[ADR 0049](adrs/0049-tcl-tv.md)). `brand: tcl` selects Roku External
+Control Protocol on a TCL television that runs Roku OS. Omit `brand`
+and the set stays Samsung. One `$TWO_DATA_DIR/devices/tv.yaml` may
+mix Samsung, LG, and TCL. Copy
+[config/devices/tv-tcl.example.yaml](../config/devices/tv-tcl.example.yaml)
+or add a TCL set beside the others. The slot stays off until that
+file has `enabled: true`.
+
+A TCL Google TV, the TCL Home app, and an infrared blaster are not
+this brand.
+
+Do this before the first turn:
+
+1. Put the Mac mini and the set on the same private LAN. Turn off
+   client or AP isolation, and reserve a DHCP address.
+2. On the television, open Settings, System, Advanced system settings,
+   and set Control by mobile apps to Enabled. There is no client key
+   and no MAC to copy. Do not run `two tv pair`.
+3. Write the reserved address, `brand: tcl`, and `secure: false`.
+   Do not set `token_env`, `mac`, or `volume_url`.
+4. Run `uv run two tv apps --set living-room` and copy a printed
+   channel id into a target such as `netflix`. The sample `12` in the
+   example is not this set. A `KEY_` name is refused. HDMI is not a
+   channel id.
+5. Restart the worker after each binding edit. Then try
+   `two tv send --text "what is on the living room tv"` and
+   `two tv send --text "put netflix on the living room tv"`.
+   A volume command is refused. This protocol does not report a level
+   or mute, so the worker does not send a volume key.
+
+`two tv send` talks only to the control API. A Roku stick, including
+one plugged into a TCL panel, is not a television for this brand.
+
 ## Ecovacs vacuums
 
 The closed tools are `vacuum.read`, `vacuum.clean`, and `vacuum.dock`
-([ADR 0038](adrs/0038-ecovacs-vacuum.md)). The robot stays a target.
+([ADR 0038](adrs/0038-ecovacs-vacuum.md)). The binding is still Ecovacs
+only ([ADR 0050](adrs/0050-vacuum-brands.md)). The robot stays a target.
 Each robot may list `aliases`, such as `downstairs`. An alias is the
 spoken id. It is not the account nickname, and the nickname stays out
 of the model prompt.

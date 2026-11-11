@@ -131,9 +131,10 @@ def pair_device(
 ) -> PairStored:
     """Pair one bound set and store the token in the data-dir env file.
 
-    The set's brand chooses the handshake. Samsung and LG both return a
-    token for ``token_env``. This method writes that token and does not
-    return it to the caller beyond the env name.
+    The set's brand chooses the handshake. Samsung and LG return a
+    token for ``token_env``. TCL pair raises and stores nothing. This
+    method writes a Samsung or LG token and does not return it to the
+    caller beyond the env name.
     """
     if slot != "tv":
         raise AssistError(ErrorCode.INSTALL_PAIR_DENIED.value)
@@ -319,5 +320,5 @@ def _bound_apps(policy: object) -> list[tuple[str, str]]:
 
     if not isinstance(policy, SetPolicy):
         raise TvUpstreamError("tv set is not bound")
-    token = os.environ.get(policy.token_env, "")
+    token = os.environ.get(policy.token_env, "") if policy.token_env else ""
     return open_set_client(policy, token).applications()

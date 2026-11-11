@@ -4,7 +4,8 @@
 # Example Samsung television binding (ADR 0029). Copy to
 # $TWO_DATA_DIR/devices/tv.yaml and set enabled: true.
 # brand defaults to samsung. An LG webOS set uses tv-lg.example.yaml
-# or brand: lg on that set. One file may contain both.
+# or brand: lg on that set. A TCL Roku set uses tv-tcl.example.yaml
+# or brand: tcl. One file may mix all three.
 # Addresses are private IPv4. MAC values come from the router.
 # Tokens are environment variables, not this file.
 # Set ids such as living-room are examples. Replace them.

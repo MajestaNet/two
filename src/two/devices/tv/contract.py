@@ -48,13 +48,15 @@ TV_POWERS: frozenset[str] = frozenset({"on", "off"})
 TV_STEPS: frozenset[str] = frozenset({"up", "down"})
 BRAND_SAMSUNG: Literal["samsung"] = "samsung"
 BRAND_LG: Literal["lg"] = "lg"
-TvBrand = Literal["samsung", "lg"]
-TV_BRANDS: frozenset[str] = frozenset({BRAND_SAMSUNG, BRAND_LG})
+BRAND_TCL: Literal["tcl"] = "tcl"
+TvBrand = Literal["samsung", "lg", "tcl"]
+TV_BRANDS: frozenset[str] = frozenset({BRAND_SAMSUNG, BRAND_LG, BRAND_TCL})
 
 _SET_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 _TOKEN_ENV_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 _MAC_RE = re.compile(r"^([0-9a-f]{2}:){5}[0-9a-f]{2}$")
 _APP_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+_CHANNEL_RE = re.compile(r"^[0-9]{1,10}$")
 _KEY_RE = re.compile(r"^KEY_[A-Z0-9]{1,32}$")
 
 DecisionKind = Literal["allow", "approve", "deny"]
@@ -218,6 +220,13 @@ def require_mac(value: object) -> str:
 def require_app_id(value: object) -> str:
     if not isinstance(value, str) or _APP_ID_RE.fullmatch(value) is None:
         raise ValueError("app id is not allowed")
+    return value
+
+
+def require_channel_id(value: object) -> str:
+    """Roku channel id. Not a Samsung key and not a webOS application id."""
+    if not isinstance(value, str) or _CHANNEL_RE.fullmatch(value) is None:
+        raise ValueError("channel id is not allowed")
     return value
 
 
@@ -470,7 +479,7 @@ class SetBounds(BaseModel):
 
     address: str
     mac: str = ""
-    token_env: str
+    token_env: str = ""
     brand: TvBrand | None = None
     secure: bool = True
     volume_min: int = Field(default=0, ge=0, le=100)

@@ -16,7 +16,8 @@
 
 """ECHONET Lite home air conditioner transport. Stdlib UDP. No new dependency.
 
-ADR 0027. The class is ``0x0130``. The port is UDP 3610. These adapters
+ADR 0027 and ADR 0048. The class is ``0x0130``. The port is UDP 3610.
+The Japan makers named by ADR 0048 share these bytes. These adapters
 answer a request only when it is sent from that port, so the socket binds
 3610 before each send. The worker calls ``read``, ``set_setpoint``, and
 ``set_mode``. Discovery is a separate function and is not used on a turn.
@@ -53,6 +54,8 @@ _EPC_MODE = 0xB0
 _EPC_SETPOINT = 0xB3
 _EPC_ROOM = 0xBB
 _EPC_INSTANCES = 0xD6
+_SETPOINT_UNDEFINED = 0xFD
+_ROOM_UNMEASURABLE = 0x7E
 _STATUS_ON = 0x30
 _STATUS_OFF = 0x31
 _MODE_TO_UNIT: dict[str, int] = {"auto": 0x41, "cool": 0x42, "heat": 0x43}
@@ -380,13 +383,13 @@ def _mode_from(edt: bytes | None) -> ClimateMode | None:
 
 
 def _setpoint_celsius(edt: bytes | None) -> float | None:
-    if edt is None or len(edt) != 1 or edt[0] > 50:
+    if edt is None or len(edt) != 1 or edt[0] == _SETPOINT_UNDEFINED or edt[0] > 50:
         return None
     return float(edt[0])
 
 
 def _room_celsius(edt: bytes | None) -> float | None:
-    if edt is None or len(edt) != 1:
+    if edt is None or len(edt) != 1 or edt[0] == _ROOM_UNMEASURABLE:
         return None
     raw = edt[0]
     value = raw - 256 if raw >= 128 else raw

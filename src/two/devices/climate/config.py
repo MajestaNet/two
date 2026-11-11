@@ -31,6 +31,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from two.devices.alias import assign_aliases, claim_name, omit_empty_aliases
 from two.devices.climate.contract import (
+    ECHONET_MANUFACTURERS,
+    MANUFACTURER_MITSUBISHI,
     SANITY_MAX_CELSIUS,
     SANITY_MIN_CELSIUS,
     TRANSPORT_ECHONET,
@@ -109,6 +111,7 @@ def canonical_climate_document(raw: Mapping[str, object]) -> dict[str, object]:
         _install(document)
     dumped: dict[str, object] = document.model_dump(mode="json")
     omit_empty_aliases(dumped, "zones")
+    _omit_omitted_manufacturer(dumped)
     return dumped
 
 
@@ -224,6 +227,7 @@ def _zone_policy(
             instance=bounds.instance,
             transport=TRANSPORT_ECHONET,
             aliases=aliases,
+            manufacturer=_echonet_manufacturer(zone, bounds.manufacturer),
         )
     if transport != TRANSPORT_ESPHOME:
         raise ClimateConfigError("climate transport is not allowed")
@@ -241,6 +245,30 @@ def _zone_policy(
     )
 
 
+def _echonet_manufacturer(zone: str, raw: str) -> str:
+    """Japan class ``0x0130`` maker. Omitted stays Mitsubishi Electric.
+
+    The name does not change the frames. A cloud or other local dialect
+    is refused so it cannot be stored as this transport.
+    """
+    name = raw.strip()
+    if name == "":
+        return MANUFACTURER_MITSUBISHI
+    if name not in ECHONET_MANUFACTURERS:
+        raise ClimateConfigError(f"{zone} manufacturer is not an echonet maker")
+    return name
+
+
+def _omit_omitted_manufacturer(dumped: dict[str, object]) -> None:
+    """A zone that inherits Mitsubishi Electric does not grow a line."""
+    zones = dumped.get("zones")
+    if not isinstance(zones, dict):
+        return
+    for row in zones.values():
+        if isinstance(row, dict) and row.get("manufacturer") == "":
+            del row["manufacturer"]
+
+
 def _reject_direct_fields(
     zone: str,
     bounds: ZoneBounds,
@@ -248,6 +276,8 @@ def _reject_direct_fields(
     allow_host: bool,
     allow_esphome: bool,
 ) -> None:
+    if bounds.manufacturer.strip() and not allow_host:
+        raise ClimateConfigError(f"{zone} manufacturer is only valid for echonet")
     if allow_host:
         if bounds.node.strip() or bounds.entity.strip():
             raise ClimateConfigError(f"{zone} node is only valid for esphome")

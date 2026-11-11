@@ -104,11 +104,11 @@ slots:
     harness_profiles:
       - home-action
     notes: >
-      Closed television tools (ADR 0029, ADR 0047). Default off. An install
-      enables it with $TWO_DATA_DIR/devices/tv.yaml. A set names brand
-      samsung or lg. An omitted brand stays samsung. One file may mix
-      both. The model does not call the set. The control plane performs
-      the read-back.
+      Closed television tools (ADR 0029, ADR 0047, ADR 0049). Default off.
+      An install enables it with $TWO_DATA_DIR/devices/tv.yaml. A set
+      names brand samsung, lg, or tcl. An omitted brand stays samsung.
+      One file may mix brands. The model does not call the set. The
+      control plane performs the read-back.
 
   vacuum:
     kind: device
@@ -121,8 +121,9 @@ slots:
     notes: >
       Closed vacuum tools (ADR 0038). Default off. An install enables it
       with $TWO_DATA_DIR/devices/vacuum.yaml. The transport is the Ecovacs
-      Open API. The model does not call that API. The control plane
-      performs the read-back. The key stays in the environment.
+      Open API. No second brand (ADR 0050). The model does not call that
+      API. The control plane performs the read-back. The key stays in
+      the environment.
 
   github:
     kind: export

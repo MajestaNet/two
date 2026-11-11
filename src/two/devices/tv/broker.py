@@ -24,6 +24,7 @@ from typing import Protocol
 from two.devices.tv.contract import (
     BRAND_LG,
     BRAND_SAMSUNG,
+    BRAND_TCL,
     SetPolicy,
     TvBroker,
     TvInstall,
@@ -32,6 +33,7 @@ from two.devices.tv.contract import (
 )
 from two.devices.tv.lg import LgTv
 from two.devices.tv.samsung import SamsungTv
+from two.devices.tv.tcl import TclTv
 
 
 class _SetClient(Protocol):
@@ -90,6 +92,8 @@ class _BoundSets:
 
 def open_set_client(policy: SetPolicy, token: str) -> _SetClient:
     """Build the client for one set. Does not open a socket yet."""
+    if policy.brand == BRAND_TCL:
+        return TclTv(policy, "")
     if policy.brand == BRAND_LG:
         return LgTv(policy, token)
     if policy.brand == BRAND_SAMSUNG:
@@ -101,6 +105,6 @@ def open_tv_broker(install: TvInstall) -> TvBroker:
     """Build one client per set. Does not open a socket yet."""
     clients: dict[str, _SetClient] = {}
     for set_id, policy in install.sets.items():
-        token = os.environ.get(policy.token_env, "")
+        token = os.environ.get(policy.token_env, "") if policy.token_env else ""
         clients[set_id] = open_set_client(policy, token)
     return _BoundSets(clients)

@@ -35,6 +35,9 @@
 - `adrs/0047-lg-webos-tv.md` adds an LG webOS brand on those same tools.
   One `tv.yaml` may mix brands. An omitted brand stays Samsung.
   Do not paste that ADR here.
+- `adrs/0049-tcl-tv.md` adds a TCL Roku brand on those same tools.
+  Volume is not observable on that protocol. An omitted brand stays
+  Samsung. Do not paste that ADR here.
 - `adrs/0030-utterance-routing-and-fanout.md` routes a transcript that
   omits the harness profile and repeats one closed action for `all`.
   Do not paste that ADR here.
@@ -63,6 +66,8 @@
 - `adrs/0042-ecovacs-device-list-get.md` lists robots with GET and `ak`
   as the query parameter. Control stays POST JSON. Do not paste that
   ADR here.
+- `adrs/0050-vacuum-brands.md` rejects a second vacuum brand. The slot
+  stays Ecovacs. Do not paste that ADR here.
 - `adrs/0031-local-operator-console.md` is the in-repo loopback window
   at `apps/console`. It does not replace the mobile or watch apps.
   Do not paste that ADR here.
@@ -89,6 +94,9 @@
   Ollama stays the default. Do not paste that ADR here.
 - `adrs/0027-echonet-air-conditioner.md` is the direct ECHONET Lite
   transport behind the closed climate tools. The slot stays off.
+  Do not paste that ADR here.
+- `adrs/0048-echonet-air-conditioner-makers.md` names the Japan makers
+  on that same transport. An omitted name stays Mitsubishi Electric.
   Do not paste that ADR here.
 - `adrs/0043-esphome-nodes.md` is the shared ESPHome node client. A
   climate zone may name a climate entity on that node. There is no
