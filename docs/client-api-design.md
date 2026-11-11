@@ -212,7 +212,7 @@ secret reference where a future feature explicitly permits one.
 | `GET` | `/health` | Existing | Shallow API/store liveness; loopback/service-manager use. Not Mac health. |
 | `GET` | `/v1/system/health` | Implemented (B14 slice 2) | Authenticated aggregate component health and observation freshness. |
 | `GET` | `/v1/system/capabilities` | Implemented (B14 slice 1) | API versions, auth method, scopes, and optional features available to this client. |
-| `GET` | `/v1/system/adapters` | Implemented (ADR 0031) | Catalog slots plus bound climate zone names, ESPHome node ids, and television set ids. Tokens, entity ids, hosts, key names, and MAC addresses stay off the body. |
+| `GET` | `/v1/system/adapters` | Implemented (ADR 0031) | Catalog slots plus bound climate zone names, ESPHome node ids, television set ids, and vacuum robot ids. Each device includes its spoken `aliases`. Tokens, entity ids, hosts, key names, MAC addresses, and vacuum account nicknames stay off the body. |
 | `GET` | `/v1/system/queue` | Implemented (B14 slice 2) | Redacted queue order, active slot, retry waits, and lease freshness. |
 
 Clients feature-detect through capabilities; they do not infer support from

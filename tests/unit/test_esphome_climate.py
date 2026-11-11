@@ -482,5 +482,5 @@ def test_menu_lists_node_ids_beside_zones(tmp_path: Path) -> None:
     assert HOST not in blob
     assert "TWO_ESPHOME_KEY" not in blob
     climate = next(slot for slot in body["slots"] if slot["id"] == "climate")
-    assert {"id": "office", "kind": "zone"} in climate["devices"]
-    assert {"id": "ir-bridge", "kind": "node"} in climate["devices"]
+    assert {"id": "office", "kind": "zone", "aliases": []} in climate["devices"]
+    assert {"id": "ir-bridge", "kind": "node", "aliases": []} in climate["devices"]

@@ -85,9 +85,12 @@ mini; otherwise type the LAN host. The listener signs `CN=<username>`,
 writes `$TWO_DATA_DIR/edge/clients/<username>.crt`, returns `ca.crt`
 and the Caddy host/port, then exits. A second username is refused
 until `two edge enroll --replace`. The iPhone stores the identity in
-the keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` and
+the keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` and
 the shared access group. The item is not synchronizable. The private
-key never leaves the phone.
+key never leaves the phone. After the phone has been unlocked once
+since boot, Siri can present that identity while the phone is locked.
+An approval still requires the phone in the foreground and an explicit
+button.
 
 The watch PKCS#12 path remains: the iPhone can still import
 `watch.p12` with `SecPKCS12Import` when that file is used. The
@@ -180,7 +183,7 @@ set. Sending `profile` is still valid and keeps the previous meaning.
 
 | Status | `error.code` | What the UI does |
 | --- | --- | --- |
-| 202 | — | `profile: chat` is stored. `profile: home-action` is stored when the mini's climate, television, or vacuum binding is enabled. An omitted profile is stored as whichever of those the route selects. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. `climate`, `tv`, or `vacuum` is the device read-back for one target. `fanout` lists every target when the instruction was repeated. `route_slots` names the device slots that were selected. `awaiting_approval` carries `action_digest` and `pending_action` or `pending_tv`. Do not speak `reply` in this build. A voice turn does not add a coding-task row. |
+| 202 | — | `profile: chat` is stored. `profile: home-action` is stored when the mini's climate, television, or vacuum binding is enabled. An omitted profile is stored as whichever of those the route selects. The `VoiceTurnReceipt` is authoritative. `reply` is plain text only when `status` is `complete`. `climate`, `tv`, or `vacuum` is the device read-back for one target. `fanout` lists every target when the instruction was repeated. `route_slots` names the device slots that were selected. `awaiting_approval` carries `action_digest` and `pending_action` or `pending_tv`. Push to talk does not speak `reply`. The Siri dialog may, when the chat turn is `complete`. A voice turn does not add a coding-task row. |
 | 403 | `forbidden` | The profile is not allowed. If the detail is `client cannot submit self-build`, the app tried the coding path. That is a bug in the app. Do not retry. |
 | 409 | `profile_not_executable` | `home-action` was not stored because no local climate, television, or vacuum binding is enabled. Tell the operator the pipe works and the binding is off. |
 | 401 | `unauthorized` | Enrollment or the edge token on the mini is wrong. Send the operator back to enrollment. |
@@ -234,10 +237,31 @@ locale as unavailable and do not send audio to Apple or to the mini.
 The request body is the transcript string. Do not upload audio, a
 partial hypothesis stream, or a recording file.
 
-A chat receipt may include `reply` when the turn is `complete`. Do not
-speak it in this build. Playback stays later. Do not AirPlay to a
-HomePod. When a later build is told to speak, use `AVSpeechSynthesizer`
-on the watch.
+A chat receipt may include `reply` when the turn is `complete`. Push to
+talk does not speak it. Playback on the watch stays later. Do not
+AirPlay to a HomePod. When a later build is told to speak on the watch,
+use `AVSpeechSynthesizer` on the watch.
+
+## Siri
+
+The iPhone app exposes App Shortcuts. Every phrase includes the spoken
+app name Two. A phrase names one appliance, or it is “Ask Two”. Siri
+then asks for any remaining words or the temperature. A free-form
+string cannot sit inside the shortcut phrase. Siri does not receive
+audio from this app and does not upload audio. The intent sends text
+to `POST /v1/voice/turns`. The profile is omitted, or it is `chat`
+when the words use that prefix, the same way the globe does. The
+intent builds a closed phrase the compiler already accepts
+(`turn living room ac off`, `set living room to 20`).
+
+A device receipt is spoken from the read-back (`climate`, `tv`,
+`vacuum`, or `fanout`). A finished chat turn is spoken from `reply` in
+the Siri dialog only. `awaiting_approval` opens the phone, shows the
+digest, and does not decide. Silence is not approval.
+
+HomePod personal requests run that iPhone intent. The HomePod does not
+hold a client certificate and is not its own control surface. Watch
+Siri waits until the watch holds an identity of its own.
 
 ## Screens
 
@@ -286,7 +310,7 @@ the mini or a stand-in that speaks this JSON:
 
 - Enrollment, then capabilities shows `client:watch`.
 - A chat turn returns `202` and a receipt. The coding task list does
-  not gain a row. Do not speak `reply`. `home-action` returns `202`
+  not gain a row. Push to talk does not speak `reply`. `home-action` returns `202`
   when the climate binding is enabled, and `409`
   `profile_not_executable` when it is not. An out-of-band climate
   write stays `awaiting_approval` until approve or reject posts the

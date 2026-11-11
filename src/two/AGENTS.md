@@ -43,7 +43,7 @@ Python package for the Majesta Two control plane.
 - `operator/` is the interactive LAN path (ADR 0013): env apply, doctor,
   and `two up` supervisor. `operator/model.py` plans one `ollama pull`.
   `operator/recommend.py` joins the host probe to the catalog.
-  `operator/menu.py` projects adapter slots and device ids.
+  `operator/menu.py` projects adapter slots, device ids, and spoken aliases.
   `operator/harness.py` installs the pinned DeepSeek Harness checkout
   for `two harness`. It does not run the agent loop.   `operator/assist.py`
   is the closed install-tool policy for harness profile `operator`

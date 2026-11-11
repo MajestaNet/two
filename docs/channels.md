@@ -94,6 +94,9 @@ vacuum binding the turn is `profile_not_executable` and is not stored. The Xcode
 [MajestaNet/two-mobile](https://github.com/MajestaNet/two-mobile), not
 this repository. The catalog keeps `watch` at `contract`. Speech
 recognition runs on the phone and the watch. This API receives text.
+Siri App Shortcuts on the iPhone send that same text. The spoken app
+name is Two. A HomePod personal request runs the iPhone intent. The
+HomePod does not hold a client certificate.
 
 ## Messengers (none selected)
 

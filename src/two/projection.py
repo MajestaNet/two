@@ -1156,12 +1156,17 @@ class ArtifactContent(BaseModel):
 
 
 class AdapterDeviceView(BaseModel):
-    """One bound device id. Zone, node, set, or robot id. No address or token."""
+    """One bound device id. Zone, node, set, or robot id.
+
+    ``aliases`` are the spoken names from the binding. An address, a token,
+    an entity id, and a vacuum account nickname stay off this view.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     id: str
     kind: Literal["zone", "set", "robot", "node"]
+    aliases: list[str] = Field(default_factory=list)
 
 
 class AdapterSlotView(BaseModel):

@@ -35,8 +35,9 @@ def project_adapter_menu(
 ) -> AdapterMenuView:
     """Catalog slots plus bound climate zones, ESPHome nodes, television sets, and vacuum robots.
 
-    A missing or disabled binding contributes no devices. Entity ids, hosts,
-    MAC addresses, and token env names are not copied onto the view.
+    A missing or disabled binding contributes no devices. Spoken aliases are
+    copied. Entity ids, hosts, MAC addresses, token env names, and vacuum
+    account nicknames are not.
     """
 
     catalog = load_catalog(repo_root=repo_root) if repo_root is not None else load_catalog()
@@ -51,7 +52,10 @@ def project_adapter_menu(
         if slot.id == "climate":
             install_enabled = climate is not None
             if climate is not None:
-                devices = [AdapterDeviceView(id=zone_id, kind="zone") for zone_id in climate.zones]
+                devices = [
+                    AdapterDeviceView(id=zone_id, kind="zone", aliases=list(policy.aliases))
+                    for zone_id, policy in climate.zones.items()
+                ]
             if esphome is not None:
                 devices.extend(
                     AdapterDeviceView(id=node_id, kind="node") for node_id in esphome.nodes
@@ -59,12 +63,16 @@ def project_adapter_menu(
         elif slot.id == "tv":
             install_enabled = television is not None
             if television is not None:
-                devices = [AdapterDeviceView(id=set_id, kind="set") for set_id in television.sets]
+                devices = [
+                    AdapterDeviceView(id=set_id, kind="set", aliases=list(policy.aliases))
+                    for set_id, policy in television.sets.items()
+                ]
         elif slot.id == "vacuum":
             install_enabled = vacuum is not None
             if vacuum is not None:
                 devices = [
-                    AdapterDeviceView(id=robot_id, kind="robot") for robot_id in vacuum.robots
+                    AdapterDeviceView(id=robot_id, kind="robot", aliases=list(policy.aliases))
+                    for robot_id, policy in vacuum.robots.items()
                 ]
         slots.append(
             AdapterSlotView(

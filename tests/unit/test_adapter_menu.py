@@ -110,10 +110,42 @@ def test_menu_lists_zone_and_set_ids_without_secrets(tmp_path: Path) -> None:
     assert by_id["console"]["install_enabled"] is False
     assert by_id["console"]["harness_profiles"] == ["chat"]
     assert by_id["climate"]["install_enabled"] is True
-    assert by_id["climate"]["devices"] == [{"id": "living", "kind": "zone"}]
+    assert by_id["climate"]["devices"] == [{"id": "living", "kind": "zone", "aliases": []}]
     assert by_id["tv"]["devices"] == [
-        {"id": "living-room", "kind": "set"},
-        {"id": "bedroom", "kind": "set"},
+        {"id": "living-room", "kind": "set", "aliases": []},
+        {"id": "bedroom", "kind": "set", "aliases": []},
+    ]
+
+
+def test_menu_lists_spoken_aliases_and_hides_the_vacuum_nickname(tmp_path: Path) -> None:
+    devices = tmp_path / "devices"
+    devices.mkdir()
+    (devices / "climate.yaml").write_text(
+        CLIMATE.replace("modes:\n", "aliases:\n      - lounge\n    modes:\n", 1),
+        encoding="utf-8",
+    )
+    (devices / "vacuum.yaml").write_text(
+        """
+enabled: true
+api_host: open.ecovacs.com
+token_env: TWO_VACUUM_TOKEN
+robots:
+  downstairs:
+    nickname: Kitchen Bot
+    aliases:
+      - robby
+""",
+        encoding="utf-8",
+    )
+    body = project_adapter_menu(tmp_path, repo_root=REPO).model_dump()
+    blob = json.dumps(body)
+    assert "Kitchen Bot" not in blob
+    assert "TWO_VACUUM_TOKEN" not in blob
+    assert "open.ecovacs.com" not in blob
+    by_id = {slot["id"]: slot for slot in body["slots"]}
+    assert by_id["climate"]["devices"] == [{"id": "living", "kind": "zone", "aliases": ["lounge"]}]
+    assert by_id["vacuum"]["devices"] == [
+        {"id": "downstairs", "kind": "robot", "aliases": ["robby"]}
     ]
 
 
@@ -137,7 +169,7 @@ def test_adapters_json_cli(
     assert main(["adapters", "--json"]) == 0
     body = json.loads(capsys.readouterr().out)
     climate = next(slot for slot in body["slots"] if slot["id"] == "climate")
-    assert climate["devices"] == [{"id": "living", "kind": "zone"}]
+    assert climate["devices"] == [{"id": "living", "kind": "zone", "aliases": []}]
 
 
 @pytest.fixture
@@ -162,7 +194,7 @@ def test_system_adapters_route_redacts_bindings(store: Store, tmp_path: Path) ->
     body = response.json()
     climate = next(slot for slot in body["slots"] if slot["id"] == "climate")
     television = next(slot for slot in body["slots"] if slot["id"] == "tv")
-    assert climate["devices"] == [{"id": "living", "kind": "zone"}]
+    assert climate["devices"] == [{"id": "living", "kind": "zone", "aliases": []}]
     assert [item["id"] for item in television["devices"]] == ["living-room", "bedroom"]
 
 
