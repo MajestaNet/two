@@ -37,7 +37,7 @@ from two.edge import (
     render_caddyfile,
     sign_phone_csr,
 )
-from two.edge_enroll import _enroll_bind_host, enroll_phone
+from two.edge_enroll import _enroll_bind_host, _enroll_bind_hosts, enroll_phone
 
 LISTEN = "10.1.2.3"
 
@@ -79,8 +79,10 @@ def test_enroll_listener_binds_the_home_address(tmp_path: Path) -> None:
         also=("10.1.1.5",),
     )
     assert _enroll_bind_host(plan) == "10.1.1.5"
+    assert _enroll_bind_hosts(plan) == ("10.1.1.5", "100.64.1.5")
     overlay_only = build_edge_plan(listen="100.64.1.5", data_dir=tmp_path)
     assert _enroll_bind_host(overlay_only) == "100.64.1.5"
+    assert _enroll_bind_hosts(overlay_only) == ("100.64.1.5",)
 
 
 def test_caddyfile_binds_the_overlay_and_the_home_address(tmp_path: Path) -> None:

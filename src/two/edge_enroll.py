@@ -95,7 +95,9 @@ def serve_one_enroll(
 ) -> None:
     """Listen once on ``enroll_port``, sign one phone, then exit.
 
-    Advertises ``_two-enroll._tcp`` with ``dns-sd`` when that tool exists.
+    Binds every private address on the plan, so the phone can enroll on
+    Wi-Fi or Tailscale. The signed response lists all of them. Advertises
+    ``_two-enroll._tcp`` on the home address when ``dns-sd`` exists.
     """
     from two.edge import require_issued_edge
 
@@ -106,37 +108,80 @@ def serve_one_enroll(
         raise EdgeIssueError("enroll port must differ from the Caddy port")
 
     plan = _plan_with_home_network(plan)
-    bind_host = _enroll_bind_host(plan)
+    bind_hosts = _enroll_bind_hosts(plan)
+    session = _EnrollSession(plan=plan, replace=replace)
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(plan.data_dir / "server.crt", plan.data_dir / "server.key")
 
-    server = _EnrollHTTPServer(
-        (bind_host, enroll_port),
-        _EnrollHandler,
-        plan=plan,
-        replace=replace,
+    servers: list[_EnrollHTTPServer] = []
+    bind_errors: list[str] = []
+    for host in bind_hosts:
+        try:
+            server = _EnrollHTTPServer(
+                (host, enroll_port),
+                _EnrollHandler,
+                session=session,
+            )
+            server.socket = context.wrap_socket(server.socket, server_side=True)
+        except OSError as exc:
+            bind_errors.append(f"{host}: {exc}")
+            continue
+        servers.append(server)
+    if not servers:
+        detail = "; ".join(bind_errors) or "no private address accepted the enroll port"
+        raise EdgeIssueError(detail)
+
+    bound = {server.enroll_host for server in servers}
+    home = next(
+        (host for host in bind_hosts if host in bound and not is_overlay_host(host)),
+        servers[0].enroll_host,
     )
-    server.socket = context.wrap_socket(server.socket, server_side=True)
-    advertisement = _advertise(bind_host, enroll_port)
+    advertisement = _advertise(home, enroll_port)
+    urls = [f"https://{server.enroll_host}:{enroll_port}{ENROLL_PATH}" for server in servers]
+    where = " and ".join(urls)
     print(
-        f"waiting for one phone at https://{bind_host}:{enroll_port}{ENROLL_PATH} "
-        f"(Bonjour {BONJOUR_TYPE}). Caddy stays on https://{plan.listen_host}:{plan.listen_port} "
-        "with client certificates.",
+        f"waiting for one phone at {where} (Bonjour {BONJOUR_TYPE} on {home}). "
+        "The phone keeps every address, so Wi-Fi and cellular both work afterwards. "
+        f"Caddy stays on https://{plan.listen_host}:{plan.listen_port} with client certificates.",
         flush=True,
     )
+    threads = [
+        threading.Thread(target=_serve_until_done, args=(server,), daemon=True)
+        for server in servers
+    ]
+    for thread in threads:
+        thread.start()
     try:
-        while not server.finished.is_set():
-            server.handle_request()
+        session.finished.wait()
     finally:
+        session.finished.set()
         if advertisement is not None:
             advertisement.terminate()
             advertisement.wait(timeout=2)
-        server.server_close()
-    if server.failure:
-        raise EdgeIssueError(server.failure)
+        for thread in threads:
+            thread.join(timeout=3)
+    if session.failure:
+        raise EdgeIssueError(session.failure)
     print("signed one phone certificate. enrollment listener stopped.", flush=True)
+
+
+def _serve_until_done(server: _EnrollHTTPServer) -> None:
+    try:
+        while not server.session.finished.is_set():
+            server.handle_request()
+    finally:
+        server.server_close()
+
+
+class _EnrollSession:
+    def __init__(self, *, plan: EdgePlan, replace: bool) -> None:
+        self.plan = plan
+        self.replace = replace
+        self.finished = threading.Event()
+        self.failure = ""
+        self.lock = threading.Lock()
 
 
 class _EnrollHTTPServer(HTTPServer):
@@ -145,14 +190,11 @@ class _EnrollHTTPServer(HTTPServer):
         address: tuple[str, int],
         handler: type[BaseHTTPRequestHandler],
         *,
-        plan: EdgePlan,
-        replace: bool,
+        session: _EnrollSession,
     ) -> None:
         super().__init__(address, handler)
-        self.plan = plan
-        self.replace = replace
-        self.finished = threading.Event()
-        self.failure = ""
+        self.session = session
+        self.enroll_host = address[0]
         self.timeout = 1
 
     def handle_timeout(self) -> None:
@@ -195,17 +237,22 @@ class _EnrollHandler(BaseHTTPRequestHandler):
         if not isinstance(parsed, dict):
             self._send(422, {"detail": "JSON object is required"})
             return
-        status, payload = enroll_phone(
-            self.server.plan.data_dir,
-            parsed,
-            replace=self.server.replace,
-            host=self.server.plan.listen_host,
-            port=self.server.plan.listen_port,
-            hosts=self.server.plan.bind_hosts,
-        )
-        self._send(status, payload)
-        if status == 200:
-            self.server.finished.set()
+        session = self.server.session
+        with session.lock:
+            if session.finished.is_set():
+                self._send(409, {"detail": "enrollment already finished"})
+                return
+            status, payload = enroll_phone(
+                session.plan.data_dir,
+                parsed,
+                replace=session.replace,
+                host=session.plan.listen_host,
+                port=session.plan.listen_port,
+                hosts=session.plan.bind_hosts,
+            )
+            self._send(status, payload)
+            if status == 200:
+                session.finished.set()
 
     def do_GET(self) -> None:  # noqa: N802
         self._send(405, {"detail": "POST a CSR to /v1/edge/enroll"})
@@ -237,12 +284,19 @@ def _plan_with_home_network(plan: EdgePlan) -> EdgePlan:
     )
 
 
+def _enroll_bind_hosts(plan: EdgePlan) -> tuple[str, ...]:
+    """Every private address the phone may use, home network first."""
+    home = [host for host in plan.bind_hosts if not is_overlay_host(host)]
+    overlay = [host for host in plan.bind_hosts if is_overlay_host(host)]
+    ordered = tuple(dict.fromkeys((*home, *overlay)))
+    if ordered:
+        return ordered
+    return (plan.listen_host,)
+
+
 def _enroll_bind_host(plan: EdgePlan) -> str:
-    """The phone enrolls on the home network. Prefer that address."""
-    for host in plan.bind_hosts:
-        if not is_overlay_host(host):
-            return host
-    return plan.listen_host
+    """Bonjour advertises the home address. An overlay-only plan uses that."""
+    return _enroll_bind_hosts(plan)[0]
 
 
 def _advertise(host: str, port: int) -> subprocess.Popen[bytes] | None:

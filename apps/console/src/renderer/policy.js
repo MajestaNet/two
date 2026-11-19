@@ -637,7 +637,7 @@
   }
 
   function edgeEnrollArgs(host) {
-    return ["edge", "enroll", "--listen", privateLanHost(host)];
+    return ["edge", "enroll", "--listen", privateLanHost(host), "--replace"];
   }
 
   function upArgs(caddy) {
@@ -680,9 +680,9 @@
   function mobileWaitingNote(host) {
     const listen = privateLanHost(host);
     return (
-      "Enrollment is listening. On this Wi-Fi, open Two Phone, enter a username, set the host to " +
+      "Enrollment is listening on this Wi-Fi and on Tailscale. Open Two Phone, enter a username, set the host to " +
       listen +
-      ", and tap Enroll. Stop enrollment when the phone is on the globe."
+      " on Wi-Fi or the Tailscale address on cellular, and tap Enroll. The phone keeps both. Stop enrollment when the phone is on the globe."
     );
   }
 

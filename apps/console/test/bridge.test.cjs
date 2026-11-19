@@ -118,7 +118,13 @@ test("mobile registration stays an argument list and refuses loopback", () => {
     "/tmp/two/edge/Caddyfile",
     "/tmp/two/edge/edge.env",
   ]);
-  assert.deepEqual(policy.edgeEnrollArgs("10.1.1.5"), ["edge", "enroll", "--listen", "10.1.1.5"]);
+  assert.deepEqual(policy.edgeEnrollArgs("10.1.1.5"), [
+    "edge",
+    "enroll",
+    "--listen",
+    "10.1.1.5",
+    "--replace",
+  ]);
   assert.deepEqual(policy.parseCliJson('{"listen":"10.1.1.5"}'), { listen: "10.1.1.5" });
   assert.deepEqual(policy.parseCliJson('+ sent SIGTERM to api pid=12\n{"caddy":true,"listen":"10.1.1.5"}'), {
     caddy: true,
